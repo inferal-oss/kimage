@@ -1,0 +1,368 @@
+{
+  "date": "2026-10-14",
+  "scope": "single-node architecture spike; not complete milestone 2",
+  "namespace": "dev-yrashk",
+  "node": "x86-ex130r-1",
+  "buildkit": "v0.33.0",
+  "builtinFrontend": "v1.27.0",
+  "upstreamArchiveSHA256": "b6242896d343100808dcbe37565caf381e0a444a6a83d7255926bb1519248ead",
+  "builderPodUID": "b82b0f8e-40c8-4f1f-8025-87c9f3a0b3d0",
+  "builderImage": "127.0.0.1:17510/dev-yrashk/kimage-native-20261014@sha256:f493fe6ebce4af3d200f117e5fe31bb601c60d13da344a31d8b05a352f5881ee",
+  "cases": [
+    {
+      "case": "inline-channel",
+      "image": "kimage-build-path-20261014-inline",
+      "imageUID": "30085fc7-ed42-4cc6-9237-ce98c6924b06",
+      "version": "1.0.0",
+      "release": "release-185f06b307793770b29496d4257ac32e56dad1d5",
+      "releaseUID": "e09e8de3-9a24-45ec-b258-9dac1fbd4f29",
+      "root": {
+        "digest": "sha256:cbeb1bf240e44bfea67ec735cd11bdcc90957c1c0fce4ebe9dd29b746fdc0da6",
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "size": 667
+      },
+      "inputIdentity": "sha256:c18871bc8f4e5ac9103407a049d112ea6db7c8eb482d6afadf7eb463d79bf92f",
+      "requestedCacheMode": "Disabled",
+      "definitionSource": "inline",
+      "pod": "kimage-build-path-20261014-inline-channel",
+      "podUID": "f6d09a2b-d08d-447a-b38b-ba6891a1dc89",
+      "node": "x86-ex130r-1",
+      "phase": "Running",
+      "runtimeImage": "127.0.0.1:17510/dev-yrashk/30085fc7-ed42-4cc6-9237-ce98c6924b06@sha256:cbeb1bf240e44bfea67ec735cd11bdcc90957c1c0fce4ebe9dd29b746fdc0da6",
+      "imagePullPolicy": "IfNotPresent",
+      "selector": "platform://dev-yrashk/kimage-build-path-20261014-inline:stable",
+      "dryRunResolvedImage": "127.0.0.1:17510/dev-yrashk/30085fc7-ed42-4cc6-9237-ce98c6924b06@sha256:cbeb1bf240e44bfea67ec735cd11bdcc90957c1c0fce4ebe9dd29b746fdc0da6",
+      "logs": [
+        "kimage ordinary runtime pull probe running",
+        "kimage BuildKit RUN proof: build-path-inline-873b959c549344308436a15bfd87a59e"
+      ]
+    },
+    {
+      "case": "inline-exact",
+      "image": "kimage-build-path-20261014-inline",
+      "imageUID": "30085fc7-ed42-4cc6-9237-ce98c6924b06",
+      "version": "1.0.0",
+      "release": "release-185f06b307793770b29496d4257ac32e56dad1d5",
+      "releaseUID": "e09e8de3-9a24-45ec-b258-9dac1fbd4f29",
+      "root": {
+        "digest": "sha256:cbeb1bf240e44bfea67ec735cd11bdcc90957c1c0fce4ebe9dd29b746fdc0da6",
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "size": 667
+      },
+      "inputIdentity": "sha256:c18871bc8f4e5ac9103407a049d112ea6db7c8eb482d6afadf7eb463d79bf92f",
+      "requestedCacheMode": "Disabled",
+      "definitionSource": "inline",
+      "pod": "kimage-build-path-20261014-inline-exact",
+      "podUID": "64a3e1ed-fd1b-44ce-bc8f-71fac3dc4f1f",
+      "node": "x86-ex130r-1",
+      "phase": "Running",
+      "runtimeImage": "127.0.0.1:17510/dev-yrashk/30085fc7-ed42-4cc6-9237-ce98c6924b06@sha256:cbeb1bf240e44bfea67ec735cd11bdcc90957c1c0fce4ebe9dd29b746fdc0da6",
+      "imagePullPolicy": "IfNotPresent",
+      "selector": "platform://dev-yrashk/kimage-build-path-20261014-inline:1.0.0",
+      "dryRunResolvedImage": "127.0.0.1:17510/dev-yrashk/30085fc7-ed42-4cc6-9237-ce98c6924b06@sha256:cbeb1bf240e44bfea67ec735cd11bdcc90957c1c0fce4ebe9dd29b746fdc0da6",
+      "logs": [
+        "kimage ordinary runtime pull probe running",
+        "kimage BuildKit RUN proof: build-path-inline-873b959c549344308436a15bfd87a59e"
+      ]
+    },
+    {
+      "case": "inline-range",
+      "image": "kimage-build-path-20261014-inline",
+      "imageUID": "30085fc7-ed42-4cc6-9237-ce98c6924b06",
+      "version": "1.0.0",
+      "release": "release-185f06b307793770b29496d4257ac32e56dad1d5",
+      "releaseUID": "e09e8de3-9a24-45ec-b258-9dac1fbd4f29",
+      "root": {
+        "digest": "sha256:cbeb1bf240e44bfea67ec735cd11bdcc90957c1c0fce4ebe9dd29b746fdc0da6",
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "size": 667
+      },
+      "inputIdentity": "sha256:c18871bc8f4e5ac9103407a049d112ea6db7c8eb482d6afadf7eb463d79bf92f",
+      "requestedCacheMode": "Disabled",
+      "definitionSource": "inline",
+      "pod": "kimage-build-path-20261014-inline-range",
+      "podUID": "3c9c2952-88be-49f3-bc9b-cd7b7fd1a224",
+      "node": "x86-ex130r-1",
+      "phase": "Running",
+      "runtimeImage": "127.0.0.1:17510/dev-yrashk/30085fc7-ed42-4cc6-9237-ce98c6924b06@sha256:cbeb1bf240e44bfea67ec735cd11bdcc90957c1c0fce4ebe9dd29b746fdc0da6",
+      "imagePullPolicy": "IfNotPresent",
+      "selector": "platform://dev-yrashk/kimage-build-path-20261014-inline?version=%5E1.0.0",
+      "dryRunResolvedImage": "127.0.0.1:17510/dev-yrashk/30085fc7-ed42-4cc6-9237-ce98c6924b06@sha256:cbeb1bf240e44bfea67ec735cd11bdcc90957c1c0fce4ebe9dd29b746fdc0da6",
+      "logs": [
+        "kimage ordinary runtime pull probe running",
+        "kimage BuildKit RUN proof: build-path-inline-873b959c549344308436a15bfd87a59e"
+      ]
+    },
+    {
+      "case": "inline-retained",
+      "image": "kimage-build-path-20261014-inline",
+      "imageUID": "30085fc7-ed42-4cc6-9237-ce98c6924b06",
+      "version": "1.0.1",
+      "release": "release-d2bf0ec2977b68b0acfc60f602681aa474d46e18",
+      "releaseUID": "1ae4f407-2276-4079-894f-e7d7d58595fb",
+      "root": {
+        "digest": "sha256:60a8075a5beabe5e8ac13805abce2355539f09d859282ed8420287851426e3e2",
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "size": 667
+      },
+      "inputIdentity": "sha256:7439b33029229c7417bd3b8c35973175a86591a131a524fd147f9a7f10ca02a1",
+      "requestedCacheMode": "Disabled",
+      "definitionSource": "inline",
+      "pod": "kimage-build-path-20261014-inline-retained",
+      "podUID": "ec22212e-883f-482c-bb7a-1d6ec9227058",
+      "node": "x86-ex130r-1",
+      "phase": "Running",
+      "runtimeImage": "127.0.0.1:17510/dev-yrashk/30085fc7-ed42-4cc6-9237-ce98c6924b06@sha256:60a8075a5beabe5e8ac13805abce2355539f09d859282ed8420287851426e3e2",
+      "imagePullPolicy": "IfNotPresent",
+      "selector": "platform://dev-yrashk/kimage-build-path-20261014-inline:retained",
+      "dryRunResolvedImage": "127.0.0.1:17510/dev-yrashk/30085fc7-ed42-4cc6-9237-ce98c6924b06@sha256:60a8075a5beabe5e8ac13805abce2355539f09d859282ed8420287851426e3e2",
+      "logs": [
+        "kimage ordinary runtime pull probe running",
+        "kimage BuildKit RUN proof: build-path-inline-873b959c549344308436a15bfd87a59e-updated"
+      ]
+    },
+    {
+      "case": "inline-updated",
+      "image": "kimage-build-path-20261014-inline",
+      "imageUID": "30085fc7-ed42-4cc6-9237-ce98c6924b06",
+      "version": "1.0.1",
+      "release": "release-d2bf0ec2977b68b0acfc60f602681aa474d46e18",
+      "releaseUID": "1ae4f407-2276-4079-894f-e7d7d58595fb",
+      "root": {
+        "digest": "sha256:60a8075a5beabe5e8ac13805abce2355539f09d859282ed8420287851426e3e2",
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "size": 667
+      },
+      "inputIdentity": "sha256:7439b33029229c7417bd3b8c35973175a86591a131a524fd147f9a7f10ca02a1",
+      "requestedCacheMode": "Local",
+      "definitionSource": "inline",
+      "pod": "kimage-build-path-20261014-inline-updated",
+      "podUID": "bc2cb083-f6c6-4888-b3ea-bb3658d0ba9b",
+      "node": "x86-ex130r-1",
+      "phase": "Running",
+      "runtimeImage": "127.0.0.1:17510/dev-yrashk/30085fc7-ed42-4cc6-9237-ce98c6924b06@sha256:60a8075a5beabe5e8ac13805abce2355539f09d859282ed8420287851426e3e2",
+      "imagePullPolicy": "IfNotPresent",
+      "selector": "platform://dev-yrashk/kimage-build-path-20261014-inline:1.0.1",
+      "dryRunResolvedImage": "127.0.0.1:17510/dev-yrashk/30085fc7-ed42-4cc6-9237-ce98c6924b06@sha256:60a8075a5beabe5e8ac13805abce2355539f09d859282ed8420287851426e3e2",
+      "logs": [
+        "kimage ordinary runtime pull probe running",
+        "kimage BuildKit RUN proof: build-path-inline-873b959c549344308436a15bfd87a59e-updated"
+      ]
+    },
+    {
+      "case": "mounted-channel",
+      "image": "kimage-build-path-20261014-mounted",
+      "imageUID": "e31046fd-09a8-4289-80d8-e81a421b16a2",
+      "version": "1.0.0",
+      "release": "release-4ff47e7baed5afef870797d844180e77d3e1d2e8",
+      "releaseUID": "931c7b56-c747-4942-bd0e-5f91351045d8",
+      "root": {
+        "digest": "sha256:796ab47c75d66b9c1c14f85d4f0317029fca0e71bf97e6aa1f6ac47c5b8c3411",
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "size": 667
+      },
+      "inputIdentity": "sha256:f095753fd7fb18f8341aa9c7f013d6b3e7f8041f7a737143a56cd48e99c0ddca",
+      "requestedCacheMode": "Local",
+      "definitionSource": "mounted",
+      "pod": "kimage-build-path-20261014-mounted-channel",
+      "podUID": "5bd630fd-5c12-4a17-85a3-63c53670f61e",
+      "node": "x86-ex130r-1",
+      "phase": "Running",
+      "runtimeImage": "127.0.0.1:17510/dev-yrashk/e31046fd-09a8-4289-80d8-e81a421b16a2@sha256:796ab47c75d66b9c1c14f85d4f0317029fca0e71bf97e6aa1f6ac47c5b8c3411",
+      "imagePullPolicy": "IfNotPresent",
+      "selector": "platform://dev-yrashk/kimage-build-path-20261014-mounted:stable",
+      "dryRunResolvedImage": "127.0.0.1:17510/dev-yrashk/e31046fd-09a8-4289-80d8-e81a421b16a2@sha256:796ab47c75d66b9c1c14f85d4f0317029fca0e71bf97e6aa1f6ac47c5b8c3411",
+      "logs": [
+        "kimage ordinary runtime pull probe running",
+        "kimage BuildKit RUN proof: build-path-mounted-873b959c549344308436a15bfd87a59e"
+      ]
+    },
+    {
+      "case": "mounted-exact",
+      "image": "kimage-build-path-20261014-mounted",
+      "imageUID": "e31046fd-09a8-4289-80d8-e81a421b16a2",
+      "version": "1.0.0",
+      "release": "release-4ff47e7baed5afef870797d844180e77d3e1d2e8",
+      "releaseUID": "931c7b56-c747-4942-bd0e-5f91351045d8",
+      "root": {
+        "digest": "sha256:796ab47c75d66b9c1c14f85d4f0317029fca0e71bf97e6aa1f6ac47c5b8c3411",
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "size": 667
+      },
+      "inputIdentity": "sha256:f095753fd7fb18f8341aa9c7f013d6b3e7f8041f7a737143a56cd48e99c0ddca",
+      "requestedCacheMode": "Local",
+      "definitionSource": "mounted",
+      "pod": "kimage-build-path-20261014-mounted-exact",
+      "podUID": "3f5dc236-8867-4831-b793-404b1c4f7d15",
+      "node": "x86-ex130r-1",
+      "phase": "Running",
+      "runtimeImage": "127.0.0.1:17510/dev-yrashk/e31046fd-09a8-4289-80d8-e81a421b16a2@sha256:796ab47c75d66b9c1c14f85d4f0317029fca0e71bf97e6aa1f6ac47c5b8c3411",
+      "imagePullPolicy": "IfNotPresent",
+      "selector": "platform://dev-yrashk/kimage-build-path-20261014-mounted:1.0.0",
+      "dryRunResolvedImage": "127.0.0.1:17510/dev-yrashk/e31046fd-09a8-4289-80d8-e81a421b16a2@sha256:796ab47c75d66b9c1c14f85d4f0317029fca0e71bf97e6aa1f6ac47c5b8c3411",
+      "logs": [
+        "kimage ordinary runtime pull probe running",
+        "kimage BuildKit RUN proof: build-path-mounted-873b959c549344308436a15bfd87a59e"
+      ]
+    },
+    {
+      "case": "mounted-range",
+      "image": "kimage-build-path-20261014-mounted",
+      "imageUID": "e31046fd-09a8-4289-80d8-e81a421b16a2",
+      "version": "1.0.0",
+      "release": "release-4ff47e7baed5afef870797d844180e77d3e1d2e8",
+      "releaseUID": "931c7b56-c747-4942-bd0e-5f91351045d8",
+      "root": {
+        "digest": "sha256:796ab47c75d66b9c1c14f85d4f0317029fca0e71bf97e6aa1f6ac47c5b8c3411",
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "size": 667
+      },
+      "inputIdentity": "sha256:f095753fd7fb18f8341aa9c7f013d6b3e7f8041f7a737143a56cd48e99c0ddca",
+      "requestedCacheMode": "Local",
+      "definitionSource": "mounted",
+      "pod": "kimage-build-path-20261014-mounted-range",
+      "podUID": "28f39433-77f5-46fc-9b5d-3c0e48e2d1a7",
+      "node": "x86-ex130r-1",
+      "phase": "Running",
+      "runtimeImage": "127.0.0.1:17510/dev-yrashk/e31046fd-09a8-4289-80d8-e81a421b16a2@sha256:796ab47c75d66b9c1c14f85d4f0317029fca0e71bf97e6aa1f6ac47c5b8c3411",
+      "imagePullPolicy": "IfNotPresent",
+      "selector": "platform://dev-yrashk/kimage-build-path-20261014-mounted?version=%5E1.0.0",
+      "dryRunResolvedImage": "127.0.0.1:17510/dev-yrashk/e31046fd-09a8-4289-80d8-e81a421b16a2@sha256:796ab47c75d66b9c1c14f85d4f0317029fca0e71bf97e6aa1f6ac47c5b8c3411",
+      "logs": [
+        "kimage ordinary runtime pull probe running",
+        "kimage BuildKit RUN proof: build-path-mounted-873b959c549344308436a15bfd87a59e"
+      ]
+    },
+    {
+      "case": "mounted-retained",
+      "image": "kimage-build-path-20261014-mounted",
+      "imageUID": "e31046fd-09a8-4289-80d8-e81a421b16a2",
+      "version": "1.0.1",
+      "release": "release-23d62c03c8526423e4227c73b2038fba15fb7dd3",
+      "releaseUID": "5cbb7c0f-1885-4944-b29f-6e63f6fc403f",
+      "root": {
+        "digest": "sha256:2c8595633384c626079f93d6daf4d54b2de5565bc97d8c4f564f6f893acfdc0b",
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "size": 667
+      },
+      "inputIdentity": "sha256:c6a1df28d41afb79ce61b08eb192ffbeaa7bbd49078eaf5ef92bd039be640cd9",
+      "requestedCacheMode": "Disabled",
+      "definitionSource": "mounted",
+      "pod": "kimage-build-path-20261014-mounted-retained",
+      "podUID": "8840ba41-bd69-4629-933c-49b0f5c94ff4",
+      "node": "x86-ex130r-1",
+      "phase": "Running",
+      "runtimeImage": "127.0.0.1:17510/dev-yrashk/e31046fd-09a8-4289-80d8-e81a421b16a2@sha256:2c8595633384c626079f93d6daf4d54b2de5565bc97d8c4f564f6f893acfdc0b",
+      "imagePullPolicy": "IfNotPresent",
+      "selector": "platform://dev-yrashk/kimage-build-path-20261014-mounted:retained",
+      "dryRunResolvedImage": "127.0.0.1:17510/dev-yrashk/e31046fd-09a8-4289-80d8-e81a421b16a2@sha256:2c8595633384c626079f93d6daf4d54b2de5565bc97d8c4f564f6f893acfdc0b",
+      "logs": [
+        "kimage ordinary runtime pull probe running",
+        "kimage BuildKit RUN proof: build-path-mounted-873b959c549344308436a15bfd87a59e-updated"
+      ]
+    },
+    {
+      "case": "mounted-updated",
+      "image": "kimage-build-path-20261014-mounted",
+      "imageUID": "e31046fd-09a8-4289-80d8-e81a421b16a2",
+      "version": "1.0.1",
+      "release": "release-23d62c03c8526423e4227c73b2038fba15fb7dd3",
+      "releaseUID": "5cbb7c0f-1885-4944-b29f-6e63f6fc403f",
+      "root": {
+        "digest": "sha256:2c8595633384c626079f93d6daf4d54b2de5565bc97d8c4f564f6f893acfdc0b",
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "size": 667
+      },
+      "inputIdentity": "sha256:c6a1df28d41afb79ce61b08eb192ffbeaa7bbd49078eaf5ef92bd039be640cd9",
+      "requestedCacheMode": "Local",
+      "definitionSource": "mounted",
+      "pod": "kimage-build-path-20261014-mounted-updated",
+      "podUID": "e148ad70-ddfe-45b5-8f25-d8a01f9d3c40",
+      "node": "x86-ex130r-1",
+      "phase": "Running",
+      "runtimeImage": "127.0.0.1:17510/dev-yrashk/e31046fd-09a8-4289-80d8-e81a421b16a2@sha256:2c8595633384c626079f93d6daf4d54b2de5565bc97d8c4f564f6f893acfdc0b",
+      "imagePullPolicy": "IfNotPresent",
+      "selector": "platform://dev-yrashk/kimage-build-path-20261014-mounted:1.0.1",
+      "dryRunResolvedImage": "127.0.0.1:17510/dev-yrashk/e31046fd-09a8-4289-80d8-e81a421b16a2@sha256:2c8595633384c626079f93d6daf4d54b2de5565bc97d8c4f564f6f893acfdc0b",
+      "logs": [
+        "kimage ordinary runtime pull probe running",
+        "kimage BuildKit RUN proof: build-path-mounted-873b959c549344308436a15bfd87a59e-updated"
+      ]
+    }
+  ],
+  "negativeChecks": [
+    "changed same-version declaration \u2192 VersionConflict; original verified release unchanged",
+    "missing mounted definition \u2192 BuildFailed; no release"
+  ],
+  "checks": {
+    "macOSUnitTests": 18,
+    "linuxAMD64LibraryTests": 16,
+    "fmt": "passed",
+    "clippy": "passed"
+  },
+  "finalInventory": {
+    "temporaryResources": {
+      "pod": [],
+      "service": [],
+      "secret": [],
+      "configmap": [],
+      "role": [],
+      "rolebinding": [],
+      "serviceaccount": [],
+      "clusterrole": [],
+      "clusterrolebinding": [],
+      "mutatingwebhookconfiguration": []
+    },
+    "retainedImages": [
+      "kimage-build-path-20261014-inline",
+      "kimage-build-path-20261014-mounted"
+    ],
+    "retainedBuildReleases": [
+      {
+        "name": "release-185f06b307793770b29496d4257ac32e56dad1d5",
+        "uid": "e09e8de3-9a24-45ec-b258-9dac1fbd4f29",
+        "version": "1.0.0",
+        "root": {
+          "digest": "sha256:cbeb1bf240e44bfea67ec735cd11bdcc90957c1c0fce4ebe9dd29b746fdc0da6",
+          "mediaType": "application/vnd.oci.image.manifest.v1+json",
+          "size": 667
+        }
+      },
+      {
+        "name": "release-23d62c03c8526423e4227c73b2038fba15fb7dd3",
+        "uid": "5cbb7c0f-1885-4944-b29f-6e63f6fc403f",
+        "version": "1.0.1",
+        "root": {
+          "digest": "sha256:2c8595633384c626079f93d6daf4d54b2de5565bc97d8c4f564f6f893acfdc0b",
+          "mediaType": "application/vnd.oci.image.manifest.v1+json",
+          "size": 667
+        }
+      },
+      {
+        "name": "release-4ff47e7baed5afef870797d844180e77d3e1d2e8",
+        "uid": "931c7b56-c747-4942-bd0e-5f91351045d8",
+        "version": "1.0.0",
+        "root": {
+          "digest": "sha256:796ab47c75d66b9c1c14f85d4f0317029fca0e71bf97e6aa1f6ac47c5b8c3411",
+          "mediaType": "application/vnd.oci.image.manifest.v1+json",
+          "size": 667
+        }
+      },
+      {
+        "name": "release-d2bf0ec2977b68b0acfc60f602681aa474d46e18",
+        "uid": "1ae4f407-2276-4079-894f-e7d7d58595fb",
+        "version": "1.0.1",
+        "root": {
+          "digest": "sha256:60a8075a5beabe5e8ac13805abce2355539f09d859282ed8420287851426e3e2",
+          "mediaType": "application/vnd.oci.image.manifest.v1+json",
+          "size": 667
+        }
+      }
+    ],
+    "registryPVC": {
+      "name": "kimage-native-20261014-data",
+      "uid": "ac63d957-55dd-414b-b2b0-0756720d0f69",
+      "phase": "Bound"
+    }
+  }
+}
