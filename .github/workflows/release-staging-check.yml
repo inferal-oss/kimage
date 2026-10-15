@@ -1,0 +1,30 @@
+name: Check release staging access
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_id:
+        description: Existing draft release ID to inspect (read only)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Check draft visibility with the release job token permissions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ inputs.release_id }}
+        run: |
+          [[ "$RELEASE_ID" =~ ^[1-9][0-9]+$ ]]
+          gh api "repos/inferal-oss/kimage/releases/$RELEASE_ID" \
+            --jq '{id,tag_name,draft,target_commitish,assets: [.assets[]|{id,name,digest}]}'
+          gh api 'repos/inferal-oss/kimage/releases?per_page=100&page=1' \
+            --jq '[.[]|{id,tag_name,draft}]'
