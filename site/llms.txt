@@ -73,8 +73,9 @@ kimage bundle-check --offline
 **Cluster setup is a separate administrator prerequisite.** Automatic bundle
 delivery does not provision Kubernetes. Supply administrator kubeconfig, issuer
 credentials, persistent storage, cached carrier, and the supported runtime.
-The full acceptance fixture uses Kubernetes v1.36.5+k3s1, containerd
-2.3.4-k3s1.36, native Linux/amd64 or Linux/arm64, Ubuntu 24.04.5, kernel 6.8.0-142. Choose
+Native amd64 and arm64 E2E uses Kubernetes v1.36.5+k3s1 and containerd
+2.3.4-k3s1.36 on Ubuntu 24.04 GitHub-hosted runners. Earlier full lifecycle
+acceptance used amd64, Ubuntu 24.04.5 and kernel 6.8.0-142. Choose
 --runtime-profile k3s explicitly. The CLI default inferal profile checks the
 earlier RKE2 v1.36.5+rke2r1 / containerd 2.3.4-k3s1 foundation profile.
 Untested exact runtime versions are refused. A generic kind/k3d/container cluster
@@ -127,10 +128,17 @@ program in hello.rs: `fn main() { println!("Hello from kimage!"); loop {
 std::thread::park_timeout(std::time::Duration::from_secs(3600)); } }`.
 
 ```sh
-rustup target add x86_64-unknown-linux-musl
-rustc --edition=2024 --target x86_64-unknown-linux-musl \
-  -C opt-level=z -C strip=symbols -C panic=abort hello.rs -o hello
-kubectl -n apps create configmap hello-context --from-file=hello=./hello \
+case "$(uname -m)" in
+  x86_64) ARCH=amd64; TARGET=x86_64-unknown-linux-musl ;;
+  aarch64) ARCH=arm64; TARGET=aarch64-unknown-linux-musl ;;
+  *) echo "Use a supported Linux build machine"; exit 1 ;;
+esac
+rustup target add "$TARGET"
+mkdir -p .local/tutorial
+rustc --edition=2024 --target "$TARGET" \
+  -C opt-level=z -C strip=symbols -C panic=abort hello.rs -o ".local/tutorial/hello-$ARCH"
+# On a mixed cluster, collect both architecture binaries here before this step.
+kubectl -n apps create configmap hello-context --from-file=.local/tutorial \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
 
@@ -173,10 +181,9 @@ the downloadable Deployment (or use the selector in your own Pod template):
 ```sh
 kubectl apply -f image.yaml
 # Automatic Images remain AwaitingDemand until a workload requests them.
-kubectl apply -f examples/hello/deployment.yaml
+kubectl apply -f https://kimage.dev/examples/hello/deployment.yaml
 kubectl -n apps wait --for=condition=Ready image/hello --timeout=10m
 kubectl -n apps get imagereleases
-kubectl apply -f https://kimage.dev/examples/hello/deployment.yaml
 kubectl -n apps rollout status deployment/hello --timeout=5m
 kubectl -n apps logs deployment/hello
 ```

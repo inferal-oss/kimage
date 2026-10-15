@@ -26,8 +26,8 @@ version, never `latest`. They reuse a verified private cache on later runs.
 `--release 0.3.0` pins a different exact selection, `--bundle-cache <directory>`
 overrides the cache, and `--offline` prevents bundle downloads and fails on a cache miss. Fetching
 requires no kubeconfig and performs no cluster writes. GitHub Actions publishes
-the complete Linux/amd64 bundle, inventory, native macOS/arm64 and Linux/amd64
-installers, license notices, and checksums as release assets.
+complete Linux/amd64 and Linux/arm64 bundles, inventories, all four native
+Linux/macOS amd64/arm64 installers, license notices, and checksums as release assets.
 
 The HTTPS GitHub API at the fixed official `inferal-oss/kimage` repository
 provides the expected asset digest/size. The client restricts HTTPS download

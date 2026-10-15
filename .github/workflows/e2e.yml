@@ -16,13 +16,12 @@ env:
   RUSTUP_TOOLCHAIN: 1.99.0
 
 jobs:
-  install:
-    name: ${{ matrix.architecture }} / ${{ matrix.scope }} install
+  build:
+    name: Build E2E components (${{ matrix.architecture }})
     strategy:
       fail-fast: false
       matrix:
         architecture: [amd64, arm64]
-        scope: [namespace, cluster]
         include:
           - architecture: amd64
             os: ubuntu-24.04
@@ -31,7 +30,7 @@ jobs:
             os: ubuntu-24.04-arm
             target: aarch64-unknown-linux-musl
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 55
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -62,12 +61,51 @@ jobs:
             --linux-dir target/${{ matrix.target }}/release \
             --registry .local/e2e/upstream/registry --buildkit-dir .local/e2e/upstream/buildkit \
             --out .local/e2e/bundle
+      - name: Stage executable fixture and installer
+        run: |
+          cp target/${{ matrix.target }}/release/kimage-install .local/e2e/kimage-install
+          tar -czf .local/e2e-native-${{ matrix.architecture }}.tar.gz -C .local/e2e bundle probe kimage-install
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-native-${{ matrix.architecture }}
+          path: .local/e2e-native-${{ matrix.architecture }}.tar.gz
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+  install:
+    name: ${{ matrix.architecture }} / ${{ matrix.scope }} install
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        architecture: [amd64, arm64]
+        scope: [namespace, cluster]
+        include:
+          - architecture: amd64
+            os: ubuntu-24.04
+          - architecture: arm64
+            os: ubuntu-24.04-arm
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: e2e-native-${{ matrix.architecture }}
+          path: .local
+      - name: Unpack verified native fixture
+        run: |
+          mkdir -p .local/e2e
+          tar -xzf .local/e2e-native-${{ matrix.architecture }}.tar.gz -C .local/e2e
       - name: Start pinned disposable Kubernetes fixture
         run: python3 scripts/prepare-e2e-cluster.py --directory .local/e2e-cluster
       - name: Exercise actual native installation, builds, controllers, and scope boundaries
         run: |
           python3 scripts/e2e-install.py --scope ${{ matrix.scope }} \
-            --bundle .local/e2e/bundle --installer target/${{ matrix.target }}/release/kimage-install \
+            --bundle .local/e2e/bundle --installer .local/e2e/kimage-install \
             --probe .local/e2e/probe --output .local/e2e/results
       - name: Upload non-sensitive acceptance evidence
         if: always()

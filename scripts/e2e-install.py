@@ -91,8 +91,9 @@ def main():
     common += ['--application-namespace', app] if args.scope == 'namespace' else ['--exclude-namespace', excluded]
     local = ['--bundle', args.bundle.resolve(), '--trusted-inventory', digest]
     try:
-        result = run([args.installer.resolve(), 'install'] + common + local + ['--admission-credentials', admission, '--builder-credentials', builder], timeout=1200)
+        result = run([args.installer.resolve(), 'install'] + common + local + ['--admission-credentials', admission, '--builder-credentials', builder], timeout=1200, ok=False)
         (args.output/'install.log').write_text(result.stdout+result.stderr)
+        assert result.returncode == 0, 'installation failed: '+result.stderr[-3000:]
         check('fresh API-only '+args.scope+' install and authenticated native worker readiness')
         pvc = get('pvc', 'e2e-data', system)
         assert pvc, 'registry PVC missing'
@@ -106,7 +107,7 @@ def main():
         for ns in [app, other]:
             create(dict(apiVersion='v1', kind='ConfigMap', metadata=dict(name='source'), binaryData={'hello-'+arch: probe}), ns)
         def image(name='service'):
-            return dict(apiVersion='kimage.dev/v1alpha1', kind='Image', metadata=dict(name=name), spec=dict(version='1.0.0', source=dict(build=dict(format='Containerfile', definition=dict(inline='FROM scratch\nARG TARGETARCH\nCOPY hello-${TARGETARCH} /probe\nENTRYPOINT ["/probe"]\n'), execution=dict(strategy='Direct', builderRef='default'), inputs=dict(contextPath='/workspace/context', volumes=[dict(name='source', configMap=dict(name='source'))], volumeMounts=[dict(name='source', mountPath='/workspace/context', readOnly=True)])))))
+            return dict(apiVersion='kimage.dev/v1alpha1', kind='Image', metadata=dict(name=name), spec=dict(version='1.0.0', source=dict(build=dict(format='Containerfile', definition=dict(inline='FROM scratch\nARG TARGETARCH\nCOPY hello-${TARGETARCH} /probe\nENTRYPOINT ["/probe"]\n'), execution=dict(strategy='Direct', builderRef='default'), inputs=dict(contextPath='/workspace/context', volumes=[dict(name='source', configMap=dict(name='source', defaultMode=365))], volumeMounts=[dict(name='source', mountPath='/workspace/context', readOnly=True)])))))
         create(image())
         wait(lambda: any(c.get('reason')=='AwaitingDemand' for c in (get('images.kimage.dev', 'service') or {}).get('status', {}).get('conditions', [])), 'default awaiting demand')
         time.sleep(8)
