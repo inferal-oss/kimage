@@ -1,3 +1,5 @@
+<a href="https://kimage.dev"><img src="site/mark.svg" alt="kimage logo" width="56" height="64"></a>
+
 # kimage
 
 **Declare the images your Kubernetes cluster needs.**
