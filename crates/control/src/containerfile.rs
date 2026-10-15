@@ -61,9 +61,39 @@ pub fn arguments(session: &Session, capture: &Capture) -> Result<Vec<String>> {
         session.build.execution.builder_ref == "default",
         "UnsupportedBuilder"
     );
+    let legacy = session.platform == kimage_core::oci::Platform::linux_amd64()
+        && session.endpoint == format!("tcp://{}:1234", session.tls_server_name);
+    let canonical = session
+        .tls_server_name
+        .split_once('.')
+        .is_some_and(|(service, namespace)| {
+            service
+                .strip_suffix("-builder")
+                .is_some_and(kimage_core::selector::dns_label)
+                && namespace
+                    .strip_suffix(".svc")
+                    .is_some_and(kimage_core::selector::dns_label)
+        });
+    let native = session
+        .tls_server_name
+        .split_once('.')
+        .is_some_and(|(service, namespace)| {
+            service
+                .strip_suffix("-builder")
+                .is_some_and(kimage_core::selector::dns_label)
+                && namespace
+                    .strip_suffix(".svc")
+                    .is_some_and(kimage_core::selector::dns_label)
+                && session.endpoint
+                    == format!(
+                        "tcp://{service}-{}.{namespace}:1234",
+                        session.platform.architecture
+                    )
+        });
     ensure!(
         kimage_core::selector::dns_subdomain(&session.tls_server_name)
-            && session.endpoint == format!("tcp://{}:1234", session.tls_server_name),
+            && canonical
+            && (legacy || native),
         "InvalidApprovedBuilderEndpoint"
     );
     let definition = if capture.definition_sensitive {
@@ -346,6 +376,46 @@ async fn worker_identity(session: &Session, capture: &Capture) -> Result<String>
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn native_services_share_only_the_canonical_tls_identity_and_bind_the_requested_platform() {
+        let build:Build = serde_json::from_value(json!({"format":"Containerfile","definition":{"inline":"FROM scratch\nCOPY message /message\n"},"execution":{"strategy":"Direct","builderRef":"default"},"inputs":{"contextPath":"/workspace/context","volumes":[{"name":"source","configMap":{"name":"source"}}],"volumeMounts":[{"name":"source","mountPath":"/workspace/context","readOnly":true}]}})).unwrap();
+        let capture = Capture {
+            ordinary_digest: kimage_core::oci::digest(b"input"),
+            definition_sensitive: false,
+            definition_digest: kimage_core::oci::digest(b"definition"),
+            files: 1,
+            bytes: 1,
+        };
+        for architecture in ["amd64", "arm64"] {
+            let mut session = Session {
+                platform: kimage_core::oci::Platform::linux(architecture),
+                build: build.clone(),
+                endpoint: format!("tcp://dev-builder-{architecture}.system.svc:1234"),
+                tls_server_name: "dev-builder.system.svc".into(),
+                worker_uid: "worker".into(),
+                snapshot_id: "a".repeat(64),
+            };
+            let args = arguments(&session, &capture).unwrap();
+            assert_eq!(args[1], session.endpoint);
+            assert_eq!(args[3], session.tls_server_name);
+            assert!(args.contains(&format!("platform=linux/{architecture}")));
+            session.endpoint = "tcp://external.invalid:1234".into();
+            assert!(arguments(&session, &capture).is_err());
+            let other = if architecture == "amd64" {
+                "arm64"
+            } else {
+                "amd64"
+            };
+            session.endpoint = format!("tcp://dev-builder-{other}.system.svc:1234");
+            assert!(arguments(&session, &capture).is_err());
+            session.endpoint = "tcp://dev-builder.system.svc:1234".into();
+            assert_eq!(
+                arguments(&session, &capture).is_ok(),
+                architecture == "amd64"
+            );
+        }
+    }
+
     #[test]
     fn directives_cannot_select_remote_frontends_and_progress_never_parses_log_payloads() {
         assert!(validate_definition(b"# syntax=docker/dockerfile:latest\nFROM scratch\n").is_err());

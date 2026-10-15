@@ -1439,10 +1439,10 @@ cargo test --locked --workspace
 python3 scripts/check-docs.py
 python3 scripts/check-site.py</code></pre>
             <p>
-              CI runs 63 Rust tests on macOS/arm64 and Linux/amd64 musl, plus
+              CI runs Rust tests on macOS/arm64 and native Linux/amd64 and Linux/arm64 musl, plus eleven release-tooling tests,
               formatting, Clippy, documentation/example checks, and package
               verification. These include parser/admission compatibility for
-              readable colon and literal/encoded query ranges.
+              readable colon and literal/encoded query ranges, native graph verification, placement and build policy. Native Kubernetes E2E tests both installation scopes on each architecture before release.
             </p>
             <p>
               The separate owned two-node fixture passed installation,

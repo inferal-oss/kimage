@@ -682,6 +682,7 @@ async fn run(
         )
         .await?;
         let state = State {
+            platform: attempt.image.spec.platform.clone(),
             image_uid: attempt.image.uid().unwrap(),
             version: attempt.image.spec.version.clone(),
             generation: generation(&attempt.image),

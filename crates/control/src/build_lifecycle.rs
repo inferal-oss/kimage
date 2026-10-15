@@ -23,6 +23,18 @@ pub async fn ensure(image: &Image, config: &Config) -> Result<Image> {
 }
 pub async fn finish(image: &Image, config: &Config) -> Result<()> {
     let state = crate::build_state::for_cleanup(image, config).await?;
+    // A newer spec can name another platform. Fence the worker that owns the
+    // recorded operation, including when changing to automatic platform builds.
+    let mut placement = image.clone();
+    if let Some(state) = &state {
+        placement.spec.platform = state.platform.clone();
+    }
+    let native = if placement.spec.platform.supported() {
+        crate::direct::native_context(&placement, config).await?
+    } else {
+        config.clone()
+    };
+    let config = &native;
     let pods: Api<Pod> = Api::namespaced(config.client.clone(), &config.namespace);
     let selector = format!(
         "kimage.dev/image-uid={},{}",

@@ -380,12 +380,16 @@ python3 -m compileall -q scripts
 
 [GitHub Actions](https://github.com/inferal-oss/kimage/actions/workflows/ci.yml)
 runs formatting, Clippy, documentation/example checks, and the workspace tests
-on macOS/arm64 and Linux/amd64 musl. Nine Python release-tooling tests verify
-pinned inputs, deterministic packaging, and immutable asset checks. The current Rust suite has 63 tests, including
-loopback HTTP and mocked Kubernetes API recovery regressions. Live cluster
-acceptance exercises installation, builds, two-node pulls, interruption/recovery,
-binary upgrades/rollback, and external export; those fixture tests are recorded
-separately and are not run by ordinary CI.
+on macOS/arm64 and native Linux/amd64 and Linux/arm64 musl. Eleven Python
+release-tooling tests verify pinned inputs, deterministic native packaging, and
+immutable asset checks. The Rust suite includes loopback HTTP, platform selection,
+build policy and mocked Kubernetes API recovery regressions.
+
+Native Kubernetes E2E runs both namespace and cluster installations on amd64 and
+arm64, including actual native build execution and workload pulls, dry-run,
+on-demand/eager policy, controller templates, RBAC and namespace boundaries.
+This matrix gates releases. Earlier two-node interruption/recovery, binary
+rollback and external-export harnesses remain separately recorded acceptance evidence.
 
 Contributions are welcome through [issues](https://github.com/inferal-oss/kimage/issues)
 and pull requests. Include the relevant validation and update the docs when

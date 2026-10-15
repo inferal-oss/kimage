@@ -534,7 +534,7 @@ python3 scripts/check-docs.py
 python3 scripts/check-site.py
 ```
 
-CI runs 63 Rust tests on macOS/arm64 and Linux/amd64 musl, plus formatting, Clippy, documentation/example checks, and package verification. These include parser/admission compatibility for readable colon and literal/encoded query ranges.
+CI runs Rust tests on macOS/arm64 and native Linux/amd64 and Linux/arm64 musl, plus eleven release-tooling tests, formatting, Clippy, documentation/example checks, and package verification. These include parser/admission compatibility for readable colon and literal/encoded query ranges, native graph verification, placement and build policy. Native Kubernetes E2E tests both installation scopes on each architecture before release.
 
 The separate owned two-node fixture passed installation, build/input matrices, normal uncached pulls, interruption and cold recovery, actual binary upgrade/rollback, and retained-release export. Those cluster harnesses are not ordinary CI jobs. Historical receipts predate later selector/CLI changes; they remain unchanged evidence for their recorded bundle.
 

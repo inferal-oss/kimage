@@ -133,7 +133,14 @@ def main():
         wait(lambda: get('imagedemands.kimage.dev', ns=system)['items'], 'real controller demand')
         def ready(name='service', ns=app):
             value = get('images.kimage.dev', name, ns)
-            return value if any(c['type']=='Ready' and c['status']=='True' for c in value.get('status', {}).get('conditions', [])) else None
+            if value.get('status', {}).get('observedGeneration') == value['metadata'].get('generation',1) and any(c['type']=='Ready' and c['status']=='True' for c in value.get('status', {}).get('conditions', [])):
+                return value
+            variants = get('images.kimage.dev', ns=ns)['items']
+            for variant in variants:
+                if variant['metadata'].get('labels', {}).get('kimage.dev/platform-parent') == value['metadata']['uid'] and (variant.get('status', {}).get('operation') or {}).get('phase') == 'Failed':
+                    reasons = [c.get('reason') for c in variant['status'].get('conditions', [])]
+                    raise RuntimeError('native variant failed: '+str(reasons))
+            return None
         built = wait(ready, 'native demand-triggered build', 600)
         release = get('imagereleases.kimage.dev', built['status']['releaseRef'])
         assert release['status']['verified'] and release['spec']['platform'] == dict(os='linux', architecture=arch)
@@ -156,6 +163,13 @@ def main():
         assert rejected.returncode, 'unavailable native architecture unexpectedly admitted'
         assert len([v for v in get('images.kimage.dev')['items'] if v['metadata'].get('labels', {}).get('kimage.dev/platform-parent') == built['metadata']['uid']]) == 1
         check('unavailable platform placement is rejected without a fallback build')
+        channel_update = get('images.kimage.dev', 'service')
+        channel_update['spec']['channels'] = {'stable':'1.0.0'}
+        kubectl(['replace','-f','-'], channel_update)
+        retained = wait(ready, 'channel update acknowledges retained native artifact')
+        assert retained['status']['releaseRef'] == built['status']['releaseRef']
+        assert len([v for v in get('images.kimage.dev')['items'] if v['metadata'].get('labels', {}).get('kimage.dev/platform-parent') == built['metadata']['uid']]) == 1
+        check('channel changes retain native readiness without new build demand')
         # Exercise eight built-in/custom controller Pod templates, including init
         # containers and native sidecars, through the real admission server.
         run(['python3', ROOT/'scripts/live-workload-consumers.py', '--kubeconfig', kubeconfig, '--namespace', app, '--image', 'service', '--ci-owned-cluster', '--output', args.output/'controllers.json'], timeout=900)
@@ -179,10 +193,11 @@ def main():
         else:
             assert foreign.returncode == 0 and json.loads(foreign.stdout)['spec']['containers'][0]['image'] == selector
             check('namespace scope leaves other namespaces untouched')
+        create(image('eager'))
+        wait(lambda: any(c.get('reason')=='AwaitingDemand' for c in (get('images.kimage.dev', 'eager') or {}).get('status', {}).get('conditions', [])), 'eager candidate initially awaits demand')
         config = get('configmap', 'e2e-config', system)
         config['data']['configuration.json'] = json.dumps(dict(schema=1, buildPolicy='Eager'))
         kubectl(['replace', '-f', '-'], config)
-        create(image('eager'))
         wait(lambda: ready('eager'), 'eager native build without consumer', 600)
         assert all(v['spec']['imageName'] != 'eager' for v in get('imagedemands.kimage.dev', ns=system)['items'])
         check('administrator ConfigMap eager policy builds without workload demand')

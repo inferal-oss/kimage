@@ -246,6 +246,40 @@ pub async fn reconcile(image: Arc<Image>, config: Arc<Config>) -> Result<Action>
         &image,
     )
     .await?;
+    let previous = image.status.clone().unwrap_or_default();
+    // Channel/export changes advance the Image generation, but an immutable
+    // artifact stays ready without creating fresh build demand or reading inputs.
+    if policy.build_policy == configuration::BuildPolicy::OnDemand
+        && requested.is_empty()
+        && image.spec.explicit_platforms().is_none()
+        && previous.observed_generation != image.metadata.generation.unwrap_or(1)
+        && let Some(reference) = &previous.release_ref
+    {
+        ensure!(
+            previous.platform_releases.len() <= 2
+                && kimage_core::selector::dns_subdomain(reference),
+            "InvalidPlatformReleaseStatus"
+        );
+        let releases: Api<ImageRelease> = Api::namespaced(config.client.clone(), &config.namespace);
+        if let Some(release) = releases.get_opt(reference).await?
+            && release.metadata.deletion_timestamp.is_none()
+            && release.spec.image_uid == image.uid().context("MissingImageUid")?
+            && release.spec.version == image.spec.version
+            && release.spec.request_digest == crate::reconcile::request_digest(&image)?
+            && release.status.as_ref().is_some_and(|s| {
+                s.verified && s.observed_generation == release.metadata.generation.unwrap_or(1)
+            })
+        {
+            let mut status = previous;
+            status.conditions = vec![condition(
+                image.metadata.generation.unwrap_or(1),
+                true,
+                "NativePlatformsRetained",
+            )];
+            checkpoint(&config, &image, status).await?;
+            return Ok(Action::requeue(Duration::from_secs(30)));
+        }
+    }
     let platforms = configuration::plan(
         &image.spec,
         policy.build_policy,

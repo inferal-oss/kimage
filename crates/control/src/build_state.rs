@@ -26,6 +26,8 @@ pub enum Phase {
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct State {
+    #[serde(default = "kimage_core::oci::Platform::linux_amd64")]
+    pub platform: kimage_core::oci::Platform,
     pub image_uid: String,
     pub version: String,
     pub generation: i64,
@@ -43,12 +45,23 @@ pub struct State {
     pub failed_reason: Option<String>,
 }
 pub fn name(image: &Image) -> Result<String> {
+    state_name(
+        &image.uid().context("MissingImageUid")?,
+        &image.spec.version,
+        &image.spec.platform,
+    )
+}
+fn state_name(uid: &str, version: &str, platform: &kimage_core::oci::Platform) -> Result<String> {
+    ensure!(platform.supported(), "UnsupportedBuildPlatform");
+    // The historical key belongs to amd64; new native journals cannot replace it.
+    let version = if platform == &kimage_core::oci::Platform::linux_amd64() {
+        version.to_owned()
+    } else {
+        format!("{version}\0{}", platform.name())
+    };
     Ok(format!(
         "buildstate-{}",
-        &kimage_core::oci::digest(&serde_json::to_vec(&(
-            image.uid().context("MissingImageUid")?,
-            &image.spec.version
-        ))?)[7..47]
+        &kimage_core::oci::digest(&serde_json::to_vec(&(uid, version))?)[7..47]
     ))
 }
 pub async fn load(image: &Image, config: &Config) -> Result<Option<State>> {
@@ -100,14 +113,7 @@ async fn load_named(
     ensure!(
         Some(state.image_uid.clone()) == image.uid()
             && version.is_none_or(|v| state.version == v)
-            && reference
-                == format!(
-                    "buildstate-{}",
-                    &kimage_core::oci::digest(&serde_json::to_vec(&(
-                        state.image_uid.clone(),
-                        &state.version
-                    ))?)[7..47]
-                )
+            && reference == state_name(&state.image_uid, &state.version, &state.platform)?
             && state.snapshot_id.len() == 64
             && state.snapshot_id.bytes().all(|c| c.is_ascii_hexdigit()),
         "PrivateBuildStateIdentityConflict"
@@ -165,4 +171,27 @@ pub fn fingerprint(image: &Image, capture: &Capture, references: &[Reference]) -
     Ok(kimage_core::oci::digest(&serde_json::to_vec(
         &json!({"request":crate::reconcile::request_digest(image)?,"ordinary":capture.ordinary_digest,"definition":capture.definition_digest,"objects":identities}),
     )?))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn native_journals_preserve_legacy_amd64_keys_and_cannot_replace_other_platforms() {
+        use kimage_core::oci::Platform;
+        let historical = format!(
+            "buildstate-{}",
+            &kimage_core::oci::digest(br#"["uid","1.0.0"]"#)[7..47]
+        );
+        let amd = state_name("uid", "1.0.0", &Platform::linux_amd64()).unwrap();
+        let arm = state_name("uid", "1.0.0", &Platform::linux_arm64()).unwrap();
+        assert_eq!(amd, historical);
+        assert_ne!(amd, arm);
+        assert_eq!(arm.len(), 51);
+        assert_ne!(
+            arm,
+            state_name("uid", "1.1.0", &Platform::linux_arm64()).unwrap()
+        );
+        assert!(state_name("uid", "1.0.0", &Platform::automatic()).is_err());
+    }
 }

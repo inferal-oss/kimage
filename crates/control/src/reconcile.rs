@@ -171,13 +171,19 @@ pub async fn reconcile(
     // A queued watch event may precede our latest failure-status event. Read the
     // authoritative deadline before deciding whether this attempt may execute.
     let image = Arc::new(current);
-    if image
+    let owns_build = image
         .finalizers()
         .iter()
-        .any(|f| f == crate::build_lifecycle::FINALIZER)
-        && (image.metadata.deletion_timestamp.is_some()
-            || !matches!(image.spec.source, Source::Build(_)))
-    {
+        .any(|f| f == crate::build_lifecycle::FINALIZER);
+    let closing = image.metadata.deletion_timestamp.is_some()
+        || !matches!(image.spec.source, Source::Build(_))
+        || image.spec.platform.is_automatic();
+    let changed_platform = owns_build
+        && !closing
+        && crate::build_state::for_cleanup(&image, &config)
+            .await?
+            .is_some_and(|state| state.platform != image.spec.platform);
+    if owns_build && (closing || changed_platform) {
         crate::build_lifecycle::finish(&image, &config).await?;
         return Ok(kube::runtime::controller::Action::requeue(
             Duration::from_secs(1),
