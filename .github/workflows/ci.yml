@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_BUILD_JOBS: 2
+  RUST_BACKTRACE: 1
+
+jobs:
+  quality:
+    name: Formatting, Clippy, and documentation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Install Rust
+        run: rustup toolchain install 1.99.0 --profile minimal --component rustfmt --component clippy
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: quality-${{ runner.os }}-1.99.0-${{ hashFiles('Cargo.lock') }}
+      - name: Check formatting
+        run: |
+          cargo +1.99.0 fmt --all --check
+          rustfmt +1.99.0 --edition 2024 --check examples/hello/main.rs
+      - name: Clippy
+        run: cargo +1.99.0 clippy --locked --workspace --all-targets -- -D warnings
+      - name: Check Python syntax
+        run: python3 -m compileall -q scripts
+      - name: Check documentation and examples
+        run: python3 scripts/check-docs.py
+
+  test:
+    name: Tests (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: Linux/amd64 musl
+            os: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
+          - platform: macOS/arm64
+            os: macos-15
+            target: aarch64-apple-darwin
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Install musl linker
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends musl-tools
+      - name: Install Rust
+        run: rustup toolchain install 1.99.0 --profile minimal --target ${{ matrix.target }}
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: test-${{ runner.os }}-${{ matrix.target }}-1.99.0-${{ hashFiles('Cargo.lock') }}
+      - name: Run workspace tests
+        run: cargo +1.99.0 test --locked --workspace --target ${{ matrix.target }}
+      - name: Build tutorial executable
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p .local/tutorial
+          rustc +1.99.0 --edition=2024 --target x86_64-unknown-linux-musl \
+            -C opt-level=z -C strip=symbols -C panic=abort \
+            examples/hello/main.rs -o .local/tutorial/hello
