@@ -5,7 +5,6 @@ metadata:
   namespace: apps
 spec:
   version: "1.0.0"
-  platform: {os: linux, architecture: amd64}
   source:
     build:
       format: Containerfile
@@ -14,7 +13,8 @@ spec:
       definition:
         inline: |
           FROM scratch
-          COPY hello /hello
+          ARG TARGETARCH
+          COPY hello-${TARGETARCH} /hello
           ENTRYPOINT ["/hello"]
       inputs:
         contextPath: /workspace/context
@@ -22,6 +22,6 @@ spec:
           - name: context
             configMap:
               name: hello-context
-              items: [{key: hello, path: hello, mode: 365}]
+              defaultMode: 365
         volumeMounts:
           - {name: context, mountPath: /workspace/context, readOnly: true}

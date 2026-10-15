@@ -51,6 +51,8 @@
             ><a href="#quickstart">Your first image</a>
             <p class="docs-nav-label">DEFINE AND DELIVER</p>
             <a href="#image-api">Image reference</a
+            ><a href="#platforms">Platforms and build policy</a
+            ><a href="#scope">Installation scope</a
             ><a href="#inputs">Inputs and secrets</a
             ><a href="#selectors">Version selection</a
             ><a href="#exports">Registry export</a>
@@ -124,7 +126,7 @@
             <p>
               With Rust 1.99.0 or newer and Cargo's bin directory on your PATH:
             </p>
-            <pre><code>cargo install kimage-control --version 0.2.0 --locked
+            <pre><code>cargo install kimage-control --version 0.3.0 --locked
 kimage install --help</code></pre>
             <p>
               No source checkout is needed. The package is
@@ -183,11 +185,11 @@ kimage install --help</code></pre>
             </table>
             <p>
               Cargo compiles native commands for your machine. Official GitHub
-              releases also provide prebuilt macOS/arm64 and Linux/amd64
-              installers and a complete Linux/amd64 component bundle. The
+              releases also provide prebuilt macOS and Linux installers for amd64 and arm64,
+              plus complete Linux bundles for both native architectures. The
               installer fetches and verifies its matching release automatically;
               it does not provision a cluster. Gateway/proxy carry serving
-              compatibility version <code>0.2.0</code>, independently of the
+              compatibility version <code>0.3.0</code>, independently of the
               Cargo package version.
             </p>
           </section>
@@ -209,7 +211,7 @@ kimage bundle-check --offline</code></pre>
               verified directory) and <code>trustedInventory</code> (its
               <code>sha256:</code> digest). It does not access Kubernetes.
               GitHub Actions builds and attaches the full bundle, separate
-              inventory, both native installers, checksums, and license notices
+              inventory, four native installers, checksums, and license notices
               to each release.
             </p>
             <table>
@@ -221,7 +223,7 @@ kimage bundle-check --offline</code></pre>
               </thead>
               <tbody>
                 <tr>
-                  <td><code>--release 0.2.0</code></td>
+                  <td><code>--release 0.3.0</code></td>
                   <td>
                     Select an exact official release. Default: the installed CLI
                     package version. Keep the same selection when resuming a
@@ -314,34 +316,44 @@ for file in main.rs image.yaml deployment.yaml; do
 done</code></pre>
             <h3>2. Compile a Linux executable</h3>
             <p>
-              On a Linux/amd64 machine with Rust and a musl linker installed
+              On a native Linux/amd64 or Linux/arm64 machine with Rust and a musl linker installed
               (<code>musl-tools</code> on Debian/Ubuntu):
             </p>
-            <pre><code>rustup target add x86_64-unknown-linux-musl
+            <pre><code>case "$(uname -m)" in
+  x86_64) ARCH=amd64; TARGET=x86_64-unknown-linux-musl ;;
+  aarch64) ARCH=arm64; TARGET=aarch64-unknown-linux-musl ;;
+  *) echo "Use a supported Linux build machine"; exit 1 ;;
+esac
+rustup target add "$TARGET"
 mkdir -p .local/tutorial
-rustc --edition=2024 --target x86_64-unknown-linux-musl \
+rustc --edition=2024 --target "$TARGET" \
   -C opt-level=z -C strip=symbols -C panic=abort \
-  examples/hello/main.rs -o .local/tutorial/hello</code></pre>
+  examples/hello/main.rs -o ".local/tutorial/hello-$ARCH"</code></pre>
             <p>
-              On macOS, use a Linux/amd64 build machine or container for this
+              On macOS, use a matching native Linux build machine or container for this
               step. A native macOS executable cannot run inside the scratch
-              image.
+              image. On a mixed cluster, put both <code>hello-amd64</code> and
+              <code>hello-arm64</code> in the input directory, compiling on matching
+              native Linux build machines. One platform needs only its own file.
             </p>
             <h3>3. Provide input and request the image</h3>
             <pre><code>kubectl -n apps create configmap hello-context \
-  --from-file=hello=.local/tutorial/hello \
+  --from-file=.local/tutorial \
   --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f examples/hello/image.yaml
-kubectl -n apps wait --for=condition=Ready image/hello --timeout=10m
-kubectl -n apps get imagereleases</code></pre>
+</code></pre>
             <p>
               The example copies the executable into
               <code>FROM scratch</code> and requests version <code>1.0.0</code>.
               The controller handles execution and local publication. ConfigMaps
-              suit small inputs; use a PVC for larger content.
+              suit small inputs; use a PVC for larger content. The automatic
+              Image stays <code>AwaitingDemand</code> until its Deployment requests
+              the needed native platform. Apply the Deployment before waiting.
             </p>
             <h3>4. Run it through a selector</h3>
             <pre><code>kubectl apply -f examples/hello/deployment.yaml
+kubectl -n apps wait --for=condition=Ready image/hello --timeout=10m
+kubectl -n apps get imagereleases
 kubectl -n apps rollout status deployment/hello --timeout=5m
 kubectl -n apps logs deployment/hello
 kubectl -n apps get pods -l app=hello \
@@ -370,7 +382,6 @@ metadata:
   namespace: apps
 spec:
   version: "1.0.0"
-  platform: {os: linux, architecture: amd64}
   source:
     build:
       format: Containerfile
@@ -379,7 +390,8 @@ spec:
       definition:
         inline: |
           FROM scratch
-          COPY hello /hello
+          ARG TARGETARCH
+          COPY hello-${TARGETARCH} /hello
           ENTRYPOINT ["/hello"]
       inputs:
         contextPath: /workspace/context
@@ -387,7 +399,7 @@ spec:
           - name: context
             configMap:
               name: hello-context
-              items: [{key: hello, path: hello, mode: 365}]
+              defaultMode: 365
         volumeMounts:
           - {name: context, mountPath: /workspace/context, readOnly: true}</code></pre>
             <p>
@@ -421,7 +433,7 @@ spec:
                 </tr>
                 <tr>
                   <td><code>spec.platform</code></td>
-                  <td>Currently Linux/amd64 only.</td>
+                  <td>Optional single native platform, Linux/amd64 or Linux/arm64. Omit for automatic selection. Use <code>spec.platforms</code> for an explicit set.</td>
                 </tr>
                 <tr>
                   <td><code>definition</code></td>
@@ -498,6 +510,73 @@ source:
               does not install it; the operator owns guarded schema
               establishment.
             </p>
+          </section>
+
+          <section id="platforms">
+            <h2>Native platforms and build policy</h2>
+            <p>Omit <code>spec.platform</code> for automatic native amd64/arm64
+              selection. Admission evaluates the actual Pod's node name, architecture
+              selector, and required node affinity against eligible Ready nodes.
+              All managed containers contribute compatible platform constraints.</p>
+            <table><thead><tr><th>Request</th><th>Result</th></tr></thead><tbody>
+              <tr><td>Placement permits one architecture</td><td>Build and use only that native variant.</td></tr>
+              <tr><td>Both architectures remain eligible</td><td>Build both; pin a fully verified OCI index. Kubelet chooses its native child.</td></tr>
+              <tr><td>No consumer, default OnDemand policy</td><td>Image stays AwaitingDemand; no automatic build.</td></tr>
+              <tr><td>No consumer, Eager policy</td><td>Prepare all available native platforms.</td></tr>
+              <tr><td>Explicit platform or platforms</td><td>Directly request the specified available native variants.</td></tr>
+            </tbody></table>
+            <p>The administrator ConfigMap <code>&lt;installation&gt;-config</code>
+              in the system namespace contains <code>data.configuration.json</code>:</p>
+            <pre><code>{"schema":1,"buildPolicy":"OnDemand"}</code></pre>
+            <p>Change <code>OnDemand</code> to <code>Eager</code> to prebuild automatic
+              Images. The operator watches this setting and installation preserves it.
+              Explicit <code>spec.platform: {os: linux, architecture: arm64}</code>
+              requests one platform. Use <code>spec.platforms</code> for a list of
+              native platform objects, with <code>platform</code> omitted.</p>
+            <p>A real missing-release Pod CREATE records bounded UID/generation/version
+              demand in an <code>ImageDemand</code>, then returns
+              <code>ImageBuildPending</code>. Normal workload controllers retry while
+              the operator builds. For a direct Pod apply, wait for the Image and
+              retry. Server dry-run records no demand. Apply the automatic Image and
+              its Deployment before waiting for readiness.</p>
+            <p>Versions are immutable per Image UID and native platform, with a separate
+              aggregate identity. <code>status.platformReleases</code> lists native
+              variants. A later consumer can request an additional variant; the index
+              is published only after both complete graphs and matching private input
+              captures are verified. Changed input captures require a new version.</p>
+            <p>The installer fetches bundles for the selected cluster nodes, regardless
+              of the laptop architecture, and registers one native worker per available
+              architecture. There is no automatic build emulation. Add later native
+              architectures with their matching bundle, <code>join-node</code>, and
+              <code>builder</code> phases. Mixed-cluster local-bundle installation
+              needs explicit per-platform phases; official fetching handles this automatically.</p>
+            <p>Provide architecture-specific inputs for copied executables. Standard
+              BuildKit <code>ARG TARGETARCH</code> lets a Containerfile select
+              <code>COPY hello-${TARGETARCH} /hello</code>. Supply both files if
+              both architectures may be requested. kimage does not translate binaries.</p>
+          </section>
+          <section id="scope">
+            <h2>Namespace or cluster-wide installation</h2>
+            <p>The default <code>--scope namespace --application-namespace apps</code>
+              manages one application namespace. Use <code>--scope cluster</code> and
+              omit <code>--application-namespace</code> for all ordinary namespaces,
+              including namespaces created later. Both require cluster administrator
+              setup for shared CRDs, webhooks, and RBAC.</p>
+            <p>Cluster mode excludes its system namespace, <code>kube-system</code>,
+              <code>kube-public</code>, and <code>kube-node-lease</code>. Repeat
+              <code>--exclude-namespace NAME</code> for additional exclusions.
+              Overlapping installations are refused; retain the same scope and flags
+              when resuming installation or recovery.</p>
+            <p>Images, input mounts, destination credentials, and releases stay
+              namespaced. Even cluster-wide, a Pod in <code>apps-a</code> cannot use
+              <code>platform://apps-b/service:1.0.0</code>. Each namespace can define
+              its own <code>service</code> Image. Namespace scope uses application
+              Roles; cluster scope grants broader application permissions with runtime
+              namespace filters. Node administrators are trusted registry readers.</p>
+            <p>Native Kubernetes E2E runs both installation scopes on amd64 and arm64,
+              covering real build/pull, policy, workload controllers, RBAC, namespace
+              boundaries, exclusions, and retained storage on uninstall. The release
+              workflow requires this acceptance matrix.</p>
           </section>
 
           <section id="inputs">
@@ -687,7 +766,7 @@ spec:
               or publishing another matching version does not itself trigger a
               rollout. Managed ephemeral-container updates, image-backed volume
               references, static Pods, and execution outside Kubernetes Pod
-              admission are not supported in 0.2.0.
+              admission are not supported in 0.3.0.
             </p>
             <p>
               The application webhook is fail-closed. An outage can block other
@@ -758,7 +837,7 @@ exports:
                 <tr>
                   <td>Full acceptance cluster</td>
                   <td>
-                    Linux/amd64; Kubernetes <code>v1.36.5+k3s1</code>;
+                    Native Linux/amd64 and Linux/arm64 E2E; Kubernetes <code>v1.36.5+k3s1</code>;
                     containerd <code>2.3.4-k3s1.36</code>; Ubuntu 24.04.5,
                     kernel <code>6.8.0-142</code>. Select
                     <code>--runtime-profile k3s</code>.
@@ -783,13 +862,13 @@ exports:
                 <tr>
                   <td>Serving</td>
                   <td>
-                    Distribution 3.1.2; gateway/proxy 0.2.0. Explicit rollback
+                    Distribution 3.1.2; gateway/proxy 0.3.0. Explicit rollback
                     window described below.
                   </td>
                 </tr>
                 <tr>
                   <td>Native clients</td>
-                  <td>Rust 1.99.0; macOS/arm64 and Linux/amd64 musl.</td>
+                  <td>Rust 1.99.0; macOS and Linux/musl on amd64 and arm64.</td>
                 </tr>
               </tbody>
             </table>
@@ -809,7 +888,7 @@ exports:
             <p>
               One retained PVC/registry is authoritative, with
               RWO/topology/capacity limits. There is no HA, arbitrary
-              storage/schema migration, multi-platform image support,
+              storage/schema migration,
               signing/attestations, or automatic retained-artifact GC. A
               registry outage leaves running containers alone but can block new
               uncached starts.
@@ -857,7 +936,7 @@ exports:
 python3 scripts/package-bundle.py \
   --linux-dir &lt;linux-release-directory&gt; \
   --registry &lt;trusted-distribution-executable&gt; \
-  --registry-version 3.1.2 --serving-version 0.2.0 \
+  --registry-version 3.1.2 --serving-version 0.3.0 \
   --buildkit-dir &lt;pinned-buildkit-directory&gt; \
   --include-installers --macos-installer &lt;macos-arm64-installer&gt; \
   --out dist/complete-linux-amd64
@@ -912,7 +991,7 @@ kimage-install bundle-check --bundle dist/complete-linux-amd64 \
     --carrier &lt;cached-image@sha256:digest&gt; \
     --storage-class &lt;class&gt; --port &lt;loopback-port&gt; \
     --credentials &lt;registry-credential-directory&gt; \
-    --release 0.2.0
+    --release 0.3.0
 }
 ki bootstrap
 ki seed
@@ -976,7 +1055,7 @@ kimage-install upgrade-serving &lt;installation-arguments&gt; \
               >
               Supported actual binaries are Distribution
               <code>3.1.1 ↔ 3.1.2</code> and gateway/proxy
-              <code>0.1.0 ↔ 0.2.0</code>, with the shipped filesystem
+              <code>0.1.0 / 0.2.0 / 0.3.0</code>, with the shipped filesystem
               configuration and the same PVC. Prefer Distribution 3.1.2 for
               ordinary operation. Every non-serving component version/root and
               the bundle API revision must match.
@@ -1202,7 +1281,7 @@ kimage-install &lt;phase&gt; --help</code></pre>
               <summary>Metrics and freshness</summary>
               <p>
                 Operator/admission expose <code>/metrics</code> on existing
-                health listeners. Proxy 0.2.0 exposes it on its loopback
+                health listeners. Proxy 0.3.0 exposes it on its loopback
                 listener with canonical Host authority. Inspect through API port
                 forwarding; metrics do not add an external diagnostics
                 interface.
@@ -1395,7 +1474,7 @@ python3 scripts/check-site.py</code></pre>
           </section>
         </article>
         <div class="docs-end">
-          <span>kimage 0.2.0 handbook</span><a href="#main">Back to top ↑</a>
+          <span>kimage 0.3.0 handbook</span><a href="#main">Back to top ↑</a>
         </div>
       </main>
     </div>

@@ -44,6 +44,20 @@ impl Endpoint {
         application: &str,
         port: u16,
     ) -> Result<()> {
+        self.validate_scope(
+            installation,
+            system,
+            &BTreeSet::from([system.to_owned(), application.to_owned()]),
+            port,
+        )
+    }
+    pub fn validate_scope(
+        &self,
+        installation: &str,
+        system: &str,
+        namespaces: &BTreeSet<String>,
+        port: u16,
+    ) -> Result<()> {
         ensure!(
             self.schema == 1
                 && self.port == port
@@ -55,7 +69,8 @@ impl Endpoint {
         );
         ensure!(
             self.origin == format!("https://{installation}-registry.{system}.svc:5443/")
-                && self.namespaces == BTreeSet::from([system.to_owned(), application.to_owned()]),
+                && &self.namespaces == namespaces
+                && kimage_core::scope::valid_registry_namespaces(namespaces),
             "NodeEndpointScopeMismatch"
         );
         ensure!(
@@ -144,8 +159,10 @@ impl Installer {
         let name = self.name("admission");
         let role_api: Api<Role> = Api::namespaced(self.client.clone(), &self.options.namespace);
         let old_rules = json!([{"apiGroups":[""],"resources":["pods"],"verbs":["get"],"resourceNames":[self.name("proxy"),self.name("proxy-next")]}]);
-        let new_rules =
+        let legacy_rules =
             json!([{"apiGroups":[""],"resources":["pods","configmaps"],"verbs":["get","list"]}]);
+        let mut new_rules = legacy_rules.clone();
+        new_rules.as_array_mut().unwrap().push(json!({"apiGroups":["kimage.dev"],"resources":["imagedemands"],"verbs":["get","list","create","update"]}));
         let mut desired: Role = serde_json::from_value(
             json!({"apiVersion":"rbac.authorization.k8s.io/v1","kind":"Role","metadata":self.metadata(&name),"rules":new_rules}),
         )?;
@@ -156,7 +173,7 @@ impl Installer {
             );
             let rules = serde_json::to_value(&existing.rules)?;
             ensure!(
-                rules == old_rules || rules == new_rules,
+                rules == old_rules || rules == legacy_rules || rules == new_rules,
                 "ReadinessRoleDefinitionConflict"
             );
             if rules != new_rules {
@@ -414,7 +431,7 @@ impl Installer {
         let mut options = self.options.clone();
         options.node = target.into();
         let target_inst = Installer::new(self.client.clone(), options)?;
-        target_inst.preflight().await?;
+        target_inst.preflight_bundle(bundle).await?;
         ensure!(
             target != self.options.node,
             "UsePrimaryRecoveryForRegistryNode"

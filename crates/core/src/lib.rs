@@ -4,4 +4,5 @@ pub mod build;
 pub mod catalog;
 pub mod oci;
 pub mod operation;
+pub mod scope;
 pub mod selector;

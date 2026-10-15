@@ -23,7 +23,7 @@ A release belongs to an Image UID and exact version. Once published, different c
 With Rust 1.99.0 or newer and Cargo's bin directory on your PATH:
 
 ```
-cargo install kimage-control --version 0.2.0 --locked
+cargo install kimage-control --version 0.3.0 --locked
 kimage install --help
 ```
 
@@ -37,7 +37,7 @@ No source checkout is needed. The package is `kimage-control`; the unrelated `ki
 | `kimage-gateway` / `kimage-proxy` | Authenticate registry traffic and serve node-local digest reads. |
 | `kimage-input` / `kimage-exporter` | Capture inputs and optionally copy retained releases to another registry. |
 
-Cargo compiles native commands for your machine. Official GitHub releases also provide prebuilt macOS/arm64 and Linux/amd64 installers and a complete Linux/amd64 component bundle. The installer fetches and verifies its matching release automatically; it does not provision a cluster. Gateway/proxy carry serving compatibility version `0.2.0`, independently of the Cargo package version.
+Cargo compiles native commands for your machine. Official GitHub releases also provide prebuilt macOS and Linux installers for amd64 and arm64, plus complete Linux bundles for both native architectures. The installer fetches and verifies its matching release automatically; it does not provision a cluster. Gateway/proxy carry serving compatibility version `0.3.0`, independently of the Cargo package version.
 
 ## Automatic bundle delivery
 
@@ -48,11 +48,11 @@ kimage bundle-fetch
 kimage bundle-check --offline
 ```
 
-The fetch command prints JSON containing `bundle` (the verified directory) and `trustedInventory` (its `sha256:` digest). It does not access Kubernetes. GitHub Actions builds and attaches the full bundle, separate inventory, both native installers, checksums, and license notices to each release.
+The fetch command prints JSON containing `bundle` (the verified directory) and `trustedInventory` (its `sha256:` digest). It does not access Kubernetes. GitHub Actions builds and attaches the full bundle, separate inventory, four native installers, checksums, and license notices to each release.
 
 | Option | Behavior |
 | --- | --- |
-| `--release 0.2.0` | Select an exact official release. Default: the installed CLI package version. Keep the same selection when resuming a phase. |
+| `--release 0.3.0` | Select an exact official release. Default: the installed CLI package version. Keep the same selection when resuming a phase. |
 | `--bundle-cache <directory>` | Override the cache. Default: XDG_CACHE_HOME/kimage/bundles when set; otherwise ~/Library/Caches/kimage/bundles on macOS or ~/.cache/kimage/bundles on Linux. |
 | `--offline` | Prevent bundle downloads. A cache miss fails with guidance; cached content is still reverified. Cluster commands still require access to Kubernetes. |
 | `--bundle <directory>` | Use local bytes with a required independently trusted `--trusted-inventory sha256:<64-hex-digits>`. Cannot be combined with `--release`. |
@@ -82,35 +82,40 @@ done
 
 ### 2. Compile a Linux executable
 
-On a Linux/amd64 machine with Rust and a musl linker installed (`musl-tools` on Debian/Ubuntu):
+On a native Linux/amd64 or Linux/arm64 machine with Rust and a musl linker installed (`musl-tools` on Debian/Ubuntu):
 
 ```
-rustup target add x86_64-unknown-linux-musl
+case "$(uname -m)" in
+  x86_64) ARCH=amd64; TARGET=x86_64-unknown-linux-musl ;;
+  aarch64) ARCH=arm64; TARGET=aarch64-unknown-linux-musl ;;
+  *) echo "Use a supported Linux build machine"; exit 1 ;;
+esac
+rustup target add "$TARGET"
 mkdir -p .local/tutorial
-rustc --edition=2024 --target x86_64-unknown-linux-musl \
+rustc --edition=2024 --target "$TARGET" \
   -C opt-level=z -C strip=symbols -C panic=abort \
-  examples/hello/main.rs -o .local/tutorial/hello
+  examples/hello/main.rs -o ".local/tutorial/hello-$ARCH"
 ```
 
-On macOS, use a Linux/amd64 build machine or container for this step. A native macOS executable cannot run inside the scratch image.
+On macOS, use a matching native Linux build machine or container for this step. A native macOS executable cannot run inside the scratch image. On a mixed cluster, put both `hello-amd64` and `hello-arm64` in the input directory, compiling on matching native Linux build machines. One platform needs only its own file.
 
 ### 3. Provide input and request the image
 
 ```
 kubectl -n apps create configmap hello-context \
-  --from-file=hello=.local/tutorial/hello \
+  --from-file=.local/tutorial \
   --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f examples/hello/image.yaml
-kubectl -n apps wait --for=condition=Ready image/hello --timeout=10m
-kubectl -n apps get imagereleases
 ```
 
-The example copies the executable into `FROM scratch` and requests version `1.0.0`. The controller handles execution and local publication. ConfigMaps suit small inputs; use a PVC for larger content.
+The example copies the executable into `FROM scratch` and requests version `1.0.0`. The controller handles execution and local publication. ConfigMaps suit small inputs; use a PVC for larger content. The automatic Image stays `AwaitingDemand` until its Deployment requests the needed native platform. Apply the Deployment before waiting.
 
 ### 4. Run it through a selector
 
 ```
 kubectl apply -f examples/hello/deployment.yaml
+kubectl -n apps wait --for=condition=Ready image/hello --timeout=10m
+kubectl -n apps get imagereleases
 kubectl -n apps rollout status deployment/hello --timeout=5m
 kubectl -n apps logs deployment/hello
 kubectl -n apps get pods -l app=hello \
@@ -131,7 +136,6 @@ metadata:
   namespace: apps
 spec:
   version: "1.0.0"
-  platform: {os: linux, architecture: amd64}
   source:
     build:
       format: Containerfile
@@ -140,7 +144,8 @@ spec:
       definition:
         inline: |
           FROM scratch
-          COPY hello /hello
+          ARG TARGETARCH
+          COPY hello-${TARGETARCH} /hello
           ENTRYPOINT ["/hello"]
       inputs:
         contextPath: /workspace/context
@@ -148,7 +153,7 @@ spec:
           - name: context
             configMap:
               name: hello-context
-              items: [{key: hello, path: hello, mode: 365}]
+              defaultMode: 365
         volumeMounts:
           - {name: context, mountPath: /workspace/context, readOnly: true}
 ```
@@ -159,7 +164,7 @@ Decimal file mode `365` means octal `0555`. Select exactly one source: `source.b
 | --- | --- |
 | `spec.version` | Exact immutable publication identity within the Image UID. |
 | `spec.channels` | Explicit name-to-exact-version map, for example `{stable: "1.0.0"}`. It selects a published release; it does not build that mapped version. |
-| `spec.platform` | Currently Linux/amd64 only. |
+| `spec.platform` | Optional single native platform, Linux/amd64 or Linux/arm64. Omit for automatic selection. Use `spec.platforms` for an explicit set. |
 | `definition` | One inline Containerfile or `fromFile: {path: ...}` from a declared mount. |
 | `execution` | `Direct` with administrator-approved `builderRef: default`. No author-selected engine address or arbitrary engine options. |
 | `cache.mode` | `Local` reuses disposable worker intermediates; `Disabled` requests a real no-cache solve. |
@@ -187,6 +192,44 @@ source:
 Single-platform manifests and nested indexes are verified without rewriting their bytes. Truncation, wrong sizes/digests/platforms, missing graph objects, and invalid DiffIDs fail verification. Multi-platform images, zstd layers, descriptor URLs, embedded data, and referrer graphs are unsupported.
 
 For the complete generated CRD schemas, run `kimage-install schemas`. This prints schema JSON and does not install it; the operator owns guarded schema establishment.
+
+## Native platforms and build policy
+
+Omit `spec.platform` for automatic native amd64/arm64 selection. Admission evaluates the actual Pod's node name, architecture selector, and required node affinity against eligible Ready nodes. All managed containers contribute compatible platform constraints.
+
+| Request | Result |
+| --- | --- |
+| Placement permits one architecture | Build and use only that native variant. |
+| Both architectures remain eligible | Build both; pin a fully verified OCI index. Kubelet chooses its native child. |
+| No consumer, default OnDemand policy | Image stays AwaitingDemand; no automatic build. |
+| No consumer, Eager policy | Prepare all available native platforms. |
+| Explicit platform or platforms | Directly request the specified available native variants. |
+
+The administrator ConfigMap `<installation>-config` in the system namespace contains `data.configuration.json`:
+
+```
+{"schema":1,"buildPolicy":"OnDemand"}
+```
+
+Change `OnDemand` to `Eager` to prebuild automatic Images. The operator watches this setting and installation preserves it. Explicit `spec.platform: {os: linux, architecture: arm64}` requests one platform. Use `spec.platforms` for a list of native platform objects, with `platform` omitted.
+
+A real missing-release Pod CREATE records bounded UID/generation/version demand in an `ImageDemand`, then returns `ImageBuildPending`. Normal workload controllers retry while the operator builds. For a direct Pod apply, wait for the Image and retry. Server dry-run records no demand. Apply the automatic Image and its Deployment before waiting for readiness.
+
+Versions are immutable per Image UID and native platform, with a separate aggregate identity. `status.platformReleases` lists native variants. A later consumer can request an additional variant; the index is published only after both complete graphs and matching private input captures are verified. Changed input captures require a new version.
+
+The installer fetches bundles for the selected cluster nodes, regardless of the laptop architecture, and registers one native worker per available architecture. There is no automatic build emulation. Add later native architectures with their matching bundle, `join-node`, and `builder` phases. Mixed-cluster local-bundle installation needs explicit per-platform phases; official fetching handles this automatically.
+
+Provide architecture-specific inputs for copied executables. Standard BuildKit `ARG TARGETARCH` lets a Containerfile select `COPY hello-${TARGETARCH} /hello`. Supply both files if both architectures may be requested. kimage does not translate binaries.
+
+## Namespace or cluster-wide installation
+
+The default `--scope namespace --application-namespace apps` manages one application namespace. Use `--scope cluster` and omit `--application-namespace` for all ordinary namespaces, including namespaces created later. Both require cluster administrator setup for shared CRDs, webhooks, and RBAC.
+
+Cluster mode excludes its system namespace, `kube-system`, `kube-public`, and `kube-node-lease`. Repeat `--exclude-namespace NAME` for additional exclusions. Overlapping installations are refused; retain the same scope and flags when resuming installation or recovery.
+
+Images, input mounts, destination credentials, and releases stay namespaced. Even cluster-wide, a Pod in `apps-a` cannot use `platform://apps-b/service:1.0.0`. Each namespace can define its own `service` Image. Namespace scope uses application Roles; cluster scope grants broader application permissions with runtime namespace filters. Node administrators are trusted registry readers.
+
+Native Kubernetes E2E runs both installation scopes on amd64 and arm64, covering real build/pull, policy, workload controllers, RBAC, namespace boundaries, exclusions, and retained storage on uninstall. The release workflow requires this acceptance matrix.
 
 ## Inputs, secrets, and build boundaries
 
@@ -256,7 +299,7 @@ For this CronJob, publish a `report` Image whose default command finishes after 
 
 The Image and generated Pod must be in the configured application namespace, even if the controller runs elsewhere. A custom resource's schema, validation webhooks, and controller must accept the selector unchanged. Controllers that parse image references themselves, inspect an external registry first, or rewrite image strings may need an adapter. kimage does not scan arbitrary custom-resource fields or strings in ConfigMaps, environment variables, build definitions, or container arguments.
 
-Update the workload template to select another image; its ordinary rollout or scheduling policy creates new Pods. Changing a channel or publishing another matching version does not itself trigger a rollout. Managed ephemeral-container updates, image-backed volume references, static Pods, and execution outside Kubernetes Pod admission are not supported in 0.2.0.
+Update the workload template to select another image; its ordinary rollout or scheduling policy creates new Pods. Changing a channel or publishing another matching version does not itself trigger a rollout. Managed ephemeral-container updates, image-backed volume references, static Pods, and execution outside Kubernetes Pod admission are not supported in 0.3.0.
 
 The application webhook is fail-closed. An outage can block other Pod creation in its namespace too. Direct internal registry references are denied in application scope, and an opt-in Pod label is not a bypass.
 
@@ -286,17 +329,17 @@ Inspect `status.exports` for phase, selected release UID, local/remote digest, r
 
 | Layer | Tested profile |
 | --- | --- |
-| Full acceptance cluster | Linux/amd64; Kubernetes `v1.36.5+k3s1`; containerd `2.3.4-k3s1.36`; Ubuntu 24.04.5, kernel `6.8.0-142`. Select `--runtime-profile k3s`. |
+| Full acceptance cluster | Native Linux/amd64 and Linux/arm64 E2E; Kubernetes `v1.36.5+k3s1`; containerd `2.3.4-k3s1.36`; Ubuntu 24.04.5, kernel `6.8.0-142`. Select `--runtime-profile k3s`. |
 | Earlier foundation profile | RKE2 `v1.36.5+rke2r1`; containerd `2.3.4-k3s1`. The CLI's default profile is `inferal`; the complete later lifecycle proof uses the k3s fixture. |
 | Builder | BuildKit 0.33.0, builtin Dockerfile frontend 1.27.0, OCI/runc worker, native snapshotter. |
-| Serving | Distribution 3.1.2; gateway/proxy 0.2.0. Explicit rollback window described below. |
-| Native clients | Rust 1.99.0; macOS/arm64 and Linux/amd64 musl. |
+| Serving | Distribution 3.1.2; gateway/proxy 0.3.0. Explicit rollback window described below. |
+| Native clients | Rust 1.99.0; macOS and Linux/musl on amd64 and arm64. |
 
 The installer checks exact runtime versions. A generic kind, k3d, or Docker cluster is not automatically supported: user namespaces, idmapped volumes, kernel/filesystem/runtime support, CNI policy, storage, and the cached carrier all matter.
 
 The worker uses `hostUsers: false`, nested namespace capabilities, unconfined seccomp/AppArmor inside its Pod, no host paths/runtime sockets, and no service account token. It is administrator managed; hostile tenant isolation is not claimed. Unsupported policy fails without a privileged fallback.
 
-One retained PVC/registry is authoritative, with RWO/topology/capacity limits. There is no HA, arbitrary storage/schema migration, multi-platform image support, signing/attestations, or automatic retained-artifact GC. A registry outage leaves running containers alone but can block new uncached starts.
+One retained PVC/registry is authoritative, with RWO/topology/capacity limits. There is no HA, arbitrary storage/schema migration, signing/attestations, or automatic retained-artifact GC. A registry outage leaves running containers alone but can block new uncached starts.
 
 ## Cluster setup
 
@@ -316,7 +359,7 @@ cargo build --locked --offline --release \
 python3 scripts/package-bundle.py \
   --linux-dir <linux-release-directory> \
   --registry <trusted-distribution-executable> \
-  --registry-version 3.1.2 --serving-version 0.2.0 \
+  --registry-version 3.1.2 --serving-version 0.3.0 \
   --buildkit-dir <pinned-buildkit-directory> \
   --include-installers --macos-installer <macos-arm64-installer> \
   --out dist/complete-linux-amd64
@@ -357,7 +400,7 @@ ki() {
     --carrier <cached-image@sha256:digest> \
     --storage-class <class> --port <loopback-port> \
     --credentials <registry-credential-directory> \
-    --release 0.2.0
+    --release 0.3.0
 }
 ki bootstrap
 ki seed
@@ -386,7 +429,7 @@ kimage-install upgrade-serving <installation-arguments> \
   --previous-trusted-inventory <source-sha256>
 ```
 
-**Rollback reverses those independently trusted source and target bundles.** Supported actual binaries are Distribution `3.1.1 ↔ 3.1.2` and gateway/proxy `0.1.0 ↔ 0.2.0`, with the shipped filesystem configuration and the same PVC. Prefer Distribution 3.1.2 for ordinary operation. Every non-serving component version/root and the bundle API revision must match.
+**Rollback reverses those independently trusted source and target bundles.** Supported actual binaries are Distribution `3.1.1 ↔ 3.1.2` and gateway/proxy `0.1.0 / 0.2.0 / 0.3.0`, with the shipped filesystem configuration and the same PVC. Prefer Distribution 3.1.2 for ordinary operation. Every non-serving component version/root and the bundle API revision must match.
 
 A renewable Lease and immutable checkpoints serialize the transition. Replacement images warm through normal pulls before rollout; a read-only server uses the retained PVC while the single writer changes. Proxies overlap only after an authenticated configuration proof. Publication pauses during writer replacement; interrupted streams use normal client retry and digest checks.
 
@@ -444,7 +487,7 @@ kimage-install <phase> --help
 
 **Metrics and freshness**
 
-Operator/admission expose `/metrics` on existing health listeners. Proxy 0.2.0 exposes it on its loopback listener with canonical Host authority. Inspect through API port forwarding; metrics do not add an external diagnostics interface.
+Operator/admission expose `/metrics` on existing health listeners. Proxy 0.3.0 exposes it on its loopback listener with canonical Host authority. Inspect through API port forwarding; metrics do not add an external diagnostics interface.
 
 `kimage_stage_duration_seconds_count/sum`, `kimage_stage_active`, `kimage_stage_failures_total`, and `kimage_stage_transferred_bytes_total` cover build, publication/readback, and proxy pulls using fixed stage labels. Durations are process-local summaries without quantiles; bytes measure observed transfers, not unique storage or guaranteed client consumption.
 

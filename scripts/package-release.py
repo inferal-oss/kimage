@@ -22,7 +22,7 @@ def sha256(path):
 
 def files_for(bundle, version):
     inventory = json.loads((bundle / 'inventory.json').read_text())
-    assert inventory['schema'] == 1 and inventory['platform'] == {'os': 'linux', 'architecture': 'amd64'}
+    assert inventory['schema'] == 1 and inventory['platform']['os'] == 'linux' and inventory['platform']['architecture'] in ('amd64', 'arm64')
     entries = [inventory['launcher'], *inventory['installers'].values()]
     for name, component in inventory['components'].items():
         if name in ('operator', 'admission', 'input', 'exporter'):
@@ -37,7 +37,10 @@ def files_for(bundle, version):
         assert path.is_file() and not path.is_symlink()
         assert path.stat().st_size == entry['size'] and 'sha256:' + sha256(path) == entry['digest']
     assert {path.name for path in bundle.iterdir()} == names, 'unexpected files in component bundle'
-    assert set(inventory['installers']) == {'linux-amd64', 'darwin-arm64'}
+    expected = {'linux-' + inventory['platform']['architecture'], 'darwin-arm64'}
+    if tuple(map(int, version.split('-')[0].split('.'))) >= (0, 3, 0):
+        expected.add('darwin-amd64')
+    assert set(inventory['installers']) == expected
     assert 'builder' in inventory['components'] and 'exporter' in inventory['components']
     return sorted(names), inventory
 
@@ -46,7 +49,7 @@ def package(bundle, output, version):
     assert re.fullmatch(r'\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?', version)
     names, inventory = files_for(bundle, version)
     output.mkdir(parents=True, exist_ok=True)
-    base = 'kimage-bundle-v' + version + '-linux-amd64'
+    base = 'kimage-bundle-v' + version + '-linux-' + inventory['platform']['architecture']
     archive = output / (base + '.tar.gz')
     with archive.open('wb') as file, gzip.GzipFile(filename='', fileobj=file, mode='wb', mtime=0) as compressed:
         with tarfile.open(fileobj=compressed, mode='w|', format=tarfile.USTAR_FORMAT) as tar:
@@ -60,6 +63,8 @@ def package(bundle, output, version):
     shutil.copyfile(bundle / 'inventory.json', output / (base + '.inventory.json'))
     for platform, installer in inventory['installers'].items():
         target = output / f'kimage-v{version}-{platform}'
+        if target.exists():
+            assert sha256(target) == sha256(bundle / installer['file']), 'installer conflict between platform bundles'
         shutil.copyfile(bundle / installer['file'], target)
         target.chmod(0o755)
     shutil.copyfile(ROOT / 'LICENSE', output / 'LICENSE')
@@ -84,7 +89,7 @@ def package(bundle, output, version):
     assets = sorted(path for path in output.iterdir() if path.is_file() and path.name not in ('SHA256SUMS', 'RELEASE_NOTES.md'))
     (output / 'SHA256SUMS').write_text(''.join(sha256(path) + '  ' + path.name + '\n' for path in assets))
     changelog = (ROOT / 'CHANGELOG.md').read_text()
-    section = re.search(r'(?ms)^## ' + re.escape(version) + r'[^\n]*\n(.*?)(?=^## |\Z)', changelog)
+    section = re.search(r'(?ms)^## (?:\[)?' + re.escape(version) + r'(?:\])?[^\n]*\n(.*?)(?=^## |^\[Unreleased\]:|\Z)', changelog)
     assert section, 'release needs changelog notes'
     (output / 'RELEASE_NOTES.md').write_text(section[1].strip() + '\n\n[Handbook](https://kimage.dev/docs/) · [Agent essentials](https://kimage.dev/llms.txt)\n')
     print('Packaged release assets for v' + version)
@@ -92,8 +97,12 @@ def package(bundle, output, version):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--bundle', type=Path, required=True)
+    parser.add_argument('--bundle', type=Path, action='append', required=True)
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--version', required=True)
     args = parser.parse_args()
-    package(args.bundle, args.out, args.version)
+    if tuple(map(int, args.version.split('-')[0].split('.'))) >= (0, 3, 0):
+        assert {json.loads((bundle / 'inventory.json').read_text())['platform']['architecture'] for bundle in args.bundle} == {'amd64', 'arm64'}, 'release needs both native bundles'
+        assert len(args.bundle) == 2
+    for bundle in args.bundle:
+        package(bundle, args.out, args.version)

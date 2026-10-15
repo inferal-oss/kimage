@@ -1,4 +1,4 @@
-//! Bounded disk spooling and complete single-platform OCI graph verification.
+//! Bounded disk spooling and complete native-platform OCI graph verification.
 //! No archive member is extracted under an archive-controlled path.
 use anyhow::{Context, Result, bail, ensure};
 use serde::{Deserialize, Serialize};
@@ -47,17 +47,78 @@ impl From<WireDescriptor> for Descriptor {
         }
     }
 }
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[derive(
+    Clone, Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, schemars::JsonSchema,
+)]
+#[serde(try_from = "WirePlatform")]
 pub struct Platform {
     pub os: String,
     pub architecture: String,
 }
+#[derive(Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct WirePlatform {
+    os: String,
+    architecture: String,
+    variant: Option<String>,
+}
+impl TryFrom<WirePlatform> for Platform {
+    type Error = String;
+    fn try_from(wire: WirePlatform) -> std::result::Result<Self, Self::Error> {
+        if wire
+            .variant
+            .as_deref()
+            .is_some_and(|v| !(wire.architecture == "arm64" && v == "v8"))
+        {
+            return Err("UnsupportedPlatformVariant".into());
+        }
+        Ok(Self {
+            os: wire.os,
+            architecture: wire.architecture,
+        })
+    }
+}
 impl Platform {
-    pub fn linux_amd64() -> Self {
+    pub fn linux(architecture: &str) -> Self {
         Self {
             os: "linux".into(),
-            architecture: "amd64".into(),
+            architecture: architecture.into(),
+        }
+    }
+    pub fn linux_amd64() -> Self {
+        Self::linux("amd64")
+    }
+    pub fn linux_arm64() -> Self {
+        Self::linux("arm64")
+    }
+    /// Select native platforms from the installed workers or verified graph.
+    pub fn automatic() -> Self {
+        Self::linux("auto")
+    }
+    pub fn supported(&self) -> bool {
+        self.os == "linux" && matches!(self.architecture.as_str(), "amd64" | "arm64")
+    }
+    pub fn is_automatic(&self) -> bool {
+        *self == Self::automatic()
+    }
+    pub fn name(&self) -> String {
+        format!("{}/{}", self.os, self.architecture)
+    }
+    pub fn native() -> Self {
+        Self::linux(match std::env::consts::ARCH {
+            "aarch64" => "arm64",
+            "x86_64" => "amd64",
+            other => other,
+        })
+    }
+}
+impl std::str::FromStr for Platform {
+    type Err = String;
+    fn from_str(value: &str) -> std::result::Result<Self, Self::Err> {
+        match value {
+            "linux/amd64" => Ok(Self::linux_amd64()),
+            "linux/arm64" => Ok(Self::linux_arm64()),
+            _ => Err("expected linux/amd64 or linux/arm64".into()),
         }
     }
 }
@@ -105,8 +166,12 @@ pub struct VerifiedImage {
     manifests: Vec<Descriptor>,
     blobs: Vec<Descriptor>,
     paths: BTreeMap<String, PathBuf>,
+    platforms: BTreeSet<Platform>,
 }
 impl VerifiedImage {
+    pub fn platforms(&self) -> &BTreeSet<Platform> {
+        &self.platforms
+    }
     pub fn root(&self) -> &Descriptor {
         &self.root
     }
@@ -129,6 +194,66 @@ impl VerifiedImage {
         );
         Ok(std::fs::read(self.path(descriptor)?)?)
     }
+}
+
+/// Assemble already verified native graphs, then independently verify the full
+/// index again. Every child remains digest addressed and byte identical.
+pub fn aggregate(images: &[VerifiedImage], limits: Limits) -> Result<VerifiedImage> {
+    ensure!(images.len() == 2, "TwoNativeImagesRequired");
+    let mut platforms = BTreeSet::new();
+    let mut children = Vec::new();
+    for image in images {
+        ensure!(image.platforms.len() == 1, "NativeImageRequired");
+        let platform = image.platforms.first().unwrap().clone();
+        ensure!(platforms.insert(platform.clone()), "DuplicatePlatform");
+        let mut child = image.root.clone();
+        child.platform = Some(platform);
+        children.push(child);
+    }
+    let directory = tempfile::tempdir()?;
+    let path = directory.path().join("index.tar");
+    let mut archive = tar::Builder::new(File::create(&path)?);
+    let mut append = |name: &str, bytes: &[u8]| -> Result<()> {
+        let mut header = tar::Header::new_gnu();
+        header.set_mode(0o444);
+        header.set_size(bytes.len() as u64);
+        header.set_cksum();
+        archive.append_data(&mut header, name, bytes)?;
+        Ok(())
+    };
+    append("oci-layout", br#"{"imageLayoutVersion":"1.0.0"}"#)?;
+    append(
+        "index.json",
+        &serde_json::to_vec(&serde_json::json!({
+            "schemaVersion":2,"mediaType":INDEX,"manifests":children
+        }))?,
+    )?;
+    drop(append);
+    let mut seen = BTreeSet::new();
+    let mut size = 0_u64;
+    for image in images {
+        for descriptor in image.blobs.iter().chain(&image.manifests) {
+            if !seen.insert(descriptor.digest.clone()) {
+                continue;
+            }
+            size = size
+                .checked_add(descriptor.size)
+                .context("ArtifactSizeOverflow")?;
+            ensure!(size <= limits.archive_bytes, "ArtifactTooLarge");
+            let mut header = tar::Header::new_gnu();
+            header.set_mode(0o444);
+            header.set_size(descriptor.size);
+            header.set_cksum();
+            archive.append_data(
+                &mut header,
+                format!("blobs/sha256/{}", &descriptor.digest[7..]),
+                File::open(image.path(descriptor)?)?,
+            )?;
+        }
+    }
+    archive.finish()?;
+    drop(archive);
+    verify_export_archive(&path, &Platform::automatic(), limits)
 }
 
 #[derive(Deserialize)]
@@ -183,11 +308,17 @@ fn verify_layout(
     platform: &Platform,
     limits: Limits,
 ) -> Result<VerifiedImage> {
-    ensure!(platform == &Platform::linux_amd64(), "UnsupportedPlatform");
+    ensure!(
+        platform.supported() || platform.is_automatic(),
+        "UnsupportedPlatform"
+    );
     if let Some(expected) = expected {
         ensure!(valid_digest(&expected.digest), "InvalidRootDigest");
         ensure!(
-            expected.platform.as_ref().is_none_or(|p| p == platform),
+            expected
+                .platform
+                .as_ref()
+                .is_none_or(|p| p.supported() && (platform.is_automatic() || p == platform)),
             "WrongPlatform"
         );
     }
@@ -256,15 +387,28 @@ fn verify_layout(
         layout.get("imageLayoutVersion").and_then(|v| v.as_str()) == Some("1.0.0"),
         "UnsupportedLayoutVersion"
     );
-    let index: ImageIndex = serde_json::from_slice(&index.context("MissingIndex")?)?;
+    let index_bytes = index.context("MissingIndex")?;
+    let index: ImageIndex = serde_json::from_slice(&index_bytes)?;
     ensure!(
         index.schema_version == 2
-            && index.manifests.len() == 1
+            && !index.manifests.is_empty()
+            && index.manifests.len() <= 2
             && index.media_type.as_deref().is_none_or(|m| m == INDEX),
-        "OnlySinglePlatformSupported"
+        "InvalidLayoutIndex"
     );
-    let selected = &index.manifests[0];
-    let expected = expected.unwrap_or(selected);
+    // OCI exporters may put their native platform manifests directly in the
+    // layout index. Preserve those exact bytes as the aggregate root.
+    let selected = if index.manifests.len() == 1 {
+        index.manifests[0].clone()
+    } else {
+        ensure!(platform.is_automatic(), "WrongPlatform");
+        let root = descriptor(&index_bytes, INDEX);
+        let path = spool.path().join(&root.digest[7..]);
+        std::fs::write(&path, &index_bytes)?;
+        paths.insert(root.digest.clone(), path);
+        root
+    };
+    let expected = expected.unwrap_or(&selected);
     ensure!(
         selected.digest == expected.digest
             && selected.size == expected.size
@@ -277,35 +421,79 @@ fn verify_layout(
         manifests: vec![],
         blobs: vec![],
         paths,
+        platforms: BTreeSet::new(),
     };
-    check_descriptor(&verified, expected, limits)?;
-    if let Some(selected) = &selected.platform {
-        ensure!(selected == platform, "WrongPlatform");
+    let mut seen = BTreeSet::new();
+    let mut expanded = 0_u64;
+    visit_graph(
+        &mut verified,
+        expected,
+        platform,
+        None,
+        0,
+        &mut seen,
+        limits,
+        &mut expanded,
+    )?;
+    ensure!(!verified.platforms.is_empty(), "MissingImagePlatform");
+    Ok(verified)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn visit_graph(
+    verified: &mut VerifiedImage,
+    manifest: &Descriptor,
+    requested: &Platform,
+    inherited: Option<&Platform>,
+    depth: usize,
+    seen: &mut BTreeSet<String>,
+    limits: Limits,
+    total_expanded: &mut u64,
+) -> Result<()> {
+    ensure!(depth <= 8, "IndexDepthExceeded");
+    ensure!(
+        seen.len() < 32 && seen.insert(manifest.digest.clone()),
+        "DuplicateManifestReference"
+    );
+    check_descriptor(verified, manifest, limits)?;
+    let declared = manifest.platform.as_ref().or(inherited);
+    if let Some(p) = declared {
+        ensure!(
+            p.supported()
+                && (requested.is_automatic() || p == requested)
+                && inherited.is_none_or(|parent| parent == p),
+            "WrongPlatform"
+        );
     }
-    let mut ancestors = Vec::new();
-    let mut manifest = expected.clone();
-    while manifest.media_type == INDEX {
-        ensure!(ancestors.len() < 8, "IndexDepthExceeded");
-        let index: ImageIndex = serde_json::from_slice(&verified.bytes(&manifest)?)?;
+    if manifest.media_type == INDEX {
+        let index: ImageIndex = serde_json::from_slice(&verified.bytes(manifest)?)?;
         ensure!(
             index.schema_version == 2
-                && index.manifests.len() == 1
+                && !index.manifests.is_empty()
+                && index.manifests.len() <= 2
                 && index.media_type.as_deref().is_none_or(|m| m == INDEX),
-            "OnlySinglePlatformSupported"
+            "InvalidImageIndex"
         );
-        let child = index.manifests.into_iter().next().unwrap();
-        if let Some(selected) = &child.platform {
-            ensure!(selected == platform, "WrongPlatform");
+        for child in index.manifests {
+            visit_graph(
+                verified,
+                &child,
+                requested,
+                declared,
+                depth + 1,
+                seen,
+                limits,
+                total_expanded,
+            )?;
         }
-        check_descriptor(&verified, &child, limits)?;
-        ancestors.push(manifest);
-        manifest = child;
+        verified.manifests.push(manifest.clone());
+        return Ok(());
     }
     ensure!(
         manifest.media_type == MANIFEST,
         "UnsupportedManifestMediaType"
     );
-    let content: ImageManifest = serde_json::from_slice(&verified.bytes(&manifest)?)?;
+    let content: ImageManifest = serde_json::from_slice(&verified.bytes(manifest)?)?;
     ensure!(content.subject.is_none(), "UnsupportedSubjectGraph");
     ensure!(
         content.schema_version == 2
@@ -313,20 +501,31 @@ fn verify_layout(
             && content.config.media_type == CONFIG,
         "InvalidImageManifest"
     );
-    check_descriptor(&verified, &content.config, limits)?;
+    check_descriptor(verified, &content.config, limits)?;
     let config: ImageConfig = serde_json::from_slice(&verified.bytes(&content.config)?)?;
+    let actual = Platform {
+        os: config.os.clone(),
+        architecture: config.architecture.clone(),
+    };
     ensure!(
-        config.os == platform.os && config.architecture == platform.architecture,
+        actual.supported()
+            && (requested.is_automatic() || &actual == requested)
+            && declared.is_none_or(|p| p == &actual)
+            && content
+                .config
+                .platform
+                .as_ref()
+                .is_none_or(|p| p == &actual),
         "WrongPlatform"
     );
+    ensure!(verified.platforms.insert(actual), "DuplicateImagePlatform");
     ensure!(
         config.rootfs.r#type == "layers" && config.rootfs.diff_ids.len() == content.layers.len(),
         "InvalidDiffIds"
     );
     verified.blobs.push(content.config);
-    let mut total_expanded = 0_u64;
     for (layer, expected_diffid) in content.layers.into_iter().zip(config.rootfs.diff_ids) {
-        check_descriptor(&verified, &layer, limits)?;
+        check_descriptor(verified, &layer, limits)?;
         ensure!(valid_digest(&expected_diffid), "InvalidDiffId");
         let input = File::open(verified.path(&layer)?)?;
         let mut decoded: Box<dyn Read> = match layer.media_type.as_str() {
@@ -337,9 +536,9 @@ fn verify_layout(
         let (diffid, expanded_bytes) = copy_hash(
             &mut decoded,
             &mut std::io::sink(),
-            limits.expanded_layer_bytes - total_expanded,
+            limits.expanded_layer_bytes - *total_expanded,
         )?;
-        total_expanded += expanded_bytes;
+        *total_expanded += expanded_bytes;
         ensure!(diffid == expected_diffid, "DiffIdMismatch");
         // A digest-correct but malformed tar must not become a usable image.
         // Validate without extracting layer-controlled names into our filesystem.
@@ -367,9 +566,8 @@ fn verify_layout(
         }
         verified.blobs.push(layer);
     }
-    verified.manifests.push(manifest);
-    verified.manifests.extend(ancestors.into_iter().rev());
-    Ok(verified)
+    verified.manifests.push(manifest.clone());
+    Ok(())
 }
 fn check_descriptor(image: &VerifiedImage, descriptor: &Descriptor, limits: Limits) -> Result<()> {
     ensure!(
@@ -569,6 +767,136 @@ mod tests {
         assert!(valid_digest(&digest(b"hello")));
         assert!(!valid_digest(&format!("sha256:{}", "A".repeat(64))));
         assert!(!valid_digest("sha256:../file"));
+    }
+    #[test]
+    fn both_native_platforms_are_verified_and_no_index_child_is_skipped() {
+        let (amd, entries) = fixture("linux", false);
+        let mut files: BTreeMap<String, Vec<u8>> = entries.into_iter().collect();
+        let mut config: serde_json::Value = serde_json::from_slice(
+            &files[&format!(
+                "blobs/sha256/{}",
+                &{
+                    let manifest: serde_json::Value = serde_json::from_slice(
+                        &files[&format!("blobs/sha256/{}", &amd.digest[7..])],
+                    )
+                    .unwrap();
+                    manifest["config"]["digest"].as_str().unwrap().to_owned()
+                }[7..]
+            )],
+        )
+        .unwrap();
+        config["architecture"] = serde_json::json!("arm64");
+        let config = serde_json::to_vec(&config).unwrap();
+        let mut manifest: serde_json::Value =
+            serde_json::from_slice(&files[&format!("blobs/sha256/{}", &amd.digest[7..])]).unwrap();
+        manifest["config"] = serde_json::to_value(descriptor(&config, CONFIG)).unwrap();
+        let manifest = serde_json::to_vec(&manifest).unwrap();
+        let mut arm = descriptor(&manifest, MANIFEST);
+        arm.platform = Some(Platform::linux_arm64());
+        for bytes in [&config, &manifest] {
+            files.insert(
+                format!("blobs/sha256/{}", &digest(bytes)[7..]),
+                bytes.clone(),
+            );
+        }
+        let mut amd_child = amd.clone();
+        amd_child.platform = Some(Platform::linux_amd64());
+        let index = serde_json::to_vec(
+            &serde_json::json!({"schemaVersion":2,"mediaType":INDEX,"manifests":[amd_child,arm]}),
+        )
+        .unwrap();
+        let root = descriptor(&index, INDEX);
+        files.insert(format!("blobs/sha256/{}", &root.digest[7..]), index.clone());
+        files.insert(
+            "index.json".into(),
+            serde_json::to_vec(&serde_json::json!({"schemaVersion":2,"manifests":[root]})).unwrap(),
+        );
+        let archive = |files: &BTreeMap<String, Vec<u8>>| {
+            write_archive(
+                &files
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect::<Vec<_>>(),
+            )
+        };
+        let file = archive(&files);
+        let verified = verify_archive(
+            file.path(),
+            &root,
+            &Platform::automatic(),
+            Limits::default(),
+        )
+        .unwrap();
+        assert_eq!(verified.root().digest, root.digest);
+        assert_eq!(
+            verified.platforms(),
+            &BTreeSet::from([Platform::linux_amd64(), Platform::linux_arm64()])
+        );
+        assert_eq!(verified.manifests().len(), 3);
+        let mut native = Vec::new();
+        for (root, platform) in [
+            (&amd, Platform::linux_amd64()),
+            (&arm, Platform::linux_arm64()),
+        ] {
+            let mut single = files.clone();
+            single.insert(
+                "index.json".into(),
+                serde_json::to_vec(&serde_json::json!({"schemaVersion":2,"manifests":[root]}))
+                    .unwrap(),
+            );
+            native.push(
+                verify_archive(archive(&single).path(), root, &platform, Limits::default())
+                    .unwrap(),
+            );
+        }
+        let combined = aggregate(&native, Limits::default()).unwrap();
+        assert_eq!(combined.platforms(), verified.platforms());
+        assert_eq!(combined.root().digest, root.digest);
+        assert_eq!(combined.manifests().len(), 3);
+        assert!(aggregate(&native[..1], Limits::default()).is_err());
+        assert!(
+            verify_archive(
+                file.path(),
+                &root,
+                &Platform::linux_amd64(),
+                Limits::default()
+            )
+            .is_err()
+        );
+        files.insert("index.json".into(), index);
+        assert_eq!(
+            verify_export_archive(
+                archive(&files).path(),
+                &Platform::automatic(),
+                Limits::default()
+            )
+            .unwrap()
+            .root()
+            .digest,
+            root.digest
+        );
+        files.remove(&format!("blobs/sha256/{}", &arm.digest[7..]));
+        assert!(
+            verify_export_archive(
+                archive(&files).path(),
+                &Platform::automatic(),
+                Limits::default()
+            )
+            .is_err()
+        );
+        assert_eq!(
+            serde_json::from_str::<Platform>(
+                r#"{"os":"linux","architecture":"arm64","variant":"v8"}"#
+            )
+            .unwrap(),
+            Platform::linux_arm64()
+        );
+        assert!(
+            serde_json::from_str::<Platform>(
+                r#"{"os":"linux","architecture":"arm64","variant":"v7"}"#
+            )
+            .is_err()
+        );
     }
     #[test]
     fn compressed_layers_and_nested_indexes_keep_original_roots() {

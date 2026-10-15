@@ -40,7 +40,7 @@ pub fn allowed(
     };
     let pieces: Vec<_> = tail.split('/').collect();
     pieces.len() == 4
-        && namespaces.contains(pieces[0])
+        && kimage_core::scope::registry_allows(namespaces, pieces[0])
         && valid_identity(pieces[1])
         && matches!(pieces[2], "blobs" | "manifests")
         && kimage_core::oci::valid_digest(pieces[3])
@@ -75,10 +75,7 @@ impl Proxy {
             "InvalidUpstream"
         );
         ensure!(
-            !namespaces.is_empty()
-                && namespaces
-                    .iter()
-                    .all(|n| kimage_core::selector::dns_label(n)),
+            kimage_core::scope::valid_registry_namespaces(&namespaces),
             "InvalidNamespaceAllowlist"
         );
         let client = reqwest::Client::builder()

@@ -20,6 +20,7 @@ use tokio_util::sync::CancellationToken;
 
 #[derive(Clone)]
 pub struct Settings {
+    pub architecture: Option<String>,
     pub system_namespace: String,
     pub installation: String,
     pub builder_image: String,
@@ -32,8 +33,72 @@ pub struct Approved {
 }
 impl Settings {
     pub fn name(&self, suffix: &str) -> String {
-        format!("{}-{suffix}", self.installation)
+        match &self.architecture {
+            Some(arch) => format!("{}-{suffix}-{arch}", self.installation),
+            None => format!("{}-{suffix}", self.installation),
+        }
     }
+}
+pub async fn native_context(image: &crate::api::Image, config: &Config) -> Result<Config> {
+    let mut config = config.clone();
+    let Some(settings) = config.direct.as_mut() else {
+        return Ok(config);
+    };
+    let maps: Api<ConfigMap> = Api::namespaced(config.client.clone(), &settings.system_namespace);
+    let arch = &image.spec.platform.architecture;
+    let Some(map) = maps
+        .get_opt(&format!("{}-builders-{arch}", settings.installation))
+        .await?
+    else {
+        if arch != "amd64" {
+            settings.architecture = Some(arch.clone());
+        }
+        return Ok(config);
+    };
+    ensure!(
+        map.labels().get(LABEL) == Some(&settings.installation) && map.immutable == Some(true),
+        "BuilderCatalogOwnershipConflict"
+    );
+    let catalog: Value = serde_json::from_str(
+        map.data
+            .as_ref()
+            .and_then(|d| d.get("catalog.json"))
+            .context("MissingBuilderCatalog")?,
+    )?;
+    let builder = &catalog["builders"]["default"];
+    ensure!(
+        catalog["schema"] == 1
+            && builder["platforms"] == serde_json::json!([image.spec.platform.name()]),
+        "UnsupportedBuilderPlatform"
+    );
+    let input = builder["inputImage"]
+        .as_str()
+        .context("MissingNativeInputImage")?;
+    let worker = builder["image"]
+        .as_str()
+        .context("MissingNativeBuilderImage")?;
+    for (reference, role) in [(input, "input"), (worker, "builder")] {
+        let prefix = format!("{}/system-{role}@", settings.system_namespace);
+        ensure!(
+            reference
+                .split_once('/')
+                .is_some_and(|(authority, path)| authority
+                    .parse::<std::net::SocketAddr>()
+                    .is_ok_and(|a| a.ip() == std::net::Ipv4Addr::LOCALHOST && a.port() >= 1024)
+                    && path
+                        .strip_prefix(&prefix)
+                        .is_some_and(kimage_core::oci::valid_digest)),
+            "InvalidNativeComponentReference"
+        );
+    }
+    config.node = builder["node"]
+        .as_str()
+        .context("MissingNativeWorkerNode")?
+        .into();
+    config.input_image = input.into();
+    settings.architecture = Some(arch.clone());
+    settings.builder_image = worker.into();
+    Ok(config)
 }
 pub async fn approved(
     config: &Config,
@@ -64,17 +129,21 @@ pub async fn approved(
         settings.name("builder"),
         settings.system_namespace
     );
+    let tls_name = format!(
+        "{}-builder.{}.svc",
+        settings.installation, settings.system_namespace
+    );
     ensure!(
         catalog["schema"] == 1
             && builder["engine"] == "BuildKit"
             && builder["version"] == "0.33.0"
             && builder["frontendVersion"] == "1.27.0"
             && builder["node"] == config.node
-            && builder["trustScope"] == config.namespace
+            && (builder["trustScope"] == config.namespace || builder["trustScope"] == "*")
             && builder["offline"] == true
             && builder["maxParallelism"] == 1
             && builder["endpoint"] == format!("tcp://{dns}:1234")
-            && builder["tlsServerName"] == dns
+            && builder["tlsServerName"] == tls_name
             && builder["clientSecret"] == settings.name("builder-client"),
         "UnsupportedBuilderCatalog"
     );
@@ -85,7 +154,10 @@ pub async fn approved(
                 .data
                 .as_ref()
                 .and_then(|d| d.get("buildkitd.toml"))
-                .is_some_and(|s| s == crate::builder_install::CONFIG),
+                .is_some_and(|s| s
+                    == &crate::builder_install::configuration(
+                        settings.architecture.as_deref().unwrap_or("amd64")
+                    )),
         "BuilderIsolationConfigurationMismatch"
     );
     let pods: Api<Pod> = Api::namespaced(config.client.clone(), &settings.system_namespace);
@@ -191,7 +263,7 @@ pub async fn approved(
     Ok(Approved {
         pod,
         endpoint: format!("tcp://{dns}:1234"),
-        tls_server_name: dns,
+        tls_server_name: tls_name,
         credentials,
     })
 }

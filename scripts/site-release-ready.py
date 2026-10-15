@@ -34,7 +34,11 @@ def ready(version):
     if version == '0.1.0':
         return True
     names = {asset['name'] for asset in release['assets'] if asset['state'] == 'uploaded' and asset.get('digest')}
-    return {f'kimage-bundle-v{version}-linux-amd64.tar.gz', f'kimage-bundle-v{version}-linux-amd64.inventory.json'}.issubset(names)
+    architectures = ['amd64', 'arm64'] if tuple(map(int, version.split('-')[0].split('.'))) >= (0, 3, 0) else ['amd64']
+    required = {f'kimage-bundle-v{version}-linux-{arch}{suffix}' for arch in architectures for suffix in ['.tar.gz', '.inventory.json']}
+    if len(architectures) == 2:
+        required.update(f'kimage-v{version}-{os}-{arch}' for os in ['linux', 'darwin'] for arch in architectures)
+    return required.issubset(names)
 
 
 if __name__ == '__main__':

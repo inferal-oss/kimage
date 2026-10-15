@@ -20,15 +20,43 @@ use std::{
     sync::Arc,
     time::Duration,
 };
+#[derive(Clone)]
 pub struct Admission {
     pub client: Client,
     pub namespace: String,
+    pub cluster_wide: bool,
+    pub excluded_namespaces: BTreeSet<String>,
     pub endpoint: String,
     pub nodes: BTreeSet<String>,
     pub key_file: PathBuf,
     pub input_identity: Option<(String, String)>,
     pub builder_image: Option<String>,
     pub readiness_scope: Option<(String, String)>,
+}
+impl Admission {
+    fn scoped(&self, request: &Value) -> Result<Self> {
+        let namespace = request["namespace"]
+            .as_str()
+            .context("MissingAdmissionNamespace")?;
+        if self.cluster_wide {
+            let (system, _) = self
+                .readiness_scope
+                .as_ref()
+                .context("ClusterAdmissionSystemScopeRequired")?;
+            let scope = kimage_core::scope::NamespaceScope {
+                system_namespace: system.clone(),
+                application_namespace: None,
+                cluster_wide: true,
+                excluded_namespaces: self.excluded_namespaces.clone(),
+            };
+            ensure!(scope.allows(namespace), "AdmissionScopeMismatch");
+        } else {
+            ensure!(namespace == self.namespace, "AdmissionScopeMismatch");
+        }
+        let mut scoped = self.clone();
+        scoped.namespace = namespace.into();
+        Ok(scoped)
+    }
 }
 async fn capture(state: &Admission, pod: &Value) -> Result<BTreeMap<String, Catalog>> {
     let images: Api<Image> = Api::namespaced(state.client.clone(), &state.namespace);
@@ -116,6 +144,10 @@ async fn capture(state: &Admission, pod: &Value) -> Result<BTreeMap<String, Cata
             .as_ref()
             .and_then(ResourceExt::resource_version)
             .unwrap_or_else(|| "retained".into());
+        let platforms = before
+            .as_ref()
+            .map(|i| i.spec.declared_platforms())
+            .unwrap_or_default();
         let channels = before.map(|i| i.spec.channels).unwrap_or_default();
         result.insert(
             name.clone(),
@@ -125,6 +157,7 @@ async fn capture(state: &Admission, pod: &Value) -> Result<BTreeMap<String, Cata
                 image_uid: uid,
                 resource_version,
                 channels,
+                platforms,
                 releases: published,
             },
         );
@@ -192,15 +225,88 @@ fn authorized_session(
         && init[0]["imagePullPolicy"] == "IfNotPresent"
         && init[0]["command"] == json!(["/kimage-input", "prepare-build"])
 }
-async fn eligible_nodes(state: &Admission) -> Result<BTreeSet<String>> {
+async fn authorized_native_helper(state: &Admission, request: &Value) -> Result<bool> {
+    let (Some((username, _)), Some((system, installation))) =
+        (&state.input_identity, &state.readiness_scope)
+    else {
+        return Ok(false);
+    };
+    if request["operation"] != "CREATE" || request["userInfo"]["username"] != *username {
+        return Ok(false);
+    }
+    let maps: Api<k8s_openapi::api::core::v1::ConfigMap> =
+        Api::namespaced(state.client.clone(), system);
+    for architecture in ["amd64", "arm64"] {
+        let Some(map) = maps
+            .get_opt(&format!("{installation}-builders-{architecture}"))
+            .await?
+        else {
+            continue;
+        };
+        ensure!(
+            map.immutable == Some(true)
+                && map.labels().get(crate::install::LABEL) == Some(installation),
+            "BuilderCatalogOwnershipConflict"
+        );
+        let catalog: Value = serde_json::from_str(
+            map.data
+                .as_ref()
+                .and_then(|d| d.get("catalog.json"))
+                .context("MissingBuilderCatalog")?,
+        )?;
+        let builder = &catalog["builders"]["default"];
+        ensure!(
+            catalog["schema"] == 1
+                && builder["platforms"] == json!([format!("linux/{architecture}")]),
+            "UnsupportedBuilderPlatform"
+        );
+        let input = builder["inputImage"]
+            .as_str()
+            .context("MissingNativeInputImage")?;
+        let worker = builder["image"]
+            .as_str()
+            .context("MissingNativeBuilderImage")?;
+        for (reference, role) in [(input, "input"), (worker, "builder")] {
+            ensure!(
+                reference
+                    .strip_prefix(&format!("{}/{system}/system-{role}@", state.endpoint))
+                    .is_some_and(kimage_core::oci::valid_digest),
+                "InvalidNativeComponentReference"
+            );
+        }
+        let identity = (username.clone(), input.to_owned());
+        if request["object"]["spec"]["nodeName"] == builder["node"]
+            && (authorized_input(request, Some(&identity))
+                || authorized_session(request, Some(&identity), Some(worker)))
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+async fn eligible_nodes(
+    state: &Admission,
+) -> Result<BTreeMap<String, kimage_core::admission::NodeInfo>> {
     let Some((namespace, installation)) = &state.readiness_scope else {
         crate::metrics::nodes_ready(state.nodes.len());
-        return Ok(state.nodes.clone());
+        return Ok(state
+            .nodes
+            .iter()
+            .map(|n| {
+                (
+                    n.clone(),
+                    kimage_core::admission::NodeInfo {
+                        platform: kimage_core::oci::Platform::linux_amd64(),
+                        labels: BTreeMap::new(),
+                    },
+                )
+            })
+            .collect());
     };
     let pods: Api<k8s_openapi::api::core::v1::Pod> =
         Api::namespaced(state.client.clone(), namespace);
     let nodes: Api<k8s_openapi::api::core::v1::Node> = Api::all(state.client.clone());
-    let mut eligible = BTreeSet::new();
+    let mut eligible = BTreeMap::new();
     // Single-node profile. Later multi-node support uses one owned projection per node.
     for role in ["proxy", "proxy-next"] {
         let Some(proxy) = pods.get_opt(&format!("{installation}-{role}")).await? else {
@@ -229,14 +335,32 @@ async fn eligible_nodes(state: &Admission) -> Result<BTreeSet<String>> {
                 continue;
             }
             if node.status.as_ref().is_some_and(|s| {
-                s.node_info
+                s.node_info.as_ref().is_some_and(|i| {
+                    kimage_core::oci::Platform {
+                        os: i.operating_system.clone(),
+                        architecture: i.architecture.clone(),
+                    }
+                    .supported()
+                }) && s
+                    .conditions
                     .as_ref()
-                    .is_some_and(|i| i.architecture == "amd64" && i.operating_system == "linux")
-                    && s.conditions.as_ref().is_some_and(|cs| {
-                        cs.iter().any(|c| c.type_ == "Ready" && c.status == "True")
-                    })
+                    .is_some_and(|cs| cs.iter().any(|c| c.type_ == "Ready" && c.status == "True"))
             }) {
-                eligible.insert(name.clone());
+                let info = node
+                    .status
+                    .as_ref()
+                    .and_then(|s| s.node_info.as_ref())
+                    .unwrap();
+                eligible.insert(
+                    name.clone(),
+                    kimage_core::admission::NodeInfo {
+                        platform: kimage_core::oci::Platform {
+                            os: info.operating_system.clone(),
+                            architecture: info.architecture.clone(),
+                        },
+                        labels: node.labels().clone(),
+                    },
+                );
             }
         }
     }
@@ -278,7 +402,13 @@ async fn eligible_nodes(state: &Admission) -> Result<BTreeSet<String>> {
         ensure!(record.len() <= 32768, "NodeEndpointTooLarge");
         let record: crate::node_install::Endpoint =
             serde_json::from_str(record).context("InvalidNodeEndpoint")?;
-        record.validate(installation, namespace, &state.namespace, port)?;
+        let scope = kimage_core::scope::NamespaceScope {
+            system_namespace: namespace.clone(),
+            application_namespace: (!state.cluster_wide).then(|| state.namespace.clone()),
+            cluster_wide: state.cluster_wide,
+            excluded_namespaces: state.excluded_namespaces.clone(),
+        };
+        record.validate_scope(installation, namespace, &scope.registry_namespaces(), port)?;
         let scope = crate::node_install::scope(installation, &record.node_uid);
         ensure!(
             map.name_any() == format!("{scope}-endpoint"),
@@ -290,12 +420,16 @@ async fn eligible_nodes(state: &Admission) -> Result<BTreeSet<String>> {
         if node.uid().as_ref() != Some(&record.node_uid)
             || node.metadata.deletion_timestamp.is_some()
             || !node.status.as_ref().is_some_and(|s| {
-                s.node_info
+                s.node_info.as_ref().is_some_and(|i| {
+                    kimage_core::oci::Platform {
+                        os: i.operating_system.clone(),
+                        architecture: i.architecture.clone(),
+                    }
+                    .supported()
+                }) && s
+                    .conditions
                     .as_ref()
-                    .is_some_and(|i| i.architecture == "amd64" && i.operating_system == "linux")
-                    && s.conditions.as_ref().is_some_and(|cs| {
-                        cs.iter().any(|c| c.type_ == "Ready" && c.status == "True")
-                    })
+                    .is_some_and(|cs| cs.iter().any(|c| c.type_ == "Ready" && c.status == "True"))
             })
         {
             continue;
@@ -306,13 +440,29 @@ async fn eligible_nodes(state: &Admission) -> Result<BTreeSet<String>> {
         if crate::node_install::proxy_matches(&proxy, &record, installation)
             && crate::node_install::ready(&proxy)
         {
-            eligible.insert(record.node);
+            let info = node
+                .status
+                .as_ref()
+                .and_then(|s| s.node_info.as_ref())
+                .unwrap();
+            eligible.insert(
+                record.node,
+                kimage_core::admission::NodeInfo {
+                    platform: kimage_core::oci::Platform {
+                        os: info.operating_system.clone(),
+                        architecture: info.architecture.clone(),
+                    },
+                    labels: node.labels().clone(),
+                },
+            );
         }
     }
     crate::metrics::nodes_ready(eligible.len());
     Ok(eligible)
 }
 async fn handle(state: &Admission, request: &Value) -> Result<Vec<Value>> {
+    let scoped = state.scoped(request)?;
+    let state = &scoped;
     ensure!(
         request["uid"].as_str().is_some_and(|v| !v.is_empty()),
         "MissingAdmissionUid"
@@ -332,6 +482,7 @@ async fn handle(state: &Admission, request: &Value) -> Result<Vec<Value>> {
             state.input_identity.as_ref(),
             state.builder_image.as_deref(),
         )
+        || authorized_native_helper(state, request).await?
     {
         return Ok(Vec::new());
     }
@@ -371,23 +522,100 @@ async fn handle(state: &Admission, request: &Value) -> Result<Vec<Value>> {
         return Ok(Vec::new());
     }
     let catalogs = capture(state, pod).await?;
-    let nodes = if catalogs.is_empty() {
-        state.nodes.clone()
+    let node_info = if catalogs.is_empty() {
+        BTreeMap::new()
     } else {
         eligible_nodes(state).await?
     };
+    let nodes = if catalogs.is_empty() {
+        state.nodes.clone()
+    } else {
+        node_info.keys().cloned().collect()
+    };
     let key = std::fs::read(&state.key_file)?;
-    kimage_core::admission::patch(
-        pod,
-        &Policy {
-            namespace: &state.namespace,
-            endpoint: &state.endpoint,
-            request_uid: request["uid"].as_str().unwrap(),
-            key: &key,
-            nodes: &nodes,
-        },
-        &catalogs,
-    )
+    let policy = Policy {
+        namespace: &state.namespace,
+        endpoint: &state.endpoint,
+        request_uid: request["uid"].as_str().unwrap(),
+        key: &key,
+        nodes: &nodes,
+        node_info: Some(&node_info),
+    };
+    match kimage_core::admission::patch(pod, &policy, &catalogs) {
+        Ok(patch) => Ok(patch),
+        Err(error) if error.to_string() == "NoPublishedRelease" => {
+            request_builds(state, request, &policy, &catalogs).await?;
+            anyhow::bail!("ImageBuildPending")
+        }
+        Err(error) => Err(error),
+    }
+}
+async fn request_builds(
+    state: &Admission,
+    request: &Value,
+    policy: &Policy<'_>,
+    catalogs: &BTreeMap<String, Catalog>,
+) -> Result<()> {
+    let Some((system, installation)) = &state.readiness_scope else {
+        anyhow::bail!("NoPublishedRelease");
+    };
+    let platforms =
+        kimage_core::admission::requested_platforms(&request["object"], policy, catalogs)?;
+    // Dry runs are side-effect free. The real CREATE records only bounded,
+    // non-sensitive platform demand, never input data or build credentials.
+    if request["dryRun"] == true {
+        return Ok(());
+    }
+    let configuration =
+        crate::configuration::load(state.client.clone(), system, installation).await?;
+    if configuration.build_policy == crate::configuration::BuildPolicy::Eager {
+        return Ok(());
+    }
+    let images: Api<Image> = Api::namespaced(state.client.clone(), &state.namespace);
+    let mut requested = BTreeSet::new();
+    for kind in ["containers", "initContainers"] {
+        for container in request["object"]["spec"][kind]
+            .as_array()
+            .into_iter()
+            .flatten()
+        {
+            let Some(uri) = container["image"]
+                .as_str()
+                .filter(|s| s.starts_with("platform://"))
+            else {
+                continue;
+            };
+            let selector = Selector::parse(uri)?;
+            let Some(image) = images.get_opt(&selector.name).await? else {
+                continue;
+            };
+            if image.metadata.deletion_timestamp.is_some()
+                || image.spec.explicit_platforms().is_some()
+                || !matches!(image.spec.source, crate::api::Source::Build(_))
+            {
+                continue;
+            }
+            let version = kimage_core::selector::exact(&image.spec.version)?;
+            let matches = match &selector.selection {
+                kimage_core::selector::Selection::Exact(v) => v == &version,
+                kimage_core::selector::Selection::Range(range) => range.matches(&version),
+                kimage_core::selector::Selection::Channel(channel) => {
+                    image.spec.channels.get(channel) == Some(&image.spec.version)
+                }
+            };
+            if !matches || !requested.insert(selector.name.clone()) {
+                continue;
+            }
+            crate::configuration::record(
+                state.client.clone(),
+                system,
+                installation,
+                crate::configuration::Demand::for_image(&image, platforms.clone())?,
+            )
+            .await?;
+        }
+    }
+    Ok(())
 }
 async fn review(State(state): State<Arc<Admission>>, Json(review): Json<Value>) -> Json<Value> {
     let request = &review["request"];
@@ -402,6 +630,9 @@ async fn review(State(state): State<Arc<Admission>>, Json(review): Json<Value>) 
             }
             r
         }
+        Ok(Err(error)) if error.to_string() == "ImageBuildPending" => {
+            json!({"uid":uid,"allowed":false,"status":{"code":429,"reason":"ImageBuildPending","message":"The requested native image platforms are being prepared. Workload controllers retry automatically; retry a direct Pod CREATE after the Image is ready.","details":{"retryAfterSeconds":5}}})
+        }
         _ => {
             json!({"uid":uid,"allowed":false,"status":{"code":403,"reason":"KimageResolutionDenied","message":"Managed reference could not be resolved; check release, scope, endpoint and catalog readiness"}})
         }
@@ -415,7 +646,9 @@ async fn retention_review(
 ) -> Json<Value> {
     let request = &review["request"];
     let identity = state.input_identity.as_ref().map(|(name, _)| name.as_str());
-    let result = crate::retention::validate(request, &state.namespace, identity);
+    let result = state
+        .scoped(request)
+        .and_then(|scoped| crate::retention::validate(request, &scoped.namespace, identity));
     crate::metrics::admission(result.is_ok());
     let mut response = json!({"uid":request["uid"],"allowed":result.is_ok()});
     if result.is_err() {
@@ -424,9 +657,17 @@ async fn retention_review(
     Json(json!({"apiVersion":"admission.k8s.io/v1","kind":"AdmissionReview","response":response}))
 }
 pub async fn serve(state: Admission, cert: PathBuf, key: PathBuf) -> Result<()> {
-    let images: Api<Image> = Api::namespaced(state.client.clone(), &state.namespace);
+    let images: Api<Image> = if state.cluster_wide {
+        Api::all(state.client.clone())
+    } else {
+        Api::namespaced(state.client.clone(), &state.namespace)
+    };
     images.list(&ListParams::default().limit(1)).await?;
-    let releases: Api<ImageRelease> = Api::namespaced(state.client.clone(), &state.namespace);
+    let releases: Api<ImageRelease> = if state.cluster_wide {
+        Api::all(state.client.clone())
+    } else {
+        Api::namespaced(state.client.clone(), &state.namespace)
+    };
     releases.list(&ListParams::default().limit(1)).await?;
     let router = Router::new()
         .route(
@@ -502,6 +743,8 @@ mod tests {
             ))
             .unwrap(),
             namespace: "ns".into(),
+            cluster_wide: false,
+            excluded_namespaces: BTreeSet::new(),
             endpoint: "127.0.0.1:17500".into(),
             nodes: BTreeSet::from(["node".into()]),
             key_file: key.path().into(),

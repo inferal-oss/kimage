@@ -66,6 +66,108 @@ where
 }
 
 impl Installer {
+    /// Stable native worker placement: retain the primary node for its platform,
+    /// then choose one Ready schedulable node for every other native platform.
+    pub async fn native_worker_nodes(
+        &self,
+    ) -> Result<std::collections::BTreeMap<kimage_core::oci::Platform, String>> {
+        use kube::{Api, ResourceExt, api::ListParams};
+        let nodes: Api<k8s_openapi::api::core::v1::Node> = Api::all(self.client.clone());
+        let list = nodes.list(&ListParams::default().limit(1024)).await?;
+        ensure!(
+            list.metadata
+                .continue_
+                .as_ref()
+                .is_none_or(String::is_empty),
+            "TooManyClusterNodes"
+        );
+        let primary = Self::node_platform(self.client.clone(), &self.options.node).await?;
+        let mut placements =
+            std::collections::BTreeMap::from([(primary, self.options.node.clone())]);
+        let mut nodes = list.items;
+        nodes.sort_by_key(ResourceExt::name_any);
+        for node in nodes {
+            if node.metadata.deletion_timestamp.is_some()
+                || node
+                    .spec
+                    .as_ref()
+                    .is_some_and(|s| s.unschedulable == Some(true))
+                || !node
+                    .status
+                    .as_ref()
+                    .and_then(|s| s.conditions.as_ref())
+                    .is_some_and(|cs| cs.iter().any(|c| c.type_ == "Ready" && c.status == "True"))
+            {
+                continue;
+            }
+            let labels = node.labels();
+            let (Some(os), Some(architecture)) = (
+                labels.get("kubernetes.io/os"),
+                labels.get("kubernetes.io/arch"),
+            ) else {
+                continue;
+            };
+            let platform = kimage_core::oci::Platform {
+                os: os.clone(),
+                architecture: architecture.clone(),
+            };
+            if platform.supported() {
+                placements
+                    .entry(platform)
+                    .or_insert_with(|| node.name_any());
+            }
+        }
+        Ok(placements)
+    }
+    pub async fn install_native_worker(
+        &self,
+        bundle: &Bundle,
+        node: &str,
+        builder_credentials: &Path,
+    ) -> Result<()> {
+        let mut options = self.options.clone();
+        options.node = node.to_owned();
+        let target = Installer::new(self.client.clone(), options)?;
+        target.preflight_bundle(bundle).await?;
+        // All bytes cross the authenticated registry API. No runtime socket,
+        // image import, or unverified architecture translation is involved.
+        let tunnel = crate::tunnel::Tunnel::open(
+            self.client.clone(),
+            &self.options.namespace,
+            &self.name("registry"),
+            5443,
+        )
+        .await?;
+        for role in ["proxy", "input", "builder"] {
+            let component = bundle
+                .inventory
+                .components
+                .get(role)
+                .context("MissingNativeComponent")?;
+            let verified = kimage_core::oci::verify_archive(
+                &bundle.path(&component.archive)?,
+                &component.root,
+                &bundle.inventory.platform,
+                kimage_core::oci::Limits::default(),
+            )?;
+            let registry = crate::registry::Registry::new(
+                self.origin().parse()?,
+                format!("{}/system-{role}", self.options.namespace),
+                &std::fs::read(self.options.credentials.join("ca.crt"))?,
+                Some(tunnel.address),
+                "publisher".into(),
+                std::fs::read_to_string(self.options.credentials.join("publisher-password"))?
+                    .trim_end()
+                    .into(),
+            )?;
+            registry
+                .publish(&verified, &tokio_util::sync::CancellationToken::new())
+                .await?;
+        }
+        drop(tunnel);
+        self.join_node(bundle, node, false).await?;
+        target.builder(bundle, builder_credentials).await
+    }
     /// Fetching/verification happens in the CLI before this API-only workflow.
     pub async fn install(
         &self,
@@ -77,17 +179,8 @@ impl Installer {
             bundle.inventory.api_schema_revision == Some(crate::schema::REVISION),
             "BundleApiSchemaMismatch"
         );
-        let app = self
-            .options
-            .application_namespace
-            .as_deref()
-            .context("ApplicationNamespaceRequired")?;
-        ensure!(
-            app != self.options.namespace
-                && self.options.namespace != "default"
-                && !self.options.namespace.starts_with("kube-"),
-            "DedicatedSystemNamespaceRequired"
-        );
+        self.scope().validate()?;
+        self.ensure_scope_available().await?;
         ensure!(
             bundle
                 .inventory

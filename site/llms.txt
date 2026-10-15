@@ -3,7 +3,7 @@
 > kimage declares immutable, versioned container images as Kubernetes resources,
 > manages their production and verified publication to a retained cluster-local
 > registry, and resolves workload image selectors to digest-pinned pulls. Apache
-> 2.0. Alpha. Public Cargo packages: kimage-core and kimage-control, version 0.2.0.
+> 2.0. Alpha. Public Cargo packages: kimage-core and kimage-control, version 0.3.0.
 
 **When to use it.** Use kimage when inputs are already provisioned in Kubernetes,
 when images should remain available independently of source/build cache, or when
@@ -18,7 +18,7 @@ pipelines. The current kimage builder is narrower than those general workflows.
 **Current boundaries.** Builds support Containerfile, strategy Direct,
 builderRef default, FROM scratch, provisioned local files, and network-none RUN.
 No remote base images, remote ADD/context URLs, external syntax frontends, remote
-cache, general base provisioning, multi-platform images, signing/attestations,
+cache, general base provisioning, signing/attestations,
 HA, arbitrary storage/schema migration, or automatic retained-artifact GC.
 Administrator-managed builder isolation is not a hostile tenant security claim.
 
@@ -26,25 +26,25 @@ Administrator-managed builder isolation is not a hostile tenant security claim.
 1.99.0 or newer; ensure Cargo's bin directory is on PATH:
 
 ```sh
-cargo install kimage-control --version 0.2.0 --locked
+cargo install kimage-control --version 0.3.0 --locked
 kimage install --help
 ```
 
 This installs kimage, its compatible kimage-install alias, kimage-operator, kimage-admission, kimage-gateway,
 kimage-proxy, kimage-input, and kimage-exporter. Add --bin kimage for only
 the installer. The unrelated crate named `kimage` belongs to another project.
-Gateway/proxy report serving compatibility version 0.2.0, separately from Cargo
-package version 0.2.0. kimage-bootstrap is an unpublished internal bundle helper.
+Gateway/proxy report serving compatibility version 0.3.0, separately from Cargo
+package version 0.3.0. kimage-bootstrap is an unpublished internal bundle helper.
 
 **Official bundles and offline use.** No source checkout or packaging script is
 needed. `kimage install` automatically fetches, verifies, and caches the bundle,
 then runs bootstrap, seed, handover, control plane, and default builder setup.
 No separate fetch, check, or phase commands are required.
 Optional `kimage bundle-fetch` downloads and verifies the exact official
-GitHub release matching this CLI package version (0.2.0), never latest, without
+GitHub release matching this CLI package version (0.3.0), never latest, without
 kubeconfig or cluster writes. It prints JSON {bundle: <verified-directory>,
 trustedInventory: <sha256-digest>}. All bundle-using phases use the same automatic
-selection and reverify cached files before reuse. `--release 0.2.0` pins an exact
+selection and reverify cached files before reuse. `--release 0.3.0` pins an exact
 release; `--bundle-cache <directory>` overrides the private cache. Default cache:
 XDG_CACHE_HOME/kimage/bundles if set, otherwise ~/Library/Caches/kimage/bundles on
 macOS or ~/.cache/kimage/bundles on Linux. `--offline` prevents bundle downloads only (cluster commands still need Kubernetes) and
@@ -62,8 +62,7 @@ your approved channel. Supply `--bundle <directory> --trusted-inventory
 sha256:<64-lowercase-hex-digits>` instead of --release. Local bundles always need
 that independent pin. The pin is also optional for official downloads. Cache
 corruption fails closed and requires explicit removal/refetch. GitHub Actions
-builds complete Linux/amd64 bundles and native Linux/amd64 and macOS/arm64
-installers, inventories, checksums, and license notices as release assets.
+builds complete Linux/amd64 and Linux/arm64 bundles and four native Linux/macOS amd64/arm64 installers, inventories, checksums, and license notices as release assets.
 Official bundles start at 0.2.0; 0.1.0 has no downloadable bundle assets.
 
 ```sh
@@ -75,7 +74,7 @@ kimage bundle-check --offline
 delivery does not provision Kubernetes. Supply administrator kubeconfig, issuer
 credentials, persistent storage, cached carrier, and the supported runtime.
 The full acceptance fixture uses Kubernetes v1.36.5+k3s1, containerd
-2.3.4-k3s1.36, Linux/amd64, Ubuntu 24.04.5, kernel 6.8.0-142. Choose
+2.3.4-k3s1.36, native Linux/amd64 or Linux/arm64, Ubuntu 24.04.5, kernel 6.8.0-142. Choose
 --runtime-profile k3s explicitly. The CLI default inferal profile checks the
 earlier RKE2 v1.36.5+rke2r1 / containerd 2.3.4-k3s1 foundation profile.
 Untested exact runtime versions are refused. A generic kind/k3d/container cluster
@@ -83,10 +82,10 @@ is not automatically supported: user namespaces, idmapped volumes, kernel and
 filesystem support, CNI policy enforcement, and persistent storage all matter.
 
 Required installation arguments are --runtime-profile, --namespace (system),
---application-namespace (distinct), --installation, --node, --carrier (approved
+--application-namespace (distinct, namespace scope only), --installation, --node, --carrier (approved
 digest already cached on that node), --storage-class, --port (at least 1024),
 --credentials (registry directory). Bundle selection is automatic; optionally add
---release 0.2.0, or the local bundle/pin pair described above. Use an
+--release 0.3.0, or the local bundle/pin pair described above. Use an
 administrator kubeconfig. The standard command is:
 
 ```sh
@@ -123,7 +122,7 @@ token, and nested namespace capabilities with unconfined seccomp/AppArmor inside
 its Pod. It needs administrator-approved policy and denies worker egress.
 
 **Minimal complete build example.** Assumes namespace apps and default builder
-are already configured. On Linux/amd64 with Rust and a musl linker, create a small
+are already configured. On native Linux/amd64 or Linux/arm64 with Rust and a musl linker, create a small
 program in hello.rs: `fn main() { println!("Hello from kimage!"); loop {
 std::thread::park_timeout(std::time::Duration::from_secs(3600)); } }`.
 
@@ -135,7 +134,7 @@ kubectl -n apps create configmap hello-context --from-file=hello=./hello \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
 
-On macOS use a Linux/amd64 machine or build container for that executable; a
+On macOS use a matching native Linux machine or build container for that executable; a
 native macOS binary cannot run inside the scratch image. Save as image.yaml:
 
 ```yaml
@@ -146,7 +145,6 @@ metadata:
   namespace: apps
 spec:
   version: "1.0.0"
-  platform: {os: linux, architecture: amd64}
   source:
     build:
       format: Containerfile
@@ -155,7 +153,8 @@ spec:
       definition:
         inline: |
           FROM scratch
-          COPY hello /hello
+          ARG TARGETARCH
+          COPY hello-${TARGETARCH} /hello
           ENTRYPOINT ["/hello"]
       inputs:
         contextPath: /workspace/context
@@ -163,16 +162,18 @@ spec:
           - name: context
             configMap:
               name: hello-context
-              items: [{key: hello, path: hello, mode: 365}]
+              defaultMode: 365
         volumeMounts:
           - {name: context, mountPath: /workspace/context, readOnly: true}
 ```
 
-Mode 365 is decimal for octal 0555. Apply, wait for verified publication, and run
+Mode 365 is decimal for octal 0555. Apply the Image and Deployment, wait for verified publication, and run
 the downloadable Deployment (or use the selector in your own Pod template):
 
 ```sh
 kubectl apply -f image.yaml
+# Automatic Images remain AwaitingDemand until a workload requests them.
+kubectl apply -f examples/hello/deployment.yaml
 kubectl -n apps wait --for=condition=Ready image/hello --timeout=10m
 kubectl -n apps get imagereleases
 kubectl apply -f https://kimage.dev/examples/hello/deployment.yaml
@@ -210,9 +211,77 @@ Controllers that pre-parse OCI references, fetch image metadata before creating
 Pods, or rewrite selectors require integration. No arbitrary CRD field scanning
 is performed. Image strings in ConfigMaps, env/args, Containerfiles, image-backed
 volumes, static Pods, or ephemeral-container updates are not supported selectors
-in 0.2.0. Edit workload templates for ordinary rollouts; publishing versions or
+in 0.3.0. Edit workload templates for ordinary rollouts; publishing versions or
 moving channels does not itself restart workloads. Full reference:
 https://kimage.dev/docs/#workload-compatibility
+
+**Platforms and build policy (0.3.0).** Omitted spec.platform/spec.platforms means
+native automatic selection. Default policy is OnDemand: without a consumer,
+automatic Images remain AwaitingDemand and no worker build starts. Administrator
+ConfigMap <installation>-config in the system namespace has data.configuration.json
+set to {"schema":1,"buildPolicy":"OnDemand"}; change buildPolicy to "Eager" to build
+all available supported platforms before consumers exist. The operator watches
+changes; installation preserves this config.
+
+Admission evaluates actual Pod nodeName, nodeSelector and required nodeAffinity
+against eligible Ready nodes with approved local proxies. Only amd64 placement
+builds/uses amd64; only arm64 placement builds/uses arm64. If both remain possible,
+build both and pin a fully verified OCI index, whose native child kubelet selects.
+One eligible architecture needs one variant. Preferred affinity does not narrow
+the platform set. All managed containers' platform constraints are intersected.
+Unsupported/contradictory placement fails; there is no automatic build emulation.
+Admission preserves required placement and restricts scheduling to verified native
+platforms and eligible nodes.
+
+Explicit spec.platform: {os: linux, architecture: arm64} requests one native build.
+Alternatively use spec.platforms as a list of native platform objects, omitting
+platform, to explicitly request a set. These are direct build requests, even under
+OnDemand. Available native architectures bound builds. Version identity is Image
+UID + version + platform; the aggregate index has its own immutable key. Native
+refs appear in status.platformReleases; status.releaseRef points at the available
+native or aggregate release. Adding arm64 cannot overwrite published amd64 bytes.
+Aggregates require matching private ordinary/definition captures and object/PVC
+identities across variants; changed sources require a new version.
+
+A real unresolved Pod CREATE records bounded ImageDemand for the current Image
+UID/generation/version and requested platforms, then fails with ImageBuildPending.
+Workload controllers retry while the operator produces the image. Direct Pod apply
+may need a retry after Image Ready. Server dry-run records no demand. Do not wait
+for an automatic Image before applying its Deployment. Demand accumulates within
+a generation; stale UIDs/generations and arbitrary historical build requests fail.
+
+The standard install discovers one native worker node per available architecture,
+selects bundles from cluster Node architecture rather than laptop architecture,
+fetches and verifies all selected bundles before setup, seeds native components
+through the registry API and joins additional native worker nodes. New platforms
+added later need matching bundle, join-node and builder setup. Local --bundle on
+a mixed cluster needs explicit per-platform phases. --offline needs cached bundles
+for all selected architectures. Standalone bundle-fetch defaults to the host ISA;
+use --platform linux/amd64 or --platform linux/arm64 to prepare another platform.
+
+Copied executable inputs must match the requested architecture. The hello example
+uses ARG TARGETARCH and COPY hello-${TARGETARCH}; provide hello-amd64 and hello-arm64
+for a mixed cluster. A homogeneous cluster needs only its matching binary. kimage
+does not translate source binaries. Compile these on matching native Linux build
+machines, then populate the input ConfigMap directory before applying workloads.
+
+**Installation scope (0.3.0).** Default --scope namespace requires a distinct
+--application-namespace apps. --scope cluster omits application-namespace, manages
+ordinary namespaces including future ones, and accepts repeated --exclude-namespace
+NAME flags. The system namespace and kube-system/kube-public/kube-node-lease are
+always excluded from application admission/reconciliation. Overlaps with other
+kimage installations are refused; scope is checkpoint-bound and not changed by a
+rerun. Both scopes require cluster administrator setup for shared CRDs/webhooks.
+Namespace mode uses application Roles; cluster mode has broader application RBAC
+plus runtime scope filters. Images, inputs, destination credentials and selectors
+stay in the consuming namespace: platform://other-ns/image is denied even in cluster
+mode. Each namespace may define its own same-named Image. Optional exporter follows
+this scope. Namespace routing is not hostile-tenant registry confidentiality.
+
+Native Kubernetes E2E tests both installation scopes on amd64 and arm64, real
+builds/pulls and built-in/custom controllers, default/on-demand/eager policy,
+dry-run, RBAC and namespace boundaries, exclusions and retained PVC on uninstall.
+The release workflow requires the matrix to pass before crates/GitHub publication.
 
 **Selector rules.** `platform://apps/hello:1.2.4` selects that exact release;
 `:^1.2.0` selects the highest compatible published release below 2.0.0;
@@ -249,23 +318,21 @@ OCI archive sources require a same-namespace claimName, relative path,
 producerHandoff:true, and expected root {mediaType,digest,size}. Root digest is
 not the archive-file checksum. Files must be readable by UID 65532. Complete
 original OCI bytes, platform, compressed layer digests, and DiffIDs are verified.
-Single-platform manifests/nested indexes are supported; zstd, multi-platform,
-descriptor URLs/embedded data, and subject/referrer graphs are unsupported.
+Native amd64/arm64 manifests, nested indexes and complete multi-platform indexes are supported; zstd, descriptor URLs/embedded data, and subject/referrer graphs are unsupported.
 `kimage-install schemas` prints full CRD JSON without changing the cluster.
 
 **Operations.** join-node uses the original installation arguments plus
 --target-node and the same prerequisites. upgrade-serving takes target
 --bundle/--trusted-inventory and source --previous-bundle/--previous-trusted-inventory.
 Rollback reverses those independently trusted pairs. The tested actual binary
-window is Distribution 3.1.1 ↔ 3.1.2 and gateway/proxy 0.1.0 ↔ 0.2.0, with the
+window is Distribution 3.1.1 ↔ 3.1.2 and gateway/proxy 0.1.0 / 0.2.0 / 0.3.0 (cluster scope requires 0.3.0), with the
 shipped filesystem configuration on the same PVC. Prefer Distribution 3.1.2.
 All non-serving component versions/roots and bundle API revision must match.
 The updater uses a Lease, warmup pulls, immutable checkpoints, read-only retained
 serving, and single-writer replacement. Publication pauses; interrupted streams
 use runtime retry/digest checks. Repeat the same pair after interruption. It
 never changes CRDs or migrates data. Whole 0.1.0/0.2.0 release bundles differ in
-non-serving component roots, so this is not a general whole-release downgrade. Schema revision 4 accepts only the exact
-shipped additive revision 2/3 transitions; no schema downgrade/storage migration.
+non-serving component roots, so this is not a general whole-release downgrade. Schema revision 5 accepts only exact shipped revision 2/3/4 transitions; no schema downgrade/storage migration.
 
 recover reuses original bootstrap arguments and PVC to recreate carrier serving,
 then normal phases restore components. It requires a usable control plane/node,
@@ -296,16 +363,15 @@ from internal Ready. Target removal/Image deletion never deletes remote content.
 
 **Diagnostics and trust.** Read Image status.conditions/observedGeneration,
 operation/releaseRef/build, separate status.exports, and normal Pod events.
-Operator/admission expose /metrics on health listeners; proxy 0.2.0 exposes it
+Operator/admission expose /metrics on health listeners; proxy 0.3.0 exposes it
 on its canonical-authority loopback listener, inspectable by API forwarding.
 Stage counters/durations cover build/publication/pull without identity labels.
 Check catalog/node sample completeness and timestamps before using gauges.
-Admission is read-only; publishers and readers have distinct credentials.
+Admission records bounded ImageDemand objects for real missing-release CREATEs; publishers and readers have distinct credentials.
 Eligible node administrators are trusted readers; namespace routing is not
 hostile-tenant image confidentiality. Native clients keep TLS verification on.
-63 Rust tests run on macOS/arm64 and Linux/amd64 musl. Separate two-node
-acceptance harnesses cover lifecycle/recovery/binary rollback/export and are not
-ordinary CI; historical live bundles predate the latest selector/CLI metadata.
+Rust tests run on macOS/arm64 and native Linux/amd64 and Linux/arm64 musl. Separate two-node
+acceptance harnesses cover lifecycle/recovery/binary rollback/export and remain historical evidence; native amd64/arm64 namespace/cluster install E2E is now a release gate; historical live bundles predate the latest selector/CLI metadata.
 
 ## Reference
 

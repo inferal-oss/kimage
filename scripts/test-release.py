@@ -31,13 +31,13 @@ github = module('publish-github-release')
 site_ready = module('site-release-ready')
 
 
-def fixture(root):
+def fixture(root, architecture="amd64", version="0.2.0"):
     linux, buildkit = root / 'linux', root / 'buildkit'
     linux.mkdir()
     buildkit.mkdir()
     elf = bytearray(120)
     elf[:6] = b'\x7fELF\x02\x01'
-    struct.pack_into('<H', elf, 18, 62)
+    struct.pack_into('<H', elf, 18, {'amd64':62,'arm64':183}[architecture])
     struct.pack_into('<Q', elf, 32, 64)
     struct.pack_into('<HH', elf, 54, 56, 1)
     for name in ('bootstrap', 'install', 'gateway', 'proxy', 'operator', 'admission', 'input', 'exporter'):
@@ -47,13 +47,54 @@ def fixture(root):
     (root / 'registry').write_bytes(elf)
     (root / 'macos').write_bytes(bytes([207, 250, 237, 254, 12, 0, 0, 1]) + b'\0' * 4 + bytes([2, 0, 0, 0]))
     target = root / 'bundle'
-    arguments = ['package-bundle.py', '--linux-dir', str(linux), '--registry', str(root / 'registry'), '--buildkit-dir', str(buildkit), '--include-installers', '--macos-installer', str(root / 'macos'), '--component-version', '0.2.0', '--out', str(target)]
+    arguments = ['package-bundle.py', '--linux-dir', str(linux), '--registry', str(root / 'registry'), '--buildkit-dir', str(buildkit), '--include-installers', '--macos-installer', str(root / 'macos'), '--component-version', version, '--architecture', architecture, '--serving-version', '0.2.0', '--out', str(target)]
+    if version == '0.3.0':
+        (root / 'macos-amd64').write_bytes(bytes([207,250,237,254,7,0,0,1]) + b'\0'*4 + bytes([2,0,0,0]))
+        arguments.extend(['--macos-amd64-installer', str(root / 'macos-amd64')])
     with patch.object(sys, 'argv', arguments), contextlib.redirect_stdout(io.StringIO()):
         bundle_pack.main()
     return target
 
 
 class ReleaseTests(unittest.TestCase):
+    def test_both_native_release_bundles_and_four_installers_are_deterministic(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root/'LICENSE').write_text('license\n')
+            (root/'CHANGELOG.md').write_text('# Changelog\n\n## [Unreleased]\n\n## [0.3.0] - 2026-10-15\n\n### Added\n\n- Native platforms.\n')
+            for architecture in ['amd64','arm64']:
+                location = root/architecture
+                location.mkdir()
+                bundle = fixture(location,architecture,'0.3.0')
+                inventory = json.loads((bundle/'inventory.json').read_text())
+                self.assertEqual(inventory['platform']['architecture'],architecture)
+                self.assertEqual(inventory['apiSchemaRevision'],5)
+                with patch.object(release_pack,'ROOT',root), contextlib.redirect_stdout(io.StringIO()):
+                    release_pack.package(bundle,root/'release','0.3.0')
+                wrong = 'arm64' if architecture == 'amd64' else 'amd64'
+                with self.assertRaises(ValueError):
+                    bundle_pack.static_elf(location/'linux/kimage-install',wrong)
+                with tarfile.open(bundle/'input.oci.tar') as archive:
+                    index=json.load(archive.extractfile('index.json'))
+                    manifest=json.load(archive.extractfile('blobs/sha256/'+index['manifests'][0]['digest'][7:]))
+                    config=json.load(archive.extractfile('blobs/sha256/'+manifest['config']['digest'][7:]))
+                    self.assertEqual(config['architecture'],architecture)
+            assets={path.name for path in (root/'release').iterdir() if path.name!='RELEASE_NOTES.md'}
+            self.assertEqual(len(assets),11)
+            for os in ['linux','darwin']:
+                for arch in ['amd64','arm64']:
+                    self.assertIn(f'kimage-v0.3.0-{os}-{arch}',assets)
+            self.assertEqual(len((root/'release/SHA256SUMS').read_text().splitlines()),10)
+
+    def test_site_waits_for_both_native_bundles_and_four_installers(self):
+        version={'version':{'yanked':False}}
+        names={f'kimage-bundle-v0.3.0-linux-{arch}{suffix}' for arch in ['amd64','arm64'] for suffix in ['.tar.gz','.inventory.json']}
+        names.update(f'kimage-v0.3.0-{os}-{arch}' for os in ['linux','darwin'] for arch in ['amd64','arm64'])
+        assets=[{'name':name,'state':'uploaded','digest':'sha256:fixture'} for name in names]
+        for selected, expected in [(assets,True),(assets[:-1],False)]:
+            with patch.object(site_ready,'get',side_effect=[version,version,{'draft':False,'assets':selected}]):
+                self.assertEqual(site_ready.ready('0.3.0'),expected)
+
     def test_new_draft_visibility_delay_never_creates_another_draft(self):
         draft = {'id': 123, 'tag_name': 'v0.2.0', 'draft': True}
         with patch.object(github, 'release', side_effect=[None, None, draft]), patch.object(github.time, 'sleep') as sleep, patch.object(github.subprocess, 'run', side_effect=AssertionError('must not create another draft')):

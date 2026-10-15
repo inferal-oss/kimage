@@ -11,7 +11,7 @@ use tokio_rustls::{
     rustls::{self, pki_types::PrivateKeyDer},
 };
 /// Wire-compatible serving release; the v1 endpoint challenge is unchanged.
-pub const VERSION: &str = "0.2.0";
+pub const VERSION: &str = "0.3.0";
 /// Load projected cert/key on each new connection, so Kubernetes atomic renewal
 /// takes effect without terminating existing requests. Invalid replacements fail closed.
 fn acceptor(cert: &PathBuf, key: &PathBuf) -> Result<TlsAcceptor> {

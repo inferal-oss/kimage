@@ -1,0 +1,81 @@
+name: Native Kubernetes E2E
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_BUILD_JOBS: 2
+  RUSTUP_TOOLCHAIN: 1.99.0
+
+jobs:
+  install:
+    name: ${{ matrix.architecture }} / ${{ matrix.scope }} install
+    strategy:
+      fail-fast: false
+      matrix:
+        architecture: [amd64, arm64]
+        scope: [namespace, cluster]
+        include:
+          - architecture: amd64
+            os: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
+          - architecture: arm64
+            os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install native musl linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends musl-tools
+      - name: Install Rust
+        run: rustup toolchain install 1.99.0 --profile minimal --target ${{ matrix.target }}
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: e2e-${{ matrix.target }}-1.99.0-${{ hashFiles('Cargo.lock') }}
+      - name: Build native components and fixture executable
+        run: |
+          cargo build --locked --release --workspace --bins --target ${{ matrix.target }}
+          mkdir -p .local/e2e
+          rustc --edition=2024 --target ${{ matrix.target }} -C opt-level=z -C strip=symbols -C panic=abort scripts/fixtures/build-probe.rs -o .local/e2e/probe
+      - name: Fetch pinned native upstream components
+        run: python3 scripts/fetch-release-inputs.py --architecture ${{ matrix.architecture }} --out .local/e2e/upstream
+      - name: Prepare independently verified local bundle
+        run: |
+          python3 scripts/package-bundle.py --architecture ${{ matrix.architecture }} \
+            --linux-dir target/${{ matrix.target }}/release \
+            --registry .local/e2e/upstream/registry --buildkit-dir .local/e2e/upstream/buildkit \
+            --out .local/e2e/bundle
+      - name: Start pinned disposable Kubernetes fixture
+        run: python3 scripts/prepare-e2e-cluster.py --directory .local/e2e-cluster
+      - name: Exercise actual native installation, builds, controllers, and scope boundaries
+        run: |
+          python3 scripts/e2e-install.py --scope ${{ matrix.scope }} \
+            --bundle .local/e2e/bundle --installer target/${{ matrix.target }}/release/kimage-install \
+            --probe .local/e2e/probe --output .local/e2e/results
+      - name: Upload non-sensitive acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-${{ matrix.architecture }}-${{ matrix.scope }}
+          path: |
+            .local/e2e/results/*.json
+            .local/e2e/results/install.log
+          if-no-files-found: warn
+          retention-days: 14

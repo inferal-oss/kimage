@@ -15,11 +15,8 @@ impl Installer {
             .components
             .get("exporter")
             .context("MissingExporterComponent")?;
-        let app = self
-            .options
-            .application_namespace
-            .as_deref()
-            .context("ApplicationNamespaceRequired")?;
+        let app = self.options.application_namespace.as_deref().unwrap_or("*");
+        self.scope().validate()?;
         ensure!(
             !approved.is_empty() && approved.len() <= 8,
             "ExplicitExportOriginsRequired"
@@ -52,9 +49,20 @@ impl Installer {
         self.owned(json!({"apiVersion":"v1","kind":"Secret","metadata":self.metadata(&reader),"type":"Opaque","data":data})).await?;
         self.owned(json!({"apiVersion":"v1","kind":"ServiceAccount","metadata":self.metadata(&role),"automountServiceAccountToken":false})).await?;
         let rules = json!([{"apiGroups":["kimage.dev"],"resources":["images","imagereleases"],"verbs":["get","list","watch"]},{"apiGroups":["kimage.dev"],"resources":["images/status"],"verbs":["patch"]},{"apiGroups":[""],"resources":["secrets"],"verbs":["get"]}]);
-        self.owned_at(json!({"apiVersion":"rbac.authorization.k8s.io/v1","kind":"Role","metadata":self.metadata(&role),"rules":rules}),Some(app)).await?;
         let binding = json!({"apiVersion":"rbac.authorization.k8s.io/v1","kind":"RoleBinding","metadata":self.metadata(&role),"subjects":[{"kind":"ServiceAccount","name":role,"namespace":self.options.namespace}],"roleRef":{"apiGroup":"rbac.authorization.k8s.io","kind":"Role","name":role}});
-        self.owned_at(binding.clone(), Some(app)).await?;
+        if self.scope().cluster_wide {
+            let name = self.name("application-exporter");
+            self.owned_at(json!({"apiVersion":"rbac.authorization.k8s.io/v1","kind":"ClusterRole","metadata":self.metadata(&name),"rules":rules}),None).await?;
+            let mut cluster_binding = binding.clone();
+            cluster_binding["kind"] = json!("ClusterRoleBinding");
+            cluster_binding["metadata"] = self.metadata(&name);
+            cluster_binding["roleRef"]["kind"] = json!("ClusterRole");
+            cluster_binding["roleRef"]["name"] = json!(name);
+            self.owned_at(cluster_binding, None).await?;
+        } else {
+            self.owned_at(json!({"apiVersion":"rbac.authorization.k8s.io/v1","kind":"Role","metadata":self.metadata(&role),"rules":rules}),Some(app)).await?;
+            self.owned_at(binding.clone(), Some(app)).await?;
+        }
         self.owned(json!({"apiVersion":"rbac.authorization.k8s.io/v1","kind":"Role","metadata":self.metadata(&role),"rules":[{"apiGroups":["coordination.k8s.io"],"resources":["leases"],"verbs":["get","create","update"]}]})).await?;
         self.owned(binding).await?;
         let reference = format!(
@@ -75,6 +83,13 @@ impl Installer {
             "--internal-password".into(),
             "/credentials/reader-password".into(),
         ];
+        if self.scope().cluster_wide {
+            args.drain(..2);
+            args.push("--cluster-wide".into());
+            for ns in &self.options.excluded_namespaces {
+                args.extend(["--exclude-namespace".into(), ns.clone()]);
+            }
+        }
         for origin in origins {
             args.extend(["--approved-origin".into(), origin]);
         }

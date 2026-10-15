@@ -1,5 +1,10 @@
 # Direct build implementation decisions
 
+For 0.3.0 platform selection, default on-demand production, eager configuration,
+and namespace/cluster installation, see [native platforms and scope](platforms-and-scope.md).
+Earlier acceptance receipts below describe the historical amd64 fixture; native
+Kubernetes E2E now covers both architectures and both installation scopes.
+
 This records the milestone-2 design and its acceptance boundaries. Revision 3 now
 executes `source.build`; the first public API build and resolved workload passed
 on the owned isolated fixture. The milestone-2 matrix passed; see `milestone-2-acceptance.md` for exact evidence

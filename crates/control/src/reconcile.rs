@@ -24,6 +24,7 @@ use tokio_util::sync::CancellationToken;
 
 #[derive(Clone)]
 pub struct Config {
+    pub scope: Option<kimage_core::scope::NamespaceScope>,
     pub direct: Option<crate::direct::Settings>,
     pub client: Client,
     pub namespace: String,
@@ -50,9 +51,11 @@ pub(crate) fn request_digest(image: &Image) -> Result<String> {
             cache.remove("mode");
         }
     }
-    Ok(oci::digest(&serde_json::to_vec(
-        &json!({"source":source,"platform":image.spec.platform}),
-    )?))
+    let mut declaration = json!({"source":source,"platform":image.spec.platform});
+    if !image.spec.platforms.is_empty() {
+        declaration["platforms"] = serde_json::to_value(image.spec.explicit_platforms())?;
+    }
+    Ok(oci::digest(&serde_json::to_vec(&declaration)?))
 }
 pub(crate) fn condition(generation: i64, ready: bool, reason: &str) -> Condition {
     Condition {
@@ -141,6 +144,17 @@ pub async fn reconcile(
     image: Arc<Image>,
     config: Arc<Config>,
 ) -> Result<kube::runtime::controller::Action> {
+    let config = if let Some(scope) = &config.scope {
+        let namespace = image.namespace().context("MissingImageNamespace")?;
+        if !scope.allows(&namespace) {
+            return Ok(kube::runtime::controller::Action::await_change());
+        }
+        let mut scoped = (*config).clone();
+        scoped.namespace = namespace;
+        Arc::new(scoped)
+    } else {
+        config
+    };
     let waiting = crate::metrics::Waiting::begin();
     let _permit = config.concurrency.acquire().await?;
     drop(waiting);
@@ -170,6 +184,10 @@ pub async fn reconcile(
         ));
     }
     if matches!(image.spec.source, Source::Build(_)) {
+        if image.spec.platform.is_automatic() {
+            return crate::platform_build::reconcile(image, config.clone()).await;
+        }
+        let config = Arc::new(crate::direct::native_context(&image, &config).await?);
         let image = Arc::new(crate::build_lifecycle::ensure(&image, &config).await?);
         return crate::build_reconcile::entry(image, config.clone()).await;
     }
@@ -472,11 +490,28 @@ async fn publish(image: &Image, config: &Config) -> Result<()> {
     let uid = image.uid().context("MissingImageUid")?;
     let generation = image.metadata.generation.unwrap_or(1);
     let version = &image.spec.version;
-    let release_name = kimage_core::catalog::release_name(&uid, version);
+    let release_name =
+        kimage_core::catalog::platform_release_name(&uid, version, &image.spec.platform);
     let releases: Api<ImageRelease> = Api::namespaced(config.client.clone(), &config.namespace);
     let source = match &image.spec.source {
         Source::OciArchive(source) => source,
         Source::Build(_) => anyhow::bail!("BuildAdapterNotReady"),
+    };
+    let release_name = if image.spec.platform.is_automatic() {
+        if let Some(reference) = image.status.as_ref().and_then(|s| s.release_ref.as_ref()) {
+            match releases.get_opt(reference).await? {
+                Some(existing)
+                    if existing.spec.image_uid == uid && existing.spec.version == *version =>
+                {
+                    reference.clone()
+                }
+                _ => release_name,
+            }
+        } else {
+            release_name
+        }
+    } else {
+        release_name
     };
     if let Some(existing) = releases.get_opt(&release_name).await? {
         ensure!(
@@ -487,7 +522,8 @@ async fn publish(image: &Image, config: &Config) -> Result<()> {
             existing.spec.image_uid == uid
                 && existing.spec.version == *version
                 && same_root(&existing.spec.root, &source.root)
-                && existing.spec.platform == image.spec.platform,
+                && (existing.spec.platform == image.spec.platform
+                    || (image.spec.platform.is_automatic() && existing.spec.platform.supported())),
             "VersionConflict"
         );
         if !existing.status.as_ref().is_some_and(|s| s.verified) {
@@ -759,7 +795,18 @@ pub(crate) async fn publish_artifact(
     let uid = image.uid().context("MissingImageUid")?;
     let generation = image.metadata.generation.unwrap_or(1);
     let version = &image.spec.version;
-    let release_name = kimage_core::catalog::release_name(&uid, version);
+    let platform = if verified.platforms().len() == 1 {
+        verified.platforms().first().unwrap().clone()
+    } else {
+        oci::Platform::automatic()
+    };
+    ensure!(
+        verified
+            .platforms()
+            .is_subset(&image.spec.declared_platforms()),
+        "UnsupportedPlatform"
+    );
+    let release_name = kimage_core::catalog::platform_release_name(&uid, version, &platform);
     let releases: Api<ImageRelease> = Api::namespaced(config.client.clone(), &config.namespace);
     let declared = request_digest(image)?;
     if let Some(previous) = &operation.root {
@@ -803,7 +850,7 @@ pub(crate) async fn publish_artifact(
         version: version.clone(),
         snapshot,
         root: receipt.root().clone(),
-        platform: image.spec.platform.clone(),
+        platform,
         request_digest: declared,
         source_generation: generation,
         publisher_version: env!("CARGO_PKG_VERSION").into(),
@@ -926,7 +973,7 @@ pub(crate) async fn ensure_no_writers(config: &Config, claim: &str) -> Result<()
     }
     Ok(())
 }
-fn same_artifact(a: &ImageReleaseSpec, b: &ImageReleaseSpec) -> bool {
+pub(crate) fn same_artifact(a: &ImageReleaseSpec, b: &ImageReleaseSpec) -> bool {
     a.image_uid == b.image_uid
         && a.version == b.version
         && a.platform == b.platform

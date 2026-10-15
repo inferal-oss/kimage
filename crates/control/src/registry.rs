@@ -292,7 +292,10 @@ impl Registry {
                 if descriptor.media_type == kimage_core::oci::INDEX {
                     let children: Vec<Descriptor> =
                         serde_json::from_value(content["manifests"].clone())?;
-                    ensure!(children.len() == 1, "OnlySinglePlatformSupported");
+                    ensure!(
+                        !children.is_empty() && children.len() <= 2,
+                        "InvalidImageIndex"
+                    );
                     queue.extend(children.into_iter().map(|d| (d, depth + 1)));
                 } else {
                     let config: Descriptor = serde_json::from_value(content["config"].clone())?;

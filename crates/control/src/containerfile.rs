@@ -11,6 +11,8 @@ use tokio_util::sync::CancellationToken;
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Session {
+    #[serde(default = "kimage_core::oci::Platform::linux_amd64")]
+    pub platform: kimage_core::oci::Platform,
     pub build: Build,
     pub endpoint: String,
     pub tls_server_name: String,
@@ -53,6 +55,7 @@ pub fn source_policy() -> Value {
     json!({"version":1,"rules":[{"action":"DENY","selector":{"identifier":"(?s)^.*$","match_type":"REGEX"}},{"action":"ALLOW","selector":{"identifier":"local://context","match_type":"EXACT"}},{"action":"ALLOW","selector":{"identifier":"local://dockerfile","match_type":"EXACT"}}]})
 }
 pub fn arguments(session: &Session, capture: &Capture) -> Result<Vec<String>> {
+    ensure!(session.platform.supported(), "UnsupportedBuildPlatform");
     session.build.validate()?;
     ensure!(
         session.build.execution.builder_ref == "default",
@@ -89,7 +92,7 @@ pub fn arguments(session: &Session, capture: &Capture) -> Result<Vec<String>> {
         "--opt".into(),
         "filename=Containerfile".into(),
         "--opt".into(),
-        "platform=linux/amd64".into(),
+        format!("platform={}", session.platform.name()),
         "--opt".into(),
         "force-network-mode=none".into(),
         "--source-policy-file".into(),
@@ -334,7 +337,7 @@ async fn worker_identity(session: &Session, capture: &Capture) -> Result<String>
                 && p.get("architecture")
                     .or_else(|| p.get("Architecture"))
                     .and_then(Value::as_str)
-                    == Some("amd64")
+                    == Some(session.platform.architecture.as_str())
         ),
         "UnsupportedWorkerPlatform"
     );

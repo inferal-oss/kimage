@@ -1,5 +1,10 @@
 # Clean implementation architecture
 
+For 0.3.0 platform selection, default on-demand production, eager configuration,
+and namespace/cluster installation, see [native platforms and scope](platforms-and-scope.md).
+Earlier acceptance receipts below describe the historical amd64 fixture; native
+Kubernetes E2E now covers both architectures and both installation scopes.
+
 Decision date: 2026-10-14. The experimental branch is evidence, not the
 implementation baseline. Acceptance updated 2026-10-15: the original four
 milestones and cross-cutting observability checks passed for the documented
@@ -18,7 +23,7 @@ unsupported.
 | Cached images hide broken endpoints and bootstrap dependency cycles. | Cached carrier/static launcher only for bootstrap. Ordinary workloads pull digest references through loopback proxy with verified HTTPS upstream. Endpoint eligibility is independent of release verification. | Fresh unique image plus real kubelet requests; all-components-down recovery in isolated cache-absent fixture. |
 | Registry images cannot bootstrap their own registry, and one RWO writer limits handover. | API-only bounded executable delivery and port-forward upload; trusted offline bundle with component/version inventory. Persist installation phase and resource ownership; warm replacements before a single-writer transition. | Interrupt/resume each install phase, carrier absence, policy denial, PVC identity preservation. A stop/start transition has downtime; do not claim uninterrupted service. |
 | A Lease does not prevent an old operator from downgrading schemas. | Built-in schema phase before CR discovery; revision/definition/ownership guard, optimistic writes, no force apply or deletion. Additive changes require explicit compatibility; refuse unsupported conversion/storage migration. | Actual establishment/discovery, foreign ownership, additive upgrade and old/new binaries in isolated fixture. |
-| Opt-in webhook labels allow bypass, while self-hosting can deadlock admission. | Administrator-controlled system exclusion; fail-closed declared application scope; same-namespace consumption; direct internal references checked too. Read-only catalog and admission; CREATE-only resolution, explicit update/ephemeral rejection. | Actual API-server dry-run and reinvocation, JSON Patch application, outage/routing and forgery tests. |
+| Opt-in webhook labels allow bypass, while self-hosting can deadlock admission. | Administrator-controlled system exclusion; fail-closed declared application scope; same-namespace consumption; direct internal references checked too. Read-only catalog with bounded demand recording in admission; CREATE-only resolution, explicit update/ephemeral rejection. | Actual API-server dry-run and reinvocation, JSON Patch application, outage/routing and forgery tests. |
 | Independently listed Images/releases can select incoherent channel/UID state. | Versioned coherent catalog snapshot, only verified immutable releases, explicit channels, strict custom URI grammar and semantic precedence. | Channel races, deleted/recreated Images, ranges/prereleases and invalid URI matrix. |
 | Mutable projections/read-only PVC mounts are not snapshots. | Capture ConfigMaps/Secrets at explicit UID/resourceVersion; frozen reader workspace; producer handoff required for PVC. Secret input stays outside COPY context and public fingerprints. | Mutation during capture, binary/mode/key mapping, PVC/subPath, mount/path escape and Secret definition/session checks. |
 | Dropping a transport process is not durable worker cancellation. | Persist attempt identity separately from logical input identity before submit. Stale generations cannot acknowledge current work. Define cancel/retry recovery at the strategy boundary. | Crash/restart and cancellation during capture, solve and publication; changed-input cache checks. |

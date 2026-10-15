@@ -97,6 +97,7 @@ pub async fn create(
 ) -> Result<Record> {
     let record = Record {
         session: Session {
+            platform: image.spec.platform.clone(),
             build: frozen.build.clone(),
             endpoint: approved.endpoint.clone(),
             tls_server_name: approved.tls_server_name.clone(),

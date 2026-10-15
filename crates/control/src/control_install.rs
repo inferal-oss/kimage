@@ -27,7 +27,11 @@ fn cluster_rules() -> Vec<Value> {
             "apiextensions.k8s.io",
             &["customresourcedefinitions"],
             &["get", "update", "patch"],
-            &["images.kimage.dev", "imagereleases.kimage.dev"],
+            &[
+                "images.kimage.dev",
+                "imagereleases.kimage.dev",
+                "imagedemands.kimage.dev",
+            ],
         ),
         rule("", &["persistentvolumes"], &["get"]),
     ]
@@ -44,7 +48,7 @@ fn application_rules(admission: bool) -> Vec<Value> {
         rule(
             "kimage.dev",
             &["images"],
-            &["get", "list", "watch", "patch"],
+            &["get", "list", "watch", "create", "patch"],
         ),
         rule(
             "kimage.dev",
@@ -72,7 +76,62 @@ fn application_rules(admission: bool) -> Vec<Value> {
     ]
 }
 impl Installer {
-    fn reference(&self, bundle: &Bundle, role: &str) -> Result<String> {
+    pub(crate) async fn ensure_scope_available(&self) -> Result<()> {
+        use k8s_openapi::api::admissionregistration::v1::MutatingWebhookConfiguration;
+        let api: Api<MutatingWebhookConfiguration> = Api::all(self.client.clone());
+        let hooks = api
+            .list(
+                &kube::api::ListParams::default()
+                    .labels(crate::install::LABEL)
+                    .limit(256),
+            )
+            .await?;
+        ensure!(
+            hooks
+                .metadata
+                .continue_
+                .as_ref()
+                .is_none_or(|v| v.is_empty()),
+            "TooManyInstallationScopes"
+        );
+        for hook in hooks {
+            let Some(webhooks) = &hook.webhooks else {
+                continue;
+            };
+            for webhook in webhooks {
+                let Some(service) = &webhook.client_config.service else {
+                    anyhow::bail!("UnknownInstallationScope");
+                };
+                if hook.name_any() == self.name("resolution")
+                    && service.namespace == self.options.namespace
+                {
+                    continue;
+                }
+                let other = if let Some(scope) = hook.annotations().get("kimage.dev/scope") {
+                    serde_json::from_str::<kimage_core::scope::NamespaceScope>(scope)?
+                } else {
+                    let application = webhook
+                        .namespace_selector
+                        .as_ref()
+                        .and_then(|s| s.match_labels.as_ref())
+                        .and_then(|l| l.get("kubernetes.io/metadata.name"))
+                        .context("UnknownInstallationScope")?;
+                    kimage_core::scope::NamespaceScope {
+                        system_namespace: service.namespace.clone(),
+                        application_namespace: Some(application.clone()),
+                        cluster_wide: false,
+                        excluded_namespaces: Default::default(),
+                    }
+                };
+                ensure!(
+                    !self.scope().overlaps(&other),
+                    "InstallationScopeOverlap: exclude the existing application's namespace or use a separate scope"
+                );
+            }
+        }
+        Ok(())
+    }
+    pub(crate) fn reference(&self, bundle: &Bundle, role: &str) -> Result<String> {
         let c = bundle
             .inventory
             .components
@@ -91,12 +150,18 @@ impl Installer {
     async fn permissions(&self, application: &str) -> Result<()> {
         for role in ["operator", "admission"] {
             self.owned(json!({"apiVersion":"v1","kind":"ServiceAccount","metadata":self.metadata(&self.name(role)),"automountServiceAccountToken":false})).await?;
-            self.owned_at(json!({"apiVersion":"rbac.authorization.k8s.io/v1","kind":"Role","metadata":self.metadata(&self.name(role)),"rules":application_rules(role == "admission")}), Some(application)).await?;
-            let binding = self.binding(role, "RoleBinding");
-            self.owned_at(binding, Some(application)).await?;
+            if self.scope().cluster_wide {
+                let name = self.name(&format!("application-{role}"));
+                self.owned_at(json!({"apiVersion":"rbac.authorization.k8s.io/v1","kind":"ClusterRole","metadata":self.metadata(&name),"rules":application_rules(role=="admission")}),None).await?;
+                self.owned_at(json!({"apiVersion":"rbac.authorization.k8s.io/v1","kind":"ClusterRoleBinding","metadata":self.metadata(&name),"subjects":[{"kind":"ServiceAccount","name":self.name(role),"namespace":self.options.namespace}],"roleRef":{"apiGroup":"rbac.authorization.k8s.io","kind":"ClusterRole","name":name}}),None).await?;
+            } else {
+                self.owned_at(json!({"apiVersion":"rbac.authorization.k8s.io/v1","kind":"Role","metadata":self.metadata(&self.name(role)),"rules":application_rules(role == "admission")}), Some(application)).await?;
+                self.owned_at(self.binding(role, "RoleBinding"), Some(application))
+                    .await?;
+            }
         }
         let mut cluster = cluster_rules();
-        cluster.push(named_rule("", &["nodes"], &["get"], &[&self.options.node]));
+        cluster.push(rule("", &["nodes"], &["get", "list"]));
         self.owned_at(json!({"apiVersion":"rbac.authorization.k8s.io/v1","kind":"ClusterRole","metadata":self.metadata(&self.name("operator")),"rules":cluster}), None).await?;
         let binding = self.binding("operator", "ClusterRoleBinding");
         self.owned_at(binding, None).await?;
@@ -119,25 +184,39 @@ impl Installer {
             ));
         }
         rules.extend([
+            rule("", &["configmaps"], &["get", "list", "watch"]),
+            rule("kimage.dev", &["imagedemands"], &["get", "list", "watch"]),
             named_rule(
                 "",
-                &["configmaps"],
+                &["secrets"],
                 &["get"],
                 &[
-                    &self.name("builders"),
-                    &self.name("builder-config"),
-                    &self.name("builder-template"),
+                    &self.name("builder-client"),
+                    &self.name("builder-client-amd64"),
+                    &self.name("builder-client-arm64"),
                 ],
             ),
-            named_rule("", &["secrets"], &["get"], &[&self.name("builder-client")]),
-            named_rule("", &["pods"], &["get", "delete"], &[&self.name("builder")]),
+            named_rule(
+                "",
+                &["pods"],
+                &["get", "delete"],
+                &[
+                    &self.name("builder"),
+                    &self.name("builder-amd64"),
+                    &self.name("builder-arm64"),
+                ],
+            ),
             rule("", &["pods"], &["create"]),
             rule("discovery.k8s.io", &["endpointslices"], &["get", "list"]),
             named_rule(
                 "coordination.k8s.io",
                 &["leases"],
                 &["get", "update", "patch"],
-                &[&self.name("direct-worker")],
+                &[
+                    &self.name("direct-worker"),
+                    &self.name("direct-worker-amd64"),
+                    &self.name("direct-worker-arm64"),
+                ],
             ),
         ]);
         self.owned(json!({"apiVersion":"rbac.authorization.k8s.io/v1","kind":"Role","metadata":self.metadata(&self.name("operator")),"rules":rules})).await?;
@@ -149,17 +228,9 @@ impl Installer {
             bundle.inventory.api_schema_revision == Some(crate::schema::REVISION),
             "BundleApiSchemaMismatch: use its matching retained installer"
         );
-        let app = self
-            .options
-            .application_namespace
-            .as_deref()
-            .context("ApplicationNamespaceRequired")?;
-        ensure!(
-            app != self.options.namespace
-                && self.options.namespace != "default"
-                && !self.options.namespace.starts_with("kube-"),
-            "DedicatedSystemNamespaceRequired"
-        );
+        self.scope().validate()?;
+        self.ensure_scope_available().await?;
+        let app = self.options.application_namespace.as_deref().unwrap_or("*");
         // Refuse an incompatible installed schema before any control-plane writes.
         let api: Api<k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition> = Api::all(self.client.clone());
         for desired in crate::schema::definitions()? {
@@ -183,6 +254,7 @@ impl Installer {
         }
         self.state_named(bundle, "ControlPlanePending", "control-state")
             .await?;
+        self.ensure_configuration().await?;
         self.permissions(app).await?;
         // Operator never receives a registry reader password or TLS private key.
         self.owned(json!({"apiVersion":"v1","kind":"Secret","metadata":self.metadata(&self.name("publisher-credentials")),"type":"Opaque","data":{
@@ -249,6 +321,13 @@ impl Installer {
                     arguments.extend(["--installation".into(), self.options.installation.clone()]);
                 }
             }
+            if self.scope().cluster_wide {
+                arguments.drain(0..2);
+                arguments.push("--cluster-wide".into());
+                for namespace in &self.options.excluded_namespaces {
+                    arguments.extend(["--exclude-namespace".into(), namespace.clone()]);
+                }
+            }
             let container = json!({"name":role,"image":self.reference(bundle, role)?,"imagePullPolicy":"IfNotPresent","command":[format!("/kimage-{role}")],"args":arguments,
                 "env":[{"name":"POD_UID","valueFrom":{"fieldRef":{"fieldPath":"metadata.uid"}}}],
                 "volumeMounts":[{"name":"credentials","mountPath":"/credentials","readOnly":true},{"name":"scratch","mountPath":"/tmp"}],
@@ -293,6 +372,7 @@ impl Installer {
             .error_for_status()?;
         self.owned_at(self.webhook(app, &ca), None).await?;
         let mut retention = self.webhook(app, &ca);
+        retention["webhooks"][0]["sideEffects"] = json!("None");
         retention["kind"] = json!("ValidatingWebhookConfiguration");
         retention["metadata"]["name"] = json!(self.name("retention"));
         retention["webhooks"][0]["name"] = json!(format!(
@@ -309,10 +389,10 @@ impl Installer {
         self.state_named(bundle, "ControlPlaneReady", "control-state")
             .await
     }
-    fn webhook(&self, application: &str, ca: &[u8]) -> Value {
-        json!({"apiVersion":"admissionregistration.k8s.io/v1","kind":"MutatingWebhookConfiguration","metadata":self.metadata(&self.name("resolution")),"webhooks":[{
-            "name":format!("{}.kimage.dev", self.options.installation),"admissionReviewVersions":["v1"],"sideEffects":"None","failurePolicy":"Fail","matchPolicy":"Equivalent","reinvocationPolicy":"IfNeeded","timeoutSeconds":5,
-            "namespaceSelector":{"matchLabels":{"kubernetes.io/metadata.name":application}},
+    fn webhook(&self, _application: &str, ca: &[u8]) -> Value {
+        json!({"apiVersion":"admissionregistration.k8s.io/v1","kind":"MutatingWebhookConfiguration","metadata":{"name":self.name("resolution"),"labels":{crate::install::LABEL:self.options.installation},"annotations":{"kimage.dev/scope":serde_json::to_string(&self.scope()).expect("scope serialization")}},"webhooks":[{
+            "name":format!("{}.kimage.dev", self.options.installation),"admissionReviewVersions":["v1"],"sideEffects":"NoneOnDryRun","failurePolicy":"Fail","matchPolicy":"Equivalent","reinvocationPolicy":"IfNeeded","timeoutSeconds":5,
+            "namespaceSelector":self.scope().webhook_selector(),
             "clientConfig":{"service":{"name":self.name("admission"),"namespace":self.options.namespace,"path":"/mutate","port":443},"caBundle":STANDARD.encode(ca)},
             "rules":[{"apiGroups":[""],"apiVersions":["v1"],"operations":["CREATE","UPDATE"],"resources":["pods","pods/ephemeralcontainers"],"scope":"Namespaced"}]}]})
     }
@@ -341,7 +421,11 @@ mod tests {
             {
                 assert_eq!(
                     r["resourceNames"],
-                    json!(["images.kimage.dev", "imagereleases.kimage.dev"])
+                    json!([
+                        "images.kimage.dev",
+                        "imagereleases.kimage.dev",
+                        "imagedemands.kimage.dev"
+                    ])
                 );
             }
         }

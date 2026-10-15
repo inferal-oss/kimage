@@ -59,7 +59,7 @@ impl Bundle {
         );
         let inventory: Inventory = serde_json::from_slice(&bytes)?;
         ensure!(
-            inventory.schema == 1 && inventory.platform == Platform::linux_amd64(),
+            inventory.schema == 1 && inventory.platform.supported(),
             "UnsupportedBundle"
         );
         let bundle = Self {
@@ -105,20 +105,31 @@ impl Bundle {
             )?;
         }
         ensure!(
-            bundle.inventory.installers.len() <= 2,
+            bundle.inventory.installers.len() <= 4,
             "TooManyNativeInstallers"
         );
         for (platform, entry) in &bundle.inventory.installers {
             bundle.check_file(entry, 128 * 1024 * 1024)?;
             match platform.as_str() {
-                "linux-amd64" => bundle.check_static(entry)?,
-                "darwin-arm64" => {
+                "linux-amd64" => bundle.check_static_for(entry, &Platform::linux_amd64())?,
+                "linux-arm64" => bundle.check_static_for(entry, &Platform::linux_arm64())?,
+                "darwin-arm64" | "darwin-amd64" => {
                     let mut header = [0_u8; 16];
                     std::fs::File::open(bundle.path(entry)?)?.read_exact(&mut header)?;
                     ensure!(
-                        header[..8] == [207, 250, 237, 254, 12, 0, 0, 1]
+                        header[..8]
+                            == [
+                                207,
+                                250,
+                                237,
+                                254,
+                                if platform == "darwin-arm64" { 12 } else { 7 },
+                                0,
+                                0,
+                                1
+                            ]
                             && header[12..] == [2, 0, 0, 0],
-                        "NotNativeDarwinArm64Installer"
+                        "NotNativeDarwinInstaller"
                     );
                 }
                 _ => anyhow::bail!("UnsupportedInstallerPlatform"),
@@ -163,7 +174,10 @@ impl Bundle {
     }
     fn check_static(&self, entry: &FileEntry) -> Result<()> {
         let mut file = std::fs::File::open(self.path(entry)?)?;
-        validate_static(&mut file)
+        validate_static_for(&mut file, &self.inventory.platform)
+    }
+    fn check_static_for(&self, entry: &FileEntry, platform: &Platform) -> Result<()> {
+        validate_static_for(&mut std::fs::File::open(self.path(entry)?)?, platform)
     }
     pub fn chunks(&self, name: &str) -> Result<(Vec<Vec<u8>>, String)> {
         let component = self
@@ -179,8 +193,8 @@ impl Bundle {
             &header[0..4] == b"\x7fELF"
                 && header[4] == 2
                 && header[5] == 1
-                && header[18..20] == [62, 0],
-            "NotLinuxAmd64Executable"
+                && header[18..20] == machine(&self.inventory.platform)?.to_le_bytes(),
+            "ExecutablePlatformMismatch"
         );
         use std::io::{Seek, Write};
         input.rewind()?;
@@ -203,13 +217,25 @@ impl Bundle {
         ))
     }
 }
+fn machine(platform: &Platform) -> Result<u16> {
+    ensure!(platform.supported(), "UnsupportedExecutablePlatform");
+    Ok(if platform.architecture == "arm64" {
+        183
+    } else {
+        62
+    })
+}
+#[cfg(test)]
 fn validate_static(file: &mut std::fs::File) -> Result<()> {
+    validate_static_for(file, &Platform::linux_amd64())
+}
+fn validate_static_for(file: &mut std::fs::File, platform: &Platform) -> Result<()> {
     use std::io::{Seek, SeekFrom};
     let mut header = [0_u8; 64];
     file.read_exact(&mut header)?;
     ensure!(
-        &header[..6] == b"\x7fELF\x02\x01" && header[18..20] == [62, 0],
-        "NotLinuxAmd64Executable"
+        &header[..6] == b"\x7fELF\x02\x01" && header[18..20] == machine(platform)?.to_le_bytes(),
+        "ExecutablePlatformMismatch"
     );
     let offset = u64::from_le_bytes(header[32..40].try_into().unwrap());
     let stride = u16::from_le_bytes(header[54..56].try_into().unwrap()) as u64;
@@ -247,6 +273,24 @@ mod tests {
         bytes[56..58].copy_from_slice(&1_u16.to_le_bytes());
         std::fs::write(file.path(), &bytes).unwrap();
         assert!(validate_static(&mut std::fs::File::open(file.path()).unwrap()).is_ok());
+        assert!(
+            validate_static_for(
+                &mut std::fs::File::open(file.path()).unwrap(),
+                &Platform::linux_arm64()
+            )
+            .is_err()
+        );
+        bytes[18..20].copy_from_slice(&183_u16.to_le_bytes());
+        std::fs::write(file.path(), &bytes).unwrap();
+        assert!(
+            validate_static_for(
+                &mut std::fs::File::open(file.path()).unwrap(),
+                &Platform::linux_arm64()
+            )
+            .is_ok()
+        );
+        assert!(validate_static(&mut std::fs::File::open(file.path()).unwrap()).is_err());
+        bytes[18..20].copy_from_slice(&62_u16.to_le_bytes());
         bytes[64..68].copy_from_slice(&3_u32.to_le_bytes());
         std::fs::write(file.path(), &bytes).unwrap();
         assert!(validate_static(&mut std::fs::File::open(file.path()).unwrap()).is_err());

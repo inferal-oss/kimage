@@ -10,7 +10,7 @@ workload delivery.
 Requires Rust 1.99.0 or newer. No source checkout is needed:
 
 ```sh
-cargo install kimage-control --version 0.2.0 --locked
+cargo install kimage-control --version 0.3.0 --locked
 kimage install --help
 ```
 
@@ -29,7 +29,7 @@ Cluster installation requires TLS credentials and a supported runtime profile. S
 [installation guide](https://kimage.dev/docs/#cluster-setup)
 and the [hello tutorial](https://kimage.dev/docs/#quickstart).
 
-The tested native clients are macOS/arm64 and Linux/amd64. The initial build
+Native clients support macOS and Linux on amd64 and arm64. Image placement selects native worker builds, with default on-demand or configurable eager production, and namespace or cluster scope. The initial build
 adapter uses Containerfiles, scratch images, and provisioned local inputs.
 Read the [compatibility limits](https://kimage.dev/docs/#compatibility)
 before installation. The public APIs are alpha.
@@ -41,6 +41,6 @@ for field locations and controller validation requirements.
 
 The crates.io package is called `kimage-control`; the `kimage` crate name belongs
 to a separate project. Gateway and proxy retain their serving compatibility
-version, currently 0.2.0, independently of the Cargo package version.
+version, currently 0.3.0, independently of the Cargo package version.
 
 Licensed under Apache License 2.0.

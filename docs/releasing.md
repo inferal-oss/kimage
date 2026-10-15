@@ -9,13 +9,14 @@ The unrelated `kimage` crate belongs to another project.
 Update the workspace version and exact core dependency together, then update
 Cargo.lock, crate READMEs, README, changelog, handbook, website commands, and
 llms.txt. Keep the two crate licenses identical to the root Apache 2.0 license.
-Gateway/proxy retain a separate serving compatibility version, currently 0.2.0;
+Gateway/proxy retain a separate serving compatibility version, currently 0.3.0;
 a Cargo release does not implicitly change that binary compatibility contract.
 
 ```sh
 cargo fmt --all --check
 cargo clippy --locked --workspace --all-targets -- -D warnings
 cargo test --locked --workspace
+python3 scripts/check-changelog.py
 python3 scripts/test-release.py
 python3 scripts/check-docs.py
 python3 scripts/check-site.py
@@ -27,6 +28,15 @@ main. The website validates the new documentation immediately but holds its
 deployment until both crates and the complete GitHub release bundle are public.
 This prevents the live quickstart from advertising an unavailable installation.
 
+Maintain an empty `[Unreleased]` section above dated released sections, use the
+Keep a Changelog categories (Added, Changed, Deprecated, Removed, Fixed, Security),
+and update compare links. Record meaningful user behavior in the current release.
+The checker runs in CI and the release validation job.
+
+Native Kubernetes E2E is a publication gate: both installation scopes must pass on
+native amd64 and arm64 runners. Review the E2E evidence artifacts before tagging.
+The build preview also requires this reusable acceptance workflow.
+
 ## Build and review release assets
 
 The pinned `publish.yml` workflow can preview a build from main without
@@ -36,14 +46,14 @@ publication or a publishing credential:
 gh workflow run publish.yml --ref main -f dry_run=true
 ```
 
-It validates source and docs, builds Linux/amd64 musl components and the native
-Linux/amd64 and macOS/arm64 installers, downloads pinned upstream inputs, verifies
+It validates source and docs, builds native Linux/amd64 and Linux/arm64 musl components and all four Linux/macOS
+amd64/arm64 installers, downloads pinned upstream inputs, verifies
 the full inventory/OCI graphs, and uploads `release-assets` to the Actions run.
 The assets are:
 
-- `kimage-bundle-v0.2.0-linux-amd64.tar.gz`, a complete flat offline bundle.
-- `kimage-bundle-v0.2.0-linux-amd64.inventory.json`, also inside the bundle.
-- `kimage-v0.2.0-linux-amd64` and `kimage-v0.2.0-darwin-arm64`.
+- `kimage-bundle-v0.3.0-linux-<amd64|arm64>.tar.gz`, a complete flat offline bundle.
+- `kimage-bundle-v0.3.0-linux-<amd64|arm64>.inventory.json`, also inside the bundle.
+- Four installers: `kimage-v0.3.0-<linux|darwin>-<amd64|arm64>`.
 - `LICENSE`, `THIRD-PARTY-NOTICES.txt`, and `SHA256SUMS`.
 
 The input downloader checks pinned archive sizes/SHA-256 for Distribution 3.1.2
@@ -58,9 +68,9 @@ binary version output and natively verifies the complete bundle before upload.
 Create the version tag on the reviewed main commit, then dispatch a dry run:
 
 ```sh
-git tag -a v0.2.0 -m 'kimage 0.2.0'
-git push origin v0.2.0
-gh workflow run publish.yml --ref v0.2.0 -f dry_run=true
+git tag -a v0.3.0 -m 'kimage 0.3.0'
+git push origin v0.3.0
+gh workflow run publish.yml --ref v0.3.0 -f dry_run=true
 ```
 
 Both crates trust only `inferal-oss/kimage`, workflow filename `publish.yml`, and
@@ -74,7 +84,7 @@ crates.io token is stored in GitHub secrets.
 After inspecting the dry run, publish the same tag:
 
 ```sh
-gh workflow run publish.yml --ref v0.2.0 -f dry_run=false
+gh workflow run publish.yml --ref v0.3.0 -f dry_run=false
 ```
 
 The job stages and hashes assets in a draft GitHub release, publishes core then
@@ -96,7 +106,7 @@ Published release assets are treated as immutable. Do not move a published tag.
 Verify the consumer path on macOS as well as the workflow's Linux check:
 
 ```sh
-cargo install kimage-control --version 0.2.0 --locked --root .local/release-install
+cargo install kimage-control --version 0.3.0 --locked --root .local/release-install
 .local/release-install/bin/kimage bundle-fetch --bundle-cache .local/release-cache
 .local/release-install/bin/kimage bundle-check --bundle-cache .local/release-cache --offline
 ```

@@ -23,11 +23,28 @@ pub struct ImageSpec {
     #[serde(default)]
     pub channels: BTreeMap<String, String>,
     pub source: Source,
+    #[serde(default = "Platform::automatic")]
     pub platform: Platform,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub platforms: Vec<Platform>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub exports: Vec<crate::export_api::Target>,
 }
 impl ImageSpec {
+    pub fn explicit_platforms(&self) -> Option<std::collections::BTreeSet<Platform>> {
+        if !self.platforms.is_empty() {
+            Some(self.platforms.iter().cloned().collect())
+        } else if self.platform.supported() {
+            Some(std::collections::BTreeSet::from([self.platform.clone()]))
+        } else {
+            None
+        }
+    }
+    pub fn declared_platforms(&self) -> std::collections::BTreeSet<Platform> {
+        self.explicit_platforms().unwrap_or_else(|| {
+            std::collections::BTreeSet::from([Platform::linux_amd64(), Platform::linux_arm64()])
+        })
+    }
     pub fn validate(&self) -> Result<()> {
         crate::export_api::validate(&self.exports)?;
         kimage_core::selector::exact(&self.version)?;
@@ -37,7 +54,16 @@ impl ImageSpec {
             kimage_core::selector::exact(v)?;
         }
         ensure!(
-            self.platform == Platform::linux_amd64(),
+            (self.platform.supported() && self.platforms.is_empty())
+                || (self.platform.is_automatic()
+                    && self.platforms.len() <= 2
+                    && self.platforms.iter().all(Platform::supported)
+                    && self
+                        .platforms
+                        .iter()
+                        .collect::<std::collections::BTreeSet<_>>()
+                        .len()
+                        == self.platforms.len()),
             "UnsupportedPlatform"
         );
         match &self.source {
@@ -99,6 +125,8 @@ pub struct ImageStatus {
     pub conditions: Vec<k8s_openapi::apimachinery::pkg::apis::meta::v1::Condition>,
     pub operation: Option<Operation>,
     pub release_ref: Option<String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub platform_releases: BTreeMap<String, String>,
     pub build: Option<BuildStatus>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub exports: Vec<crate::export_api::Status>,

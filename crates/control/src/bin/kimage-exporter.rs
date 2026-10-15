@@ -9,8 +9,16 @@ use std::{collections::BTreeSet, path::PathBuf, sync::Arc, time::Duration};
     about = "Export retained kimage releases to approved external registries"
 )]
 struct Args {
+    #[arg(
+        long,
+        required_unless_present = "cluster_wide",
+        conflicts_with = "cluster_wide"
+    )]
+    namespace: Option<String>,
     #[arg(long)]
-    namespace: String,
+    cluster_wide: bool,
+    #[arg(long = "exclude-namespace", requires = "cluster_wide")]
+    excluded_namespaces: Vec<String>,
     #[arg(long)]
     system_namespace: String,
     #[arg(long)]
@@ -45,9 +53,17 @@ async fn main() -> Result<()> {
     }
     let client = kimage_control::kubernetes::client().await?;
     let cancel = tokio_util::sync::CancellationToken::new();
+    let scope = kimage_core::scope::NamespaceScope {
+        system_namespace: a.system_namespace.clone(),
+        application_namespace: a.namespace.clone(),
+        cluster_wide: a.cluster_wide,
+        excluded_namespaces: a.excluded_namespaces.into_iter().collect(),
+    };
+    scope.validate()?;
     let config = Arc::new(kimage_control::exporter::Config {
+        scope: Some(scope),
         client: client.clone(),
-        namespace: a.namespace.clone(),
+        namespace: a.namespace.clone().unwrap_or_else(|| "*".into()),
         system_namespace: a.system_namespace,
         installation: a.installation,
         internal_origin: a.internal_origin,
@@ -68,7 +84,11 @@ async fn main() -> Result<()> {
         )
         .await;
     });
-    let api: kube::Api<kimage_control::api::Image> = kube::Api::namespaced(client, &a.namespace);
+    let api: kube::Api<kimage_control::api::Image> = if a.cluster_wide {
+        kube::Api::all(client)
+    } else {
+        kube::Api::namespaced(client, a.namespace.as_ref().unwrap())
+    };
     let controller = kube::runtime::Controller::new(api, kube::runtime::watcher::Config::default())
         .run(
             |image, config| async move {

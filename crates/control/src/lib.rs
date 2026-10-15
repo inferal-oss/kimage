@@ -15,6 +15,7 @@ pub mod schema;
 pub mod serving;
 pub mod tunnel;
 
+pub mod configuration;
 pub mod control_install;
 pub mod credentials;
 
@@ -40,3 +41,5 @@ mod operation_lease;
 pub mod upgrade;
 
 mod standard_install;
+
+mod platform_build;

@@ -9,6 +9,7 @@ It never updates the installation, its images, or its release catalog.
 import argparse
 import copy
 import json
+import os
 import pathlib
 import re
 import subprocess
@@ -27,10 +28,16 @@ def main():
     parser.add_argument('--selector-format', choices=['readable', 'legacy-query'], default='readable',
                         help='legacy-query is only for retained fixtures predating readable colon ranges')
     parser.add_argument('--output', type=pathlib.Path, required=True)
+    parser.add_argument("--ci-owned-cluster", action="store_true")
     args = parser.parse_args()
-    assert re.search(r'server: https://127\.0\.0\.1:27643\s', args.kubeconfig.read_text())
-    assert args.namespace == 'kimage-app', 'fixture application scope required'
-    command = ['kubectl', '--kubeconfig', str(args.kubeconfig), '--request-timeout=15s']
+    if args.ci_owned_cluster:
+        assert os.environ.get('GITHUB_ACTIONS') == 'true' and os.environ.get('RUNNER_ENVIRONMENT') == 'github-hosted'
+        assert args.namespace == 'e2e-app' and 'e2e-cluster' in str(args.kubeconfig.resolve())
+        assert re.search(r'server: https://127\.0\.0\.1:6443\s', args.kubeconfig.read_text())
+    else:
+        assert re.search(r'server: https://127\.0\.0\.1:27643\s', args.kubeconfig.read_text())
+        assert args.namespace == 'kimage-app', 'fixture application scope required'
+    command = (['k3s', 'kubectl'] if args.ci_owned_cluster else ['kubectl']) + ['--kubeconfig', str(args.kubeconfig), '--request-timeout=15s']
     prefix = 'kimage-consumers-' + uuid.uuid4().hex[:8]
     label = {'kimage.dev/consumer-test': prefix}
     created = []
@@ -62,7 +69,7 @@ def main():
         args.output.write_text(json.dumps(receipt, indent=2) + '\n')
 
     server = call(['config', 'view', '--minify', '-o', 'jsonpath={.clusters[0].cluster.server}'])
-    assert server == 'https://127.0.0.1:27643', 'current context must select the owned fixture'
+    assert server == ('https://127.0.0.1:6443' if args.ci_owned_cluster else 'https://127.0.0.1:27643'), 'current context must select the owned fixture'
 
     try:
         image = get('images.kimage.dev', args.image)

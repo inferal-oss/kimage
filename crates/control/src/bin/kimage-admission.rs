@@ -9,8 +9,16 @@ use std::path::PathBuf;
 struct Args {
     #[arg(long)]
     builder_image: Option<String>,
-    #[arg(long)]
-    namespace: String,
+    #[arg(
+        long,
+        required_unless_present = "cluster_wide",
+        conflicts_with = "cluster_wide"
+    )]
+    namespace: Option<String>,
+    #[arg(long, requires_all=["system_namespace","installation"])]
+    cluster_wide: bool,
+    #[arg(long = "exclude-namespace", requires = "cluster_wide")]
+    excluded_namespaces: Vec<String>,
     #[arg(long)]
     endpoint: String,
     #[arg(long, value_delimiter = ',')]
@@ -37,7 +45,9 @@ async fn main() -> anyhow::Result<()> {
     kimage_control::admission::serve(
         kimage_control::admission::Admission {
             client: kimage_control::kubernetes::client().await?,
-            namespace: a.namespace,
+            namespace: a.namespace.unwrap_or_else(|| "*".into()),
+            cluster_wide: a.cluster_wide,
+            excluded_namespaces: a.excluded_namespaces.into_iter().collect(),
             endpoint: a.endpoint,
             nodes: a.nodes.into_iter().collect(),
             key_file: a.resolution_key,

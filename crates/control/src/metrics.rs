@@ -167,9 +167,25 @@ pub fn nodes_ready(count: usize) {
 /// Fixed-memory paginated sampling. A truncated/failed sample never replaces
 /// complete counts; freshness/completeness gauges expose stale samples.
 pub async fn sample_catalog(client: &kube::Client, namespace: &str) -> anyhow::Result<()> {
-    use kube::{Api, api::ListParams};
-    let images: Api<crate::api::Image> = Api::namespaced(client.clone(), namespace);
-    let releases: Api<crate::api::ImageRelease> = Api::namespaced(client.clone(), namespace);
+    sample_catalog_scoped(client, namespace, None).await
+}
+pub async fn sample_catalog_scoped(
+    client: &kube::Client,
+    namespace: &str,
+    scope: Option<&kimage_core::scope::NamespaceScope>,
+) -> anyhow::Result<()> {
+    use kube::{Api, ResourceExt, api::ListParams};
+    let all = scope.is_some_and(|s| s.cluster_wide);
+    let images: Api<crate::api::Image> = if all {
+        Api::all(client.clone())
+    } else {
+        Api::namespaced(client.clone(), namespace)
+    };
+    let releases: Api<crate::api::ImageRelease> = if all {
+        Api::all(client.clone())
+    } else {
+        Api::namespaced(client.clone(), namespace)
+    };
     CATALOG_COMPLETE.store(0, Ordering::Relaxed);
     let mut ready = 0;
     let mut pending = 0;
@@ -185,17 +201,17 @@ pub async fn sample_catalog(client: &kube::Client, namespace: &str) -> anyhow::R
                     .iter()
                     .filter(|v| {
                         v.metadata.deletion_timestamp.is_none()
+                            && scope.is_none_or(|s| v.namespace().is_some_and(|ns| s.allows(&ns)))
                             && v.status.as_ref().is_some_and(|s| s.verified)
                     })
                     .count() as u64;
                 list.metadata.continue_.unwrap_or_default()
             } else {
                 let list = images.list(&params).await?;
-                for image in list
-                    .items
-                    .iter()
-                    .filter(|v| v.metadata.deletion_timestamp.is_none())
-                {
+                for image in list.items.iter().filter(|v| {
+                    v.metadata.deletion_timestamp.is_none()
+                        && scope.is_none_or(|s| v.namespace().is_some_and(|ns| s.allows(&ns)))
+                }) {
                     if image.status.as_ref().is_some_and(|s| {
                         s.observed_generation == image.metadata.generation.unwrap_or(1)
                             && s.conditions

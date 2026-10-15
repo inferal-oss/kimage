@@ -30,6 +30,10 @@ fn equals(expected: &[u8], provided: &[u8]) -> bool {
     p.verify_slice(&e.finalize().into_bytes()).is_ok()
 }
 pub fn router(namespaces: BTreeSet<String>, read: PathBuf, write: PathBuf) -> Result<Router> {
+    anyhow::ensure!(
+        kimage_core::scope::valid_registry_namespaces(&namespaces),
+        "InvalidNamespaceAllowlist"
+    );
     let gate = Gate {
         client: reqwest::Client::builder()
             .no_proxy()
@@ -62,7 +66,9 @@ fn writable(
         return false;
     };
     let parts: Vec<_> = tail.split('/').collect();
-    if parts.len() < 4 || !namespaces.contains(parts[0]) || !crate::proxy::valid_identity(parts[1])
+    if parts.len() < 4
+        || !kimage_core::scope::registry_allows(namespaces, parts[0])
+        || !crate::proxy::valid_identity(parts[1])
     {
         return false;
     }

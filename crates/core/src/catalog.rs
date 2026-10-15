@@ -20,6 +20,13 @@ pub struct Release {
     pub snapshot: String,
 }
 impl Release {
+    pub fn platforms(&self) -> BTreeSet<Platform> {
+        if self.platform.is_automatic() {
+            BTreeSet::from([Platform::linux_amd64(), Platform::linux_arm64()])
+        } else {
+            BTreeSet::from([self.platform.clone()])
+        }
+    }
     pub fn repository(&self) -> String {
         format!("{}/{}", self.namespace, self.image_uid)
     }
@@ -40,10 +47,20 @@ pub struct Catalog {
     pub image_uid: String,
     pub resource_version: String,
     pub channels: BTreeMap<String, String>,
+    /// Declared platform constraints; empty for legacy retained catalogs.
+    pub platforms: BTreeSet<Platform>,
     pub releases: Vec<Release>,
 }
 impl Catalog {
     pub fn resolve(&self, selector: &Selector, consumer: &str) -> Result<&Release> {
+        self.resolve_for(selector, consumer, &BTreeSet::new())
+    }
+    pub fn resolve_for(
+        &self,
+        selector: &Selector,
+        consumer: &str,
+        platforms: &BTreeSet<Platform>,
+    ) -> Result<&Release> {
         ensure!(
             selector.namespace == consumer && self.namespace == consumer,
             "CrossNamespaceDenied"
@@ -69,20 +86,29 @@ impl Catalog {
             );
             let version = exact(&r.version)?;
             ensure!(
-                versions.insert(version.clone()),
+                versions.insert((version.clone(), r.platform.clone())),
                 "DuplicatePublishedVersion"
+            );
+            ensure!(
+                r.platform.supported()
+                    || (r.platform.is_automatic() && r.root.media_type == crate::oci::INDEX),
+                "UnsupportedReleasePlatform"
             );
             let eligible = match &selector.selection {
                 Selection::Range(req) => req.matches(&version),
                 _ => selected.as_ref() == Some(&version),
             };
-            if eligible {
+            if eligible && platforms.is_subset(&r.platforms()) {
                 candidates.push((version, r));
             }
         }
         candidates
             .into_iter()
-            .max_by(|a, b| a.0.cmp_precedence(&b.0))
+            .max_by(|a, b| {
+                a.0.cmp_precedence(&b.0)
+                    .then_with(|| b.1.platforms().len().cmp(&a.1.platforms().len()))
+                    .then_with(|| a.1.uid.cmp(&b.1.uid))
+            })
             .map(|(_, r)| r)
             .context("NoPublishedRelease")
     }
@@ -92,6 +118,17 @@ pub fn release_name(uid: &str, version: &str) -> String {
         "release-{}",
         &crate::oci::digest(format!("{uid}\0{version}").as_bytes())[7..47]
     )
+}
+/// A version is immutable independently on each native platform and on the
+/// aggregate index. Adding an arm64 variant cannot overwrite an amd64 release.
+pub fn platform_release_name(uid: &str, version: &str, platform: &Platform) -> String {
+    // Releases before 0.3 could only be amd64. Keep that immutable identity
+    // while allocating disjoint keys for arm64 and multi-platform indexes.
+    if platform == &Platform::linux_amd64() {
+        release_name(uid, version)
+    } else {
+        release_name(uid, &format!("{version}\0{}", platform.name()))
+    }
 }
 #[cfg(test)]
 mod tests {
@@ -103,6 +140,7 @@ mod tests {
             image_uid: "uid".into(),
             resource_version: "4".into(),
             channels: BTreeMap::from([("stable".into(), "1.2.0".into())]),
+            platforms: BTreeSet::new(),
             releases: ["1.2.0", "1.10.0", "1.11.0-rc.1"]
                 .into_iter()
                 .map(|version| Release {

@@ -24,8 +24,16 @@ struct Args {
     installation: Option<String>,
     #[arg(long, requires = "installation")]
     builder_image: Option<String>,
-    #[arg(long)]
-    namespace: String,
+    #[arg(
+        long,
+        required_unless_present = "cluster_wide",
+        conflicts_with = "cluster_wide"
+    )]
+    namespace: Option<String>,
+    #[arg(long, requires = "system_namespace")]
+    cluster_wide: bool,
+    #[arg(long = "exclude-namespace", requires = "cluster_wide")]
+    excluded_namespaces: Vec<String>,
     #[arg(long)]
     node: String,
     #[arg(long)]
@@ -47,6 +55,19 @@ struct Args {
 async fn main() -> Result<()> {
     tracing_subscriber::fmt().json().init();
     let a = Args::parse();
+    let namespace = a.namespace.clone().unwrap_or_else(|| "*".into());
+    let scope = a
+        .system_namespace
+        .as_ref()
+        .map(|system| kimage_core::scope::NamespaceScope {
+            system_namespace: system.clone(),
+            application_namespace: a.namespace.clone(),
+            cluster_wide: a.cluster_wide,
+            excluded_namespaces: a.excluded_namespaces.iter().cloned().collect(),
+        });
+    if let Some(scope) = &scope {
+        scope.validate()?;
+    }
     let client = kimage_control::kubernetes::client().await?;
     let ready = Arc::new(AtomicBool::new(false));
     let health = ready.clone();
@@ -87,7 +108,7 @@ async fn main() -> Result<()> {
         client.clone(),
         a.system_namespace
             .clone()
-            .unwrap_or_else(|| a.namespace.clone()),
+            .unwrap_or_else(|| namespace.clone()),
         identity,
     );
     let cancel = tokio_util::sync::CancellationToken::new();
@@ -125,14 +146,19 @@ async fn main() -> Result<()> {
     }
     ready.store(true, Ordering::Relaxed);
     let sampler_client = client.clone();
-    let sampler_namespace = a.namespace.clone();
+    let sampler_namespace = namespace.clone();
     let sampler_cancel = cancel.clone();
+    let sampler_scope = scope.clone();
     tokio::spawn(async move {
         loop {
             if !matches!(
                 tokio::time::timeout(
                     Duration::from_secs(30),
-                    kimage_control::metrics::sample_catalog(&sampler_client, &sampler_namespace)
+                    kimage_control::metrics::sample_catalog_scoped(
+                        &sampler_client,
+                        &sampler_namespace,
+                        sampler_scope.as_ref()
+                    )
                 )
                 .await,
                 Ok(Ok(()))
@@ -143,8 +169,10 @@ async fn main() -> Result<()> {
         }
     });
     let config = Arc::new(kimage_control::reconcile::Config {
-        direct: match (a.installation, a.builder_image) {
+        scope: scope.clone(),
+        direct: match (a.installation.clone(), a.builder_image) {
             (Some(installation), Some(builder_image)) => Some(kimage_control::direct::Settings {
+                architecture: None,
                 system_namespace: a
                     .system_namespace
                     .clone()
@@ -156,7 +184,7 @@ async fn main() -> Result<()> {
             _ => anyhow::bail!("IncompleteBuilderConfiguration"),
         },
         client: client.clone(),
-        namespace: a.namespace.clone(),
+        namespace: namespace.clone(),
         node: a.node,
         input_image: a.input_image,
         registry_origin: a.registry_origin,
@@ -166,21 +194,90 @@ async fn main() -> Result<()> {
         cancel: cancel.clone(),
         concurrency: Arc::new(tokio::sync::Semaphore::new(2)),
     });
-    let api: Api<kimage_control::api::Image> = Api::namespaced(client.clone(), &a.namespace);
+    let api: Api<kimage_control::api::Image> = if a.cluster_wide {
+        Api::all(client.clone())
+    } else {
+        Api::namespaced(client.clone(), &namespace)
+    };
     let controller = Controller::new(api, watcher::Config::default());
     let maps_store = controller.store();
     let secrets_store = maps_store.clone();
     let controller = controller
         .watches(
-            Api::<k8s_openapi::api::core::v1::ConfigMap>::namespaced(client.clone(), &a.namespace),
+            if a.cluster_wide {
+                Api::<k8s_openapi::api::core::v1::ConfigMap>::all(client.clone())
+            } else {
+                Api::<k8s_openapi::api::core::v1::ConfigMap>::namespaced(client.clone(), &namespace)
+            },
             watcher::Config::default(),
-            move |object| dependent_images(&maps_store, &object.name_any(), false),
+            move |object| {
+                dependent_images(
+                    &maps_store,
+                    &object.name_any(),
+                    object.namespace().as_deref(),
+                    false,
+                )
+            },
         )
         .watches(
-            Api::<k8s_openapi::api::core::v1::Secret>::namespaced(client, &a.namespace),
+            if a.cluster_wide {
+                Api::<k8s_openapi::api::core::v1::Secret>::all(client.clone())
+            } else {
+                Api::<k8s_openapi::api::core::v1::Secret>::namespaced(client.clone(), &namespace)
+            },
             watcher::Config::default(),
-            move |object| dependent_images(&secrets_store, &object.name_any(), true),
-        )
+            move |object| {
+                dependent_images(
+                    &secrets_store,
+                    &object.name_any(),
+                    object.namespace().as_deref(),
+                    true,
+                )
+            },
+        );
+    let controller = if let Some(system) = a.system_namespace.as_deref() {
+        let demand_store = controller.store();
+        let policy_store = controller.store();
+        let selector = a
+            .installation
+            .as_deref()
+            .map(|i| format!("kimage.dev/installation={i}"))
+            .unwrap_or_default();
+        controller
+            .watches(
+                Api::<kimage_control::configuration::ImageDemand>::namespaced(
+                    client.clone(),
+                    system,
+                ),
+                watcher::Config::default().labels(&selector),
+                move |demand| {
+                    demand_store
+                        .state()
+                        .into_iter()
+                        .filter(|image| {
+                            image.name_any() == demand.spec.image_name
+                                && image.namespace().as_deref() == Some(&demand.spec.namespace)
+                                && image.uid().as_deref() == Some(&demand.spec.image_uid)
+                        })
+                        .map(|image| kube::runtime::reflector::ObjectRef::from_obj(image.as_ref()))
+                        .collect::<Vec<_>>()
+                },
+            )
+            .watches(
+                Api::<k8s_openapi::api::core::v1::ConfigMap>::namespaced(client.clone(), system),
+                watcher::Config::default().labels(&selector),
+                move |_| {
+                    policy_store
+                        .state()
+                        .into_iter()
+                        .map(|image| kube::runtime::reflector::ObjectRef::from_obj(image.as_ref()))
+                        .collect::<Vec<_>>()
+                },
+            )
+    } else {
+        controller
+    };
+    let controller = controller
         .run(
             |image, config| async move {
                 kimage_control::reconcile::reconcile(image, config)
@@ -202,12 +299,16 @@ async fn main() -> Result<()> {
 fn dependent_images(
     store: &kube::runtime::reflector::Store<kimage_control::api::Image>,
     name: &str,
+    namespace: Option<&str>,
     secret: bool,
 ) -> Vec<kube::runtime::reflector::ObjectRef<kimage_control::api::Image>> {
     store
         .state()
         .into_iter()
         .filter_map(|image| {
+            if image.namespace().as_deref() != namespace {
+                return None;
+            }
             let kimage_control::api::Source::Build(build) = &image.spec.source else {
                 return None;
             };

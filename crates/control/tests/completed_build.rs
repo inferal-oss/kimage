@@ -83,6 +83,7 @@ async fn recover(trusted_root: bool) {
     ))
     .unwrap();
     let config = Arc::new(Config {
+        scope: None,
         client,
         namespace: "app".into(),
         node: "node".into(),
@@ -94,6 +95,7 @@ async fn recover(trusted_root: bool) {
         cancel: tokio_util::sync::CancellationToken::new(),
         concurrency: Arc::new(tokio::sync::Semaphore::new(1)),
         direct: Some(kimage_control::direct::Settings {
+            architecture: None,
             system_namespace: "system".into(),
             installation: "fixture".into(),
             builder_image: "unused".into(),

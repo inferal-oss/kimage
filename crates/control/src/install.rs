@@ -17,6 +17,10 @@ pub(crate) const REGISTRY_CONFIG: &str = "version: 0.1\nlog:\n  level: warn\nsto
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Options {
     #[serde(default)]
+    pub scope: InstallScope,
+    #[serde(default)]
+    pub excluded_namespaces: std::collections::BTreeSet<String>,
+    #[serde(default)]
     pub application_namespace: Option<String>,
     #[serde(default)]
     pub runtime_profile: RuntimeProfile,
@@ -28,6 +32,13 @@ pub struct Options {
     pub pvc: Option<String>,
     pub port: u16,
     pub credentials: PathBuf,
+}
+#[derive(Clone, Copy, Default, Debug, Serialize, Deserialize, clap::ValueEnum, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum InstallScope {
+    #[default]
+    Namespace,
+    Cluster,
 }
 #[derive(Clone, Copy, Default, Debug, Serialize, Deserialize, clap::ValueEnum)]
 #[serde(rename_all = "camelCase")]
@@ -41,6 +52,14 @@ pub struct Installer {
     pub options: Options,
 }
 impl Installer {
+    pub fn scope(&self) -> kimage_core::scope::NamespaceScope {
+        kimage_core::scope::NamespaceScope {
+            system_namespace: self.options.namespace.clone(),
+            application_namespace: self.options.application_namespace.clone(),
+            cluster_wide: self.options.scope == InstallScope::Cluster,
+            excluded_namespaces: self.options.excluded_namespaces.clone(),
+        }
+    }
     pub fn new(client: Client, options: Options) -> Result<Self> {
         ensure!(
             kimage_core::selector::dns_label(&options.namespace)
@@ -54,6 +73,10 @@ impl Installer {
                 "InvalidApplicationNamespace"
             );
         }
+        ensure!(
+            options.scope != InstallScope::Cluster || options.application_namespace.is_none(),
+            "ClusterScopeApplicationNamespaceConflict"
+        );
         ensure!(options.port >= 1024, "NonprivilegedPortRequired");
         ensure!(
             options
@@ -159,13 +182,39 @@ impl Installer {
         }
         Ok(())
     }
+    pub async fn node_platform(client: Client, node: &str) -> Result<kimage_core::oci::Platform> {
+        let node: Node = Api::all(client).get(node).await?;
+        let info = node
+            .status
+            .and_then(|s| s.node_info)
+            .context("MissingNodeInfo")?;
+        let platform = kimage_core::oci::Platform {
+            os: info.operating_system,
+            architecture: info.architecture,
+        };
+        ensure!(platform.supported(), "UnsupportedNodePlatform");
+        Ok(platform)
+    }
+    pub async fn preflight_bundle(&self, bundle: &Bundle) -> Result<()> {
+        self.preflight().await?;
+        ensure!(
+            Self::node_platform(self.client.clone(), &self.options.node).await?
+                == bundle.inventory.platform,
+            "BundleNodePlatformMismatch"
+        );
+        Ok(())
+    }
     pub async fn preflight(&self) -> Result<()> {
         let nodes: Api<Node> = Api::all(self.client.clone());
         let node = nodes.get(&self.options.node).await?;
         let status = node.status.context("MissingNodeStatus")?;
         let info = status.node_info.context("MissingNodeInfo")?;
         ensure!(
-            info.architecture == "amd64" && info.operating_system == "linux",
+            kimage_core::oci::Platform {
+                os: info.operating_system.clone(),
+                architecture: info.architecture.clone()
+            }
+            .supported(),
             "UnsupportedNodePlatform"
         );
         ensure!(
@@ -274,11 +323,11 @@ impl Installer {
     }
     pub(crate) fn configuration(&self, bundle: &str) -> Result<String> {
         Ok(kimage_core::oci::digest(&serde_json::to_vec(
-            &json!({"namespace":self.options.namespace,"installation":self.options.installation,"node":self.options.node,"carrier":self.options.carrier,"storageClass":self.options.storage_class,"pvc":self.options.pvc,"port":self.options.port,"bundle":bundle,"applicationNamespace":self.options.application_namespace,"runtimeProfile":self.options.runtime_profile}),
+            &json!({"namespace":self.options.namespace,"installation":self.options.installation,"node":self.options.node,"carrier":self.options.carrier,"storageClass":self.options.storage_class,"pvc":self.options.pvc,"port":self.options.port,"bundle":bundle,"applicationNamespace":self.options.application_namespace,"scope":self.options.scope,"excludedNamespaces":self.options.excluded_namespaces,"runtimeProfile":self.options.runtime_profile}),
         )?))
     }
     pub async fn bootstrap(&self, bundle: &Bundle) -> Result<()> {
-        self.preflight().await?;
+        self.preflight_bundle(bundle).await?;
         crate::credentials::validate_registry_leaf(
             format!("{}.{}.svc", self.name("registry"), self.options.namespace),
             &self.options.credentials,
@@ -435,12 +484,11 @@ impl Installer {
         pod
     }
     pub(crate) fn allowed_namespaces(&self) -> String {
-        match &self.options.application_namespace {
-            Some(app) if app != &self.options.namespace => {
-                format!("{},{app}", self.options.namespace)
-            }
-            _ => self.options.namespace.clone(),
-        }
+        self.scope()
+            .registry_namespaces()
+            .into_iter()
+            .collect::<Vec<_>>()
+            .join(",")
     }
     pub(crate) fn origin(&self) -> String {
         format!(
@@ -822,7 +870,14 @@ impl Installer {
             self.options.installation
         );
         for kind in ["Pod", "ConfigMap", "Secret"] {
-            let api = self.api_at(kind, Some(app))?;
+            let api = self.api_at(
+                kind,
+                if self.scope().cluster_wide {
+                    None
+                } else {
+                    Some(app)
+                },
+            )?;
             let page = api
                 .list(&ListParams::default().labels(&selector).limit(512))
                 .await?;
@@ -834,6 +889,9 @@ impl Installer {
                 "TooManyBuildSessions"
             );
             for item in page {
+                let namespace = item.namespace().context("MissingBuildSessionNamespace")?;
+                ensure!(self.scope().allows(&namespace), "BuildSessionScopeMismatch");
+                let api = self.api_at(kind, Some(&namespace))?;
                 let id = item
                     .labels()
                     .get(crate::build_inputs::SNAPSHOT_LABEL)

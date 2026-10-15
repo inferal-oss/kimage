@@ -5,6 +5,7 @@
 **Declare the images your Kubernetes cluster needs.**
 
 [![CI](https://github.com/inferal-oss/kimage/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/inferal-oss/kimage/actions/workflows/ci.yml)
+[![Native Kubernetes E2E](https://github.com/inferal-oss/kimage/actions/workflows/e2e.yml/badge.svg?branch=main)](https://github.com/inferal-oss/kimage/actions/workflows/e2e.yml)
 [![crates.io](https://img.shields.io/crates/v/kimage-control.svg)](https://crates.io/crates/kimage-control)
 [![Rust](https://img.shields.io/badge/Rust-1.99.0-DEA584?logo=rust)](https://www.rust-lang.org/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
@@ -40,7 +41,8 @@ resource or choose an output registry URL and push credentials for each image.
 Export to another registry is an explicit, optional step.
 
 > **Status: alpha.** The current implementation has passed its four acceptance
-> milestones on a specific Linux/amd64 Kubernetes profile. Installation checks
+> milestones on a specific Kubernetes profile. Native amd64 and arm64 installation
+> and build checks run in CI for both installation scopes. Installation checks
 > exact runtime versions. Read [compatibility and limits](#compatibility-and-limits)
 > before trying it on a cluster.
 
@@ -61,7 +63,7 @@ operate without an external registry, or when image availability and version
 selection should be part of the application's declared state. Local builds and
 pulls can operate disconnected once dependencies and inputs are provisioned.
 
-A published Image UID/version is immutable. The controller can retry failed
+A published Image UID/version/platform is immutable. The controller can retry failed
 attempts, but different output for an existing version is a conflict. Request a
 new version when changing the image's content.
 
@@ -87,6 +89,12 @@ scratch images and provisioned local inputs. See [compatibility and limits](#com
 
 ## Features
 
+- **Native amd64 and arm64:** workload placement selects native builds; unconstrained
+  mixed-cluster Pods use a fully verified OCI index.
+- **On-demand or eager builds:** automatic Images wait for consumers by default;
+  an administrator ConfigMap can prebuild available platforms.
+- **Namespace or cluster scope:** manage one application namespace or all ordinary
+  namespaces, with explicit exclusions and same-namespace image consumption.
 - **Declare images:** an `Image` describes the version and how to produce it;
   the controller manages attempts, verification, and publication.
 - **Managed local registry:** retained OCI storage and read proxies are included
@@ -102,8 +110,7 @@ scratch images and provisioned local inputs. See [compatibility and limits](#com
   custom container runtime plugin.
 - **Retained artifacts:** removing build inputs or clearing worker cache does not
   remove published releases.
-- **API-only installation and recovery:** native macOS/arm64 and Linux/amd64
-  installers bootstrap, verify, and recover the system through Kubernetes APIs.
+- **API-only installation and recovery:** native macOS and Linux installers for amd64 and arm64 bootstrap, verify, and recover the system through Kubernetes APIs.
 - **Guarded upgrades and rollback:** compatible serving binaries can be replaced
   and rolled back while preserving storage and release identities.
 - **Optional registry export:** a separate controller copies retained releases to
@@ -126,8 +133,8 @@ flowchart LR
 
 The `Image` is the desired state; build attempts are controller-managed execution
 details, and an `ImageRelease` records a verified immutable result. The operator
-manages production and publication. Admission reads the release catalog; it does
-not build or publish images. The registry retains artifacts on a PVC, separately
+manages production and publication. Admission reads the release catalog and records bounded missing-platform demand;
+the operator builds and publishes images. The registry retains artifacts on a PVC, separately
 from disposable builder cache. See the [architecture](docs/architecture.md) for
 component boundaries and trust assumptions.
 
@@ -139,7 +146,7 @@ Install [Rust 1.99.0 or newer](https://www.rust-lang.org/tools/install), then in
 the native commands directly from crates.io. No source checkout is needed:
 
 ```sh
-cargo install kimage-control --version 0.2.0 --locked
+cargo install kimage-control --version 0.3.0 --locked
 kimage install --help
 ```
 
@@ -150,7 +157,8 @@ is on your `PATH`.
 
 The crates.io package is **`kimage-control`**; the `kimage` crate belongs to a
 separate project. Cargo builds tools for your machine. The installer automatically
-downloads the official Linux/amd64 bundle for its exact package version, verifies GitHub asset
+downloads the official bundle for each selected cluster node architecture and its
+exact package version, verifies GitHub asset
 digests, the inventory, executables, and OCI graphs, then caches it. No packaging
 script or checkout is needed. Prebuilt native installers are also available in
 [GitHub releases](https://github.com/inferal-oss/kimage/releases).
@@ -178,17 +186,22 @@ command is needed. Rerun with identical arguments after an interruption; the
 installer checks retained checkpoints before continuing. Individual phase commands
 remain available for recovery and advanced workflows.
 
-You need a supported Linux/amd64 cluster, administrator access, persistent
+You need a supported Linux/amd64 or Linux/arm64 cluster, administrator access, persistent
 storage, an approved carrier image already cached on the selected node, and
 kernel/runtime support for the builder's Kubernetes user namespace. The default
 builder uses BuildKit 0.33.0. Setup remains an explicit administrator workflow;
 there is no Helm chart yet.
-The release workflow builds and publishes the component bundle and both native
-installers. Select `--release 0.2.0` to pin a release explicitly, `--bundle-cache`
+The release workflow builds and publishes the component bundle and four native installers (Linux and macOS, amd64 and arm64). Select `--release 0.3.0` to pin a release explicitly, `--bundle-cache`
 to choose a cache directory, and `--offline` to require cached/local bytes. For
 air-gapped delivery, transfer the fetched bundle directory and use `--bundle` with
 its independently trusted `--trusted-inventory sha256:...`. See the
 [bundle delivery reference](https://kimage.dev/docs/#bundle-delivery).
+
+Use `--scope cluster` and omit `--application-namespace` to manage ordinary
+namespaces cluster-wide; repeat `--exclude-namespace` to opt namespaces out.
+Both modes require cluster administrator setup. See [platforms, build policy,
+and installation scope](docs/platforms-and-scope.md) for placement rules, eager
+configuration, native worker setup, and isolation boundaries.
 
 The tutorial below assumes an application namespace named `apps` has been
 configured by the installer and `builderRef: default` is ready. Use a disposable
@@ -214,19 +227,29 @@ done
 
 ### 1. Compile the program
 
-On a Linux/amd64 build machine with Rust and a musl linker installed (`musl-tools`
+On a native Linux/amd64 or Linux/arm64 build machine with Rust and a musl linker installed (`musl-tools`
 on Debian/Ubuntu):
 
 ```sh
-rustup target add x86_64-unknown-linux-musl
+case "$(uname -m)" in
+  x86_64) ARCH=amd64; TARGET=x86_64-unknown-linux-musl ;;
+  aarch64) ARCH=arm64; TARGET=aarch64-unknown-linux-musl ;;
+  *) echo "Use a supported Linux build machine"; exit 1 ;;
+esac
+rustup target add "$TARGET"
 mkdir -p .local/tutorial
-rustc --edition=2024 --target x86_64-unknown-linux-musl \
+rustc --edition=2024 --target "$TARGET" \
   -C opt-level=z -C strip=symbols -C panic=abort \
-  examples/hello/main.rs -o .local/tutorial/hello
+  examples/hello/main.rs -o ".local/tutorial/hello-$ARCH"
 ```
 
-On macOS, compile this Linux executable on a Linux/amd64 machine or in a Linux
+On macOS, compile this Linux executable on a matching native Linux machine or in a Linux
 build container. A native macOS executable will not run in the scratch image.
+
+For a mixed cluster, provide both `hello-amd64` and `hello-arm64` in
+`.local/tutorial` before creating the ConfigMap, compiling on matching Linux
+build machines. The automatic Image below uses `TARGETARCH` to select the file.
+A single-platform cluster needs only its own executable.
 
 ### 2. Provide the build input
 
@@ -234,7 +257,7 @@ From a machine with `kubectl` configured for your development cluster:
 
 ```sh
 kubectl -n apps create configmap hello-context \
-  --from-file=hello=.local/tutorial/hello \
+  --from-file=.local/tutorial \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
 
@@ -248,19 +271,22 @@ the default builder, maps the ConfigMap into the build context, and supplies:
 
 ```dockerfile
 FROM scratch
-COPY hello /hello
+ARG TARGETARCH
+COPY hello-${TARGETARCH} /hello
 ENTRYPOINT ["/hello"]
 ```
 
-Applying the Image requests that version's availability. The controller handles
+Applying the Image declares that version. With the default OnDemand policy,
+applying its Deployment starts the required native build. The controller handles
 the build and publication to the managed registry; no separate build-run manifest
 or output registry reference is needed:
 
 ```sh
 kubectl apply -f examples/hello/image.yaml
-kubectl -n apps wait --for=condition=Ready image/hello --timeout=10m
-kubectl -n apps get imagereleases
 ```
+
+The automatic Image stays `AwaitingDemand` until a consumer requests it.
+For eager preparation, see [build policy](docs/platforms-and-scope.md#on-demand-and-eager-production).
 
 The Image's `spec.version` is `1.0.0`. Its input mapping gives the executable
 file mode `0555` (decimal `365` in YAML).
@@ -272,6 +298,8 @@ The [Deployment](examples/hello/deployment.yaml) selects
 
 ```sh
 kubectl apply -f examples/hello/deployment.yaml
+kubectl -n apps wait --for=condition=Ready image/hello --timeout=10m
+kubectl -n apps get imagereleases
 kubectl -n apps rollout status deployment/hello --timeout=5m
 kubectl -n apps logs deployment/hello
 # Hello from kimage!
@@ -313,7 +341,7 @@ for the full grammar and rollout behavior.
 
 ## Compatibility and limits
 
-The full acceptance fixture uses Linux/amd64, Kubernetes `v1.36.5+k3s1`,
+Native Kubernetes E2E covers Linux/amd64 and Linux/arm64. The earlier full acceptance fixture uses Linux/amd64, Kubernetes `v1.36.5+k3s1`,
 containerd `2.3.4-k3s1.36`, and Ubuntu 24.04.5 with kernel `6.8.0-142`.
 An earlier RKE2 foundation profile is documented separately. The installer
 refuses untested runtime versions rather than assuming compatibility.
@@ -325,9 +353,9 @@ with Basic authentication or explicit anonymous access; Bearer/token-helper
 authentication is not implemented.
 
 The tested serving upgrade window is Distribution **3.1.1 ↔ 3.1.2** and
-gateway/proxy **0.1.0 ↔ 0.2.0** with the documented filesystem storage profile.
+gateway/proxy **0.1.0 / 0.2.0 / 0.3.0** (cluster scope requires 0.3.0) with the documented filesystem storage profile.
 High availability, arbitrary storage/schema migrations, hostile-tenant isolation,
-multi-platform images, signing/attestations, and automatic retained-artifact
+signing/attestations, and automatic retained-artifact
 garbage collection are future work.
 
 ## Development and CI

@@ -125,6 +125,12 @@ enum Command {
 }
 #[derive(Args)]
 struct Cluster {
+    /// Manage one application namespace (default) or all ordinary namespaces.
+    #[arg(long, value_enum, default_value = "namespace")]
+    scope: kimage_control::install::InstallScope,
+    /// Leave these namespaces outside a cluster-wide installation.
+    #[arg(long = "exclude-namespace", value_name = "NAMESPACE")]
+    excluded_namespaces: Vec<String>,
     #[arg(long)]
     application_namespace: Option<String>,
     #[arg(long, value_enum, default_value = "inferal")]
@@ -156,6 +162,9 @@ struct PhaseOptions {
 
 #[derive(Args)]
 struct BundleSource {
+    /// Bundle platform; cluster phases select the target node automatically.
+    #[arg(long, value_name = "linux/amd64|linux/arm64")]
+    platform: Option<kimage_core::oci::Platform>,
     /// Use an independently trusted local bundle instead of fetching a release.
     #[arg(long, conflicts_with = "release", requires = "trusted_inventory")]
     bundle: Option<PathBuf>,
@@ -174,12 +183,50 @@ struct BundleSource {
 }
 impl BundleSource {
     async fn resolve(&self) -> Result<kimage_control::bundle::Bundle> {
-        kimage_control::release_bundle::resolve(
+        if let Some(local) = &self.bundle
+            && self.platform.is_none()
+        {
+            return kimage_control::bundle::Bundle::open(
+                local,
+                self.trusted_inventory
+                    .as_deref()
+                    .ok_or_else(|| anyhow::anyhow!("LocalBundleRequiresTrustedInventory"))?,
+            );
+        }
+        self.resolve_platform(
+            self.platform
+                .as_ref()
+                .unwrap_or(&kimage_core::oci::Platform::native()),
+        )
+        .await
+    }
+    async fn resolve_for_node(
+        &self,
+        cluster: &Cluster,
+        target: Option<&str>,
+    ) -> Result<kimage_control::bundle::Bundle> {
+        let platform = kimage_control::install::Installer::node_platform(
+            kimage_control::kubernetes::client().await?,
+            target.unwrap_or(&cluster.node),
+        )
+        .await?;
+        anyhow::ensure!(
+            self.platform.as_ref().is_none_or(|p| p == &platform),
+            "RequestedPlatformDoesNotMatchNode"
+        );
+        self.resolve_platform(&platform).await
+    }
+    async fn resolve_platform(
+        &self,
+        platform: &kimage_core::oci::Platform,
+    ) -> Result<kimage_control::bundle::Bundle> {
+        kimage_control::release_bundle::resolve_for_platform(
             self.bundle.as_deref(),
             self.trusted_inventory.as_deref(),
             self.release.as_deref(),
             self.bundle_cache.as_deref(),
             self.offline,
+            platform,
         )
         .await
     }
@@ -187,6 +234,8 @@ impl BundleSource {
 impl Cluster {
     fn options(self) -> kimage_control::install::Options {
         kimage_control::install::Options {
+            scope: self.scope,
+            excluded_namespaces: self.excluded_namespaces.into_iter().collect(),
             application_namespace: self.application_namespace,
             runtime_profile: self.runtime_profile,
             namespace: self.namespace,
@@ -208,7 +257,7 @@ fn verified(
     kimage_core::oci::verify_archive(
         archive,
         &expected,
-        &kimage_core::oci::Platform::linux_amd64(),
+        &kimage_core::oci::Platform::automatic(),
         kimage_core::oci::Limits::default(),
     )
 }
@@ -301,7 +350,7 @@ async fn main() -> Result<()> {
             let image = registry
                 .fetch_verified(
                     &expected,
-                    &kimage_core::oci::Platform::linux_amd64(),
+                    &kimage_core::oci::Platform::automatic(),
                     &tokio_util::sync::CancellationToken::new(),
                 )
                 .await?;
@@ -318,16 +367,42 @@ async fn main() -> Result<()> {
             admission_credentials,
             builder_credentials,
         } => {
-            let bundle = install.source.resolve().await?;
-            kimage_control::install::Installer::new(
+            let bundle = install
+                .source
+                .resolve_for_node(&install.cluster, None)
+                .await?;
+            let installer = kimage_control::install::Installer::new(
                 kimage_control::kubernetes::client().await?,
                 install.cluster.options(),
-            )?
-            .install(&bundle, &admission_credentials, &builder_credentials)
-            .await?;
+            )?;
+            let mut additional = Vec::new();
+            for (platform, node) in installer.native_worker_nodes().await? {
+                if node == installer.options.node {
+                    continue;
+                }
+                anyhow::ensure!(
+                    install.source.bundle.is_none(),
+                    "AdditionalNativeBundleRequired: use the matching per-platform bundle with join-node and builder, or omit --bundle for automatic fetching"
+                );
+                let native = install.source.resolve_platform(&platform).await?;
+                let mut options = installer.options.clone();
+                options.node = node.clone();
+                kimage_control::install::Installer::new(installer.client.clone(), options)?
+                    .preflight_bundle(&native)
+                    .await?;
+                additional.push((node, native));
+            }
+            installer
+                .install(&bundle, &admission_credentials, &builder_credentials)
+                .await?;
+            for (node, native) in additional {
+                installer
+                    .install_native_worker(&native, &node, &builder_credentials)
+                    .await?;
+            }
         }
         Command::Bootstrap(args) | Command::Recover(args) => {
-            let bundle = args.source.resolve().await?;
+            let bundle = args.source.resolve_for_node(&args.cluster, None).await?;
             let installer = kimage_control::install::Installer::new(
                 kimage_control::kubernetes::client().await?,
                 args.cluster.options(),
@@ -335,7 +410,7 @@ async fn main() -> Result<()> {
             installer.bootstrap(&bundle).await?;
         }
         Command::Seed(args) => {
-            let bundle = args.source.resolve().await?;
+            let bundle = args.source.resolve_for_node(&args.cluster, None).await?;
             let installer = kimage_control::install::Installer::new(
                 kimage_control::kubernetes::client().await?,
                 args.cluster.options(),
@@ -351,7 +426,7 @@ async fn main() -> Result<()> {
             .await?;
         }
         Command::Cleanup(args) => {
-            let bundle = args.source.resolve().await?;
+            let bundle = args.source.resolve_for_node(&args.cluster, None).await?;
             kimage_control::install::Installer::new(
                 kimage_control::kubernetes::client().await?,
                 args.cluster.options(),
@@ -360,7 +435,7 @@ async fn main() -> Result<()> {
             .await?;
         }
         Command::Handover(args) => {
-            let bundle = args.source.resolve().await?;
+            let bundle = args.source.resolve_for_node(&args.cluster, None).await?;
             let installer = kimage_control::install::Installer::new(
                 kimage_control::kubernetes::client().await?,
                 args.cluster.options(),
@@ -371,7 +446,10 @@ async fn main() -> Result<()> {
             install,
             admission_credentials,
         } => {
-            let bundle = install.source.resolve().await?;
+            let bundle = install
+                .source
+                .resolve_for_node(&install.cluster, None)
+                .await?;
             let installer = kimage_control::install::Installer::new(
                 kimage_control::kubernetes::client().await?,
                 install.cluster.options(),
@@ -384,7 +462,10 @@ async fn main() -> Result<()> {
             install,
             builder_credentials,
         } => {
-            let bundle = install.source.resolve().await?;
+            let bundle = install
+                .source
+                .resolve_for_node(&install.cluster, None)
+                .await?;
             kimage_control::install::Installer::new(
                 kimage_control::kubernetes::client().await?,
                 install.cluster.options(),
@@ -397,7 +478,10 @@ async fn main() -> Result<()> {
             target_node,
             recover,
         } => {
-            let bundle = install.source.resolve().await?;
+            let bundle = install
+                .source
+                .resolve_for_node(&install.cluster, Some(&target_node))
+                .await?;
             kimage_control::install::Installer::new(
                 kimage_control::kubernetes::client().await?,
                 install.cluster.options(),
@@ -411,13 +495,17 @@ async fn main() -> Result<()> {
             previous_trusted_inventory,
             previous_release,
         } => {
-            let next = install.source.resolve().await?;
-            let previous = kimage_control::release_bundle::resolve(
+            let next = install
+                .source
+                .resolve_for_node(&install.cluster, None)
+                .await?;
+            let previous = kimage_control::release_bundle::resolve_for_platform(
                 previous_bundle.as_deref(),
                 previous_trusted_inventory.as_deref(),
                 previous_release.as_deref(),
                 install.source.bundle_cache.as_deref(),
                 install.source.offline,
+                &next.inventory.platform,
             )
             .await?;
             kimage_control::install::Installer::new(
@@ -431,7 +519,10 @@ async fn main() -> Result<()> {
             install,
             approved_origin,
         } => {
-            let bundle = install.source.resolve().await?;
+            let bundle = install
+                .source
+                .resolve_for_node(&install.cluster, None)
+                .await?;
             kimage_control::install::Installer::new(
                 kimage_control::kubernetes::client().await?,
                 install.cluster.options(),

@@ -49,6 +49,9 @@ enabled = true
 [frontend."gateway.v0"]
 enabled = false
 "#;
+pub(crate) fn configuration(architecture: &str) -> String {
+    CONFIG.replace("linux/amd64", &format!("linux/{architecture}"))
+}
 // BuildKit 0.33.0 generates its executor spec with containerd 2.3.4's
 // defaultUnixCaps (pkg/oci/spec.go). The daemon's bounding set must contain
 // those capabilities, plus SYS_ADMIN for mount setup and NET_ADMIN for runc's
@@ -79,6 +82,9 @@ impl Installer {
             self.options.namespace != "default" && !self.options.namespace.starts_with("kube-"),
             "DedicatedSystemNamespaceRequired"
         );
+        self.scope().validate()?;
+        let architecture = &bundle.inventory.platform.architecture;
+        let worker_name = |role: &str| self.name(&format!("{role}-{architecture}"));
         let component = bundle
             .inventory
             .components
@@ -89,16 +95,24 @@ impl Installer {
             "UnsupportedDefaultBuilderVersion"
         );
         let material = credential_material(credentials)?;
-        self.preflight().await?;
+        self.preflight_bundle(bundle).await?;
         // The worker has its own journal: adding its offline component does not
         // rewrite the already completed registry/proxy handover checkpoint.
-        self.state_named(bundle, "DefaultBuilderPending", "builder-state")
-            .await?;
+        self.state_named(
+            bundle,
+            "DefaultBuilderPending",
+            &format!("builder-state-{architecture}"),
+        )
+        .await?;
         let image = format!(
             "127.0.0.1:{}/{}/system-builder@{}",
             self.options.port, self.options.namespace, component.root.digest
         );
-        let dns = format!("{}.{}.svc", self.name("builder"), self.options.namespace);
+        let dns = format!("{}.{}.svc", worker_name("builder"), self.options.namespace);
+        let tls_name = format!(
+            "{}-builder.{}.svc",
+            self.options.installation, self.options.namespace
+        );
         for (suffix, names) in [
             ("builder-server", vec!["ca.crt", "server.crt", "server.key"]),
             ("builder-client", vec!["ca.crt", "client.crt", "client.key"]),
@@ -107,16 +121,16 @@ impl Installer {
                 .into_iter()
                 .map(|n| (n, STANDARD.encode(&material[n])))
                 .collect();
-            self.owned(json!({"apiVersion":"v1","kind":"Secret","metadata":self.metadata(&self.name(suffix)),"type":"Opaque","data":data})).await?;
+            self.owned(json!({"apiVersion":"v1","kind":"Secret","metadata":self.metadata(&worker_name(suffix)),"type":"Opaque","data":data})).await?;
         }
-        self.owned(json!({"apiVersion":"v1","kind":"ConfigMap","metadata":self.metadata(&self.name("builder-config")),"immutable":true,"data":{"buildkitd.toml":CONFIG}})).await?;
+        self.owned(json!({"apiVersion":"v1","kind":"ConfigMap","metadata":self.metadata(&worker_name("builder-config")),"immutable":true,"data":{"buildkitd.toml":configuration(architecture)}})).await?;
         let mut peers = vec![
             json!({"podSelector":{"matchLabels":{"kimage.dev/installation":self.options.installation,"kimage.dev/role":"builder-client"}}}),
         ];
-        if let Some(app) = &self.options.application_namespace {
-            peers.push(json!({"namespaceSelector":{"matchLabels":{"kubernetes.io/metadata.name":app}},"podSelector":{"matchLabels":{crate::build_inputs::INSTALLATION_LABEL:self.options.installation,"kimage.dev/role":"builder-client"}}}));
+        {
+            peers.push(json!({"namespaceSelector":self.scope().webhook_selector(),"podSelector":{"matchLabels":{crate::build_inputs::INSTALLATION_LABEL:self.options.installation,"kimage.dev/role":"builder-client"}}}));
         }
-        self.owned(json!({"apiVersion":"networking.k8s.io/v1","kind":"NetworkPolicy","metadata":self.metadata(&self.name("builder-isolation")),"spec":{"podSelector":{"matchLabels":{"kimage.dev/installation":self.options.installation,"kimage.dev/role":"builder"}},"policyTypes":["Ingress","Egress"],"egress":[],"ingress":[{"from":peers,"ports":[{"protocol":"TCP","port":1234}]}]}})).await?;
+        self.owned(json!({"apiVersion":"networking.k8s.io/v1","kind":"NetworkPolicy","metadata":self.metadata(&worker_name("builder-isolation")),"spec":{"podSelector":{"matchLabels":{"kimage.dev/installation":self.options.installation,"kimage.dev/role":"builder","kimage.dev/worker-architecture":architecture}},"policyTypes":["Ingress","Egress"],"egress":[],"ingress":[{"from":peers,"ports":[{"protocol":"TCP","port":1234}]}]}})).await?;
         let container = json!({"name":"builder","image":image,"imagePullPolicy":"IfNotPresent","command":["/kimage-builder"],"args":["--config","/configuration/buildkitd.toml"],
             "env":[{"name":"PATH","value":"/"},{"name":"OTEL_TRACES_EXPORTER","value":"none"}],
             "volumeMounts":[{"name":"cache","mountPath":"/cache"},{"name":"run","mountPath":"/run"},{"name":"tmp","mountPath":"/tmp"},{"name":"config","mountPath":"/configuration","readOnly":true},{"name":"credentials","mountPath":"/credentials","readOnly":true}],
@@ -127,23 +141,25 @@ impl Installer {
             json!({"name":"cache","emptyDir":{"sizeLimit":"4Gi"}}),
             json!({"name":"run","emptyDir":{"sizeLimit":"16Mi"}}),
             json!({"name":"tmp","emptyDir":{"sizeLimit":"256Mi"}}),
-            json!({"name":"config","configMap":{"name":self.name("builder-config")}}),
-            json!({"name":"credentials","secret":{"secretName":self.name("builder-server"),"defaultMode":256}}),
+            json!({"name":"config","configMap":{"name":worker_name("builder-config")}}),
+            json!({"name":"credentials","secret":{"secretName":worker_name("builder-server"),"defaultMode":256}}),
         ], false);
+        pod["metadata"]["name"] = json!(worker_name("builder"));
+        pod["metadata"]["labels"]["kimage.dev/worker-architecture"] = json!(architecture);
         pod["spec"]["hostUsers"] = json!(false);
-        self.owned(json!({"apiVersion":"v1","kind":"ConfigMap","metadata":self.metadata(&self.name("builder-template")),"immutable":true,"data":{"pod.json":serde_json::to_string(&pod)?}})).await?;
+        self.owned(json!({"apiVersion":"v1","kind":"ConfigMap","metadata":self.metadata(&worker_name("builder-template")),"immutable":true,"data":{"pod.json":serde_json::to_string(&pod)?}})).await?;
         self.owned(pod).await?;
-        self.owned(json!({"apiVersion":"v1","kind":"Service","metadata":self.metadata(&self.name("builder")),"spec":{"selector":{"kimage.dev/installation":self.options.installation,"kimage.dev/role":"builder"},"ports":[{"port":1234,"targetPort":1234}]}})).await?;
-        self.wait_pod(&self.name("builder")).await.context("DefaultBuilderUnavailable: requires user namespaces, idmapped volumes and approved worker policy; no privileged fallback")?;
-        self.wait_service_target(&self.name("builder"), &self.name("builder"))
+        self.owned(json!({"apiVersion":"v1","kind":"Service","metadata":self.metadata(&worker_name("builder")),"spec":{"selector":{"kimage.dev/installation":self.options.installation,"kimage.dev/role":"builder","kimage.dev/worker-architecture":architecture},"ports":[{"port":1234,"targetPort":1234}]}})).await?;
+        self.wait_pod(&worker_name("builder")).await.context("DefaultBuilderUnavailable: requires user namespaces, idmapped volumes and approved worker policy; no privileged fallback")?;
+        self.wait_service_target(&worker_name("builder"), &worker_name("builder"))
             .await?;
-        let mut metadata = self.metadata(&self.name("builder-check"));
+        let mut metadata = self.metadata(&worker_name("builder-check"));
         metadata["labels"]["kimage.dev/role"] = json!("builder-client");
         let check = json!({"apiVersion":"v1","kind":"Pod","metadata":metadata,"spec":{"automountServiceAccountToken":false,"restartPolicy":"OnFailure","nodeName":self.options.node,"containers":[{
-            "name":"check","image":image,"imagePullPolicy":"IfNotPresent","command":["/buildctl"],"args":["--addr",format!("tcp://{dns}:1234"),"--tlsservername",dns,"--tlscacert","/credentials/ca.crt","--tlscert","/credentials/client.crt","--tlskey","/credentials/client.key","debug","workers"],
-            "volumeMounts":[{"name":"credentials","mountPath":"/credentials","readOnly":true}],"resources":{"requests":{"cpu":"10m","memory":"16Mi"},"limits":{"cpu":"500m","memory":"128Mi"}},"securityContext":{"runAsUser":65532,"runAsGroup":65532,"runAsNonRoot":true,"allowPrivilegeEscalation":false,"readOnlyRootFilesystem":true,"capabilities":{"drop":["ALL"]}}}],"volumes":[{"name":"credentials","secret":{"secretName":self.name("builder-client"),"defaultMode":292}}]}});
+            "name":"check","image":image,"imagePullPolicy":"IfNotPresent","command":["/buildctl"],"args":["--addr",format!("tcp://{dns}:1234"),"--tlsservername",tls_name,"--tlscacert","/credentials/ca.crt","--tlscert","/credentials/client.crt","--tlskey","/credentials/client.key","debug","workers"],
+            "volumeMounts":[{"name":"credentials","mountPath":"/credentials","readOnly":true}],"resources":{"requests":{"cpu":"10m","memory":"16Mi"},"limits":{"cpu":"500m","memory":"128Mi"}},"securityContext":{"runAsUser":65532,"runAsGroup":65532,"runAsNonRoot":true,"allowPrivilegeEscalation":false,"readOnlyRootFilesystem":true,"capabilities":{"drop":["ALL"]}}}],"volumes":[{"name":"credentials","secret":{"secretName":worker_name("builder-client"),"defaultMode":292}}]}});
         let pods: Api<Pod> = Api::namespaced(self.client.clone(), &self.options.namespace);
-        if let Some(previous) = pods.get_opt(&self.name("builder-check")).await?
+        if let Some(previous) = pods.get_opt(&worker_name("builder-check")).await?
             && previous
                 .spec
                 .as_ref()
@@ -156,23 +172,25 @@ impl Installer {
             let mut old = check.clone();
             old["spec"]["restartPolicy"] = json!("Never");
             self.owned(old).await?;
-            self.remove_transition_pod("builder-check").await?;
+            self.remove_transition_pod(&format!("builder-check-{architecture}"))
+                .await?;
         }
         self.owned(check.clone()).await?;
         if pods
-            .get(&self.name("builder-check"))
+            .get(&worker_name("builder-check"))
             .await?
             .status
             .as_ref()
             .and_then(|s| s.phase.as_deref())
             == Some("Succeeded")
         {
-            self.remove_transition_pod("builder-check").await?;
+            self.remove_transition_pod(&format!("builder-check-{architecture}"))
+                .await?;
             self.owned(check).await?;
         }
         let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
         loop {
-            let pod = pods.get(&self.name("builder-check")).await?;
+            let pod = pods.get(&worker_name("builder-check")).await?;
             let phase = pod.status.as_ref().and_then(|s| s.phase.as_deref());
             if phase == Some("Succeeded") {
                 break;
@@ -188,10 +206,17 @@ impl Installer {
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
         // Catalog comes last: only an authenticated, ready worker is approved.
-        let catalog = json!({"schema":1,"builders":{"default":{"engine":"BuildKit","version":"0.33.0","frontendVersion":"1.27.0","endpoint":format!("tcp://{dns}:1234"),"tlsServerName":dns,"clientSecret":self.name("builder-client"),"formats":["Containerfile"],"strategies":["Direct"],"platforms":["linux/amd64"],"node":self.options.node,"isolation":"PodUserNamespace","trustScope":self.options.application_namespace,"cache":{"modes":["Local","Disabled"],"maxUsedBytes":2147483648_u64,"volumeLimitBytes":4294967296_u64},"maxParallelism":1,"offline":true}}});
-        self.owned(json!({"apiVersion":"v1","kind":"ConfigMap","metadata":self.metadata(&self.name("builders")),"immutable":true,"data":{"catalog.json":serde_json::to_string(&catalog)?}})).await?;
-        self.state_named(bundle, "DefaultBuilderReady", "builder-state")
-            .await
+        let catalog = json!({"schema":1,"builders":{"default":{"engine":"BuildKit","image":image,"inputImage":self.reference(bundle,"input")?,"version":"0.33.0","frontendVersion":"1.27.0","endpoint":format!("tcp://{dns}:1234"),"tlsServerName":tls_name,"clientSecret":worker_name("builder-client"),"formats":["Containerfile"],"strategies":["Direct"],"platforms":[bundle.inventory.platform.name()],"node":self.options.node,"isolation":"PodUserNamespace","trustScope":self.options.application_namespace.as_deref().unwrap_or("*"),"cache":{"modes":["Local","Disabled"],"maxUsedBytes":2147483648_u64,"volumeLimitBytes":4294967296_u64},"maxParallelism":1,"offline":true}}});
+        let mut catalog_metadata = self.metadata(&worker_name("builders"));
+        catalog_metadata["labels"]["kimage.dev/role"] = json!("builder-catalog");
+        catalog_metadata["labels"]["kimage.dev/worker-architecture"] = json!(architecture);
+        self.owned(json!({"apiVersion":"v1","kind":"ConfigMap","metadata":catalog_metadata,"immutable":true,"data":{"catalog.json":serde_json::to_string(&catalog)?}})).await?;
+        self.state_named(
+            bundle,
+            "DefaultBuilderReady",
+            &format!("builder-state-{architecture}"),
+        )
+        .await
     }
 }
 

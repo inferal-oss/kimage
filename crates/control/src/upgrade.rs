@@ -1,5 +1,5 @@
 //! Native API-only serving binary rollout. The explicit filesystem compatibility
-//! window is Distribution 3.1.1/3.1.2 and serving protocol 0.1.0/0.2.0.
+//! window is Distribution 3.1.1/3.1.2 and serving protocol 0.1.0/0.2.0/0.3.0.
 //! Neither direction changes storage format or the installed API schema.
 use crate::{
     bundle::Bundle,
@@ -45,7 +45,7 @@ pub fn compatible(previous: &Bundle, next: &Bundle) -> Result<()> {
             "gateway" | "proxy" => ensure!(
                 [component.version.as_str(), target.version.as_str()]
                     .iter()
-                    .all(|v| matches!(*v, "0.1.0" | "0.2.0")),
+                    .all(|v| matches!(*v, "0.1.0" | "0.2.0" | "0.3.0")),
                 "UnsupportedServingVersionTransition"
             ),
             _ => {
@@ -115,7 +115,15 @@ impl Installer {
     /// trusted source and target bundles. Only serving images change in this API.
     pub async fn upgrade_serving(&self, previous: &Bundle, next: &Bundle) -> Result<()> {
         compatible(previous, next)?;
-        self.preflight().await?;
+        if self.scope().cluster_wide {
+            for role in ["gateway", "proxy"] {
+                ensure!(
+                    next.inventory.components[role].version == "0.3.0",
+                    "ClusterScopeRequiresServingVersion030"
+                );
+            }
+        }
+        self.preflight_bundle(next).await?;
         let identity =
             kimage_core::oci::digest(format!("{}:{}", previous.digest, next.digest).as_bytes());
         let lease = OperationLease::acquire(

@@ -3,6 +3,7 @@
 use crate::bundle::{Bundle, FileEntry};
 use anyhow::{Context, Result, ensure};
 use futures::StreamExt;
+use kimage_core::oci::Platform;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
@@ -36,6 +37,8 @@ struct Asset {
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Receipt {
+    #[serde(default = "Platform::linux_amd64")]
+    platform: Platform,
     schema: u32,
     repository: String,
     tag: String,
@@ -76,12 +79,29 @@ pub async fn resolve(
     cache: Option<&Path>,
     offline: bool,
 ) -> Result<Bundle> {
+    resolve_for_platform(local, trusted, release, cache, offline, &Platform::native()).await
+}
+
+pub async fn resolve_for_platform(
+    local: Option<&Path>,
+    trusted: Option<&str>,
+    release: Option<&str>,
+    cache: Option<&Path>,
+    offline: bool,
+    platform: &Platform,
+) -> Result<Bundle> {
+    ensure!(platform.supported(), "UnsupportedBundlePlatform");
     if let Some(local) = local {
         ensure!(release.is_none(), "LocalBundleAndReleaseConflict");
-        return Bundle::open(
+        let bundle = Bundle::open(
             local,
             trusted.context("LocalBundleRequiresTrustedInventory")?,
+        )?;
+        ensure!(
+            &bundle.inventory.platform == platform,
+            "BundleNodePlatformMismatch"
         );
+        return Ok(bundle);
     }
     let tag = release_tag(release.unwrap_or(env!("CARGO_PKG_VERSION")))?;
     if let Some(digest) = trusted {
@@ -94,8 +114,12 @@ pub async fn resolve(
         .map(Path::to_path_buf)
         .map(Ok)
         .unwrap_or_else(default_cache)?;
-    let directory = cache.join(format!("{tag}-linux-amd64"));
+    let directory = cache.join(format!("{tag}-linux-{}", platform.architecture));
     if let Some(bundle) = cached(&directory, &tag, trusted)? {
+        ensure!(
+            &bundle.inventory.platform == platform,
+            "CachedBundlePlatformMismatch"
+        );
         return Ok(bundle);
     }
     ensure!(
@@ -103,7 +127,7 @@ pub async fn resolve(
         "ReleaseNotCached: fetch {tag} online first, or supply --bundle and --trusted-inventory"
     );
     private_directory(&cache)?;
-    let lock_path = cache.join(format!(".{tag}-linux-amd64.lock"));
+    let lock_path = cache.join(format!(".{tag}-linux-{}.lock", platform.architecture));
     if lock_path.exists() {
         ensure!(
             fs::symlink_metadata(&lock_path)?.is_file(),
@@ -131,9 +155,13 @@ pub async fn resolve(
     .await
     .context("BundleCacheLockTimeout")??;
     if let Some(bundle) = cached(&directory, &tag, trusted)? {
+        ensure!(
+            &bundle.inventory.platform == platform,
+            "CachedBundlePlatformMismatch"
+        );
         return Ok(bundle);
     }
-    let client = Client::official()?;
+    let client = Client::official(platform.clone())?;
     client.fetch(&cache, &directory, &tag, trusted).await
 }
 
@@ -150,8 +178,8 @@ fn private_directory(path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn names(tag: &str) -> (String, String) {
-    let base = format!("kimage-bundle-{tag}-linux-amd64");
+fn names_for(tag: &str, platform: &Platform) -> (String, String) {
+    let base = format!("kimage-bundle-{tag}-linux-{}", platform.architecture);
     (format!("{base}.tar.gz"), format!("{base}.inventory.json"))
 }
 
@@ -161,9 +189,10 @@ fn checked_bundle(
     tag: &str,
     trusted: Option<&str>,
 ) -> Result<Bundle> {
-    let (archive_name, inventory_name) = names(tag);
+    let (archive_name, inventory_name) = names_for(tag, &receipt.platform);
     ensure!(
         receipt.schema == 1
+            && receipt.platform.supported()
             && receipt.repository == REPOSITORY
             && receipt.tag == tag
             && receipt.archive.file == archive_name
@@ -192,6 +221,10 @@ fn checked_bundle(
     );
     let bundle = Bundle::open(&root, &receipt.inventory.digest)?;
     ensure!(
+        bundle.inventory.platform == receipt.platform,
+        "ReleaseBundlePlatformMismatch"
+    );
+    ensure!(
         fs::metadata(root.join("inventory.json"))?.len() == receipt.inventory.size,
         "ReleaseInventorySizeMismatch"
     );
@@ -208,8 +241,15 @@ fn checked_bundle(
     }
     ensure!(
         bundle.inventory.components.contains_key("builder")
-            && bundle.inventory.installers.contains_key("linux-amd64")
-            && bundle.inventory.installers.contains_key("darwin-arm64"),
+            && bundle
+                .inventory
+                .installers
+                .contains_key(&format!("linux-{}", receipt.platform.architecture))
+            && bundle
+                .inventory
+                .installers
+                .keys()
+                .any(|key| key.starts_with("darwin-")),
         "IncompleteReleaseBundle"
     );
     let mut expected = BTreeSet::from([
@@ -262,6 +302,7 @@ fn cached(directory: &Path, tag: &str, trusted: Option<&str>) -> Result<Option<B
 }
 
 struct Client {
+    platform: Platform,
     http: reqwest::Client,
     api: reqwest::Url,
     assets: reqwest::Url,
@@ -283,7 +324,7 @@ fn trusted_redirect(url: &reqwest::Url) -> bool {
         )
 }
 impl Client {
-    fn official() -> Result<Self> {
+    fn official(platform: Platform) -> Result<Self> {
         let http = reqwest::Client::builder()
             .user_agent(concat!("kimage-install/", env!("CARGO_PKG_VERSION")))
             .https_only(true)
@@ -319,6 +360,7 @@ impl Client {
             })
             .transpose()?;
         Ok(Self {
+            platform,
             http,
             api: "https://api.github.com/repos/inferal-oss/kimage/releases/tags/".parse()?,
             assets: "https://github.com/inferal-oss/kimage/releases/download/".parse()?,
@@ -362,7 +404,7 @@ impl Client {
             release.tag_name == tag && !release.draft && release.assets.len() <= 64,
             "InvalidOfficialRelease"
         );
-        let (archive, inventory) = names(tag);
+        let (archive, inventory) = names_for(tag, &self.platform);
         let select = |name: String, limit| -> Result<FileEntry> {
             let matches: Vec<_> = release
                 .assets
@@ -391,6 +433,7 @@ impl Client {
             })
         };
         Ok(Receipt {
+            platform: self.platform.clone(),
             schema: 1,
             repository: REPOSITORY.into(),
             tag: tag.into(),
@@ -545,6 +588,24 @@ fn extract(archive: &Path, destination: &Path) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    async fn resolve(
+        local: Option<&Path>,
+        trusted: Option<&str>,
+        release: Option<&str>,
+        cache: Option<&Path>,
+        offline: bool,
+    ) -> Result<Bundle> {
+        super::resolve_for_platform(
+            local,
+            trusted,
+            release,
+            cache,
+            offline,
+            &Platform::linux_amd64(),
+        )
+        .await
+    }
+
     use axum::{
         Router,
         body::Body,
@@ -573,9 +634,12 @@ mod tests {
         encoder.finish().unwrap()
     }
     fn fixture() -> (Vec<u8>, Vec<u8>) {
+        fixture_for(&Platform::linux_amd64())
+    }
+    fn fixture_for(platform: &Platform) -> (Vec<u8>, Vec<u8>) {
         use kimage_core::oci::{CONFIG, LAYER, MANIFEST, digest};
         let layer = tar_bytes(&[("message".into(), b"fixture".to_vec())]);
-        let config = serde_json::to_vec(&json!({"os":"linux","architecture":"amd64","rootfs":{"type":"layers","diff_ids":[digest(&layer)]}})).unwrap();
+        let config = serde_json::to_vec(&json!({"os":"linux","architecture":platform.architecture,"rootfs":{"type":"layers","diff_ids":[digest(&layer)]}})).unwrap();
         let descriptor = |bytes: &[u8], media| json!({"mediaType":media,"digest":digest(bytes),"size":bytes.len()});
         let manifest = serde_json::to_vec(&json!({"schemaVersion":2,"mediaType":MANIFEST,"config":descriptor(&config,CONFIG),"layers":[descriptor(&layer,LAYER)]})).unwrap();
         let root = descriptor(&manifest, MANIFEST);
@@ -595,7 +659,14 @@ mod tests {
         let oci = tar_bytes(&oci);
         let mut elf = vec![0_u8; 120];
         elf[..6].copy_from_slice(b"\x7fELF\x02\x01");
-        elf[18..20].copy_from_slice(&62_u16.to_le_bytes());
+        elf[18..20].copy_from_slice(
+            &(if platform.architecture == "amd64" {
+                62_u16
+            } else {
+                183_u16
+            })
+            .to_le_bytes(),
+        );
         elf[32..40].copy_from_slice(&64_u64.to_le_bytes());
         elf[54..56].copy_from_slice(&56_u16.to_le_bytes());
         elf[56..58].copy_from_slice(&1_u16.to_le_bytes());
@@ -605,7 +676,10 @@ mod tests {
         let entry = |name: &str, bytes: &[u8]| json!({"file":name,"size":bytes.len(),"digest":digest(bytes)});
         let mut files = vec![
             ("kimage-bootstrap".into(), elf.clone()),
-            ("kimage-install-linux-amd64".into(), elf.clone()),
+            (
+                format!("kimage-install-linux-{}", platform.architecture),
+                elf.clone(),
+            ),
             ("kimage-install-darwin-arm64".into(), mach.clone()),
         ];
         let mut components = serde_json::Map::new();
@@ -629,7 +703,7 @@ mod tests {
             files.push((executable, elf.clone()));
             files.push((archive, oci.clone()));
         }
-        let inventory = serde_json::to_vec(&json!({"schema":1,"apiSchemaRevision":4,"platform":{"os":"linux","architecture":"amd64"},"launcher":entry("kimage-bootstrap",&elf),"components":components,"installers":{"linux-amd64":entry("kimage-install-linux-amd64",&elf),"darwin-arm64":entry("kimage-install-darwin-arm64",&mach)}})).unwrap();
+        let inventory = serde_json::to_vec(&json!({"schema":1,"apiSchemaRevision":4,"platform":platform,"launcher":entry("kimage-bootstrap",&elf),"components":components,"installers":{(format!("linux-{}", platform.architecture)):entry(&format!("kimage-install-linux-{}", platform.architecture),&elf),"darwin-arm64":entry("kimage-install-darwin-arm64",&mach)}})).unwrap();
         files.push(("inventory.json".into(), inventory.clone()));
         (gzip(&tar_bytes(&files)), inventory)
     }
@@ -652,10 +726,13 @@ mod tests {
         }
     }
     async fn server() -> Server {
+        server_for(Platform::linux_amd64()).await
+    }
+    async fn server_for(platform: Platform) -> Server {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let origin = format!("http://{}/", listener.local_addr().unwrap());
-        let (archive, inventory) = fixture();
-        let (archive_name, inventory_name) = names("v0.2.0");
+        let (archive, inventory) = fixture_for(&platform);
+        let (archive_name, inventory_name) = names_for("v0.2.0", &platform);
         let assets = vec![(archive_name,&archive),(inventory_name,&inventory)].into_iter().map(|(name,bytes)|json!({"name":name,"size":bytes.len(),"digest":kimage_core::oci::digest(bytes),"state":"uploaded","browser_download_url":format!("{origin}download/v0.2.0/{name}")})).collect::<Vec<_>>();
         let state = Arc::new(Mutex::new(State {
             metadata: json!({"tag_name":"v0.2.0","draft":false,"assets":assets}),
@@ -702,6 +779,7 @@ mod tests {
         let task = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
         Server {
             client: Client {
+                platform,
                 http: reqwest::Client::builder()
                     .redirect(reqwest::redirect::Policy::none())
                     .build()
@@ -713,6 +791,51 @@ mod tests {
             state,
             task,
         }
+    }
+
+    #[tokio::test]
+    async fn native_bundle_selection_verifies_arm_elf_oci_and_separates_cache_platforms() {
+        let cache = tempfile::tempdir().unwrap();
+        for platform in [Platform::linux_amd64(), Platform::linux_arm64()] {
+            let server = server_for(platform.clone()).await;
+            let directory = cache
+                .path()
+                .join(format!("v0.2.0-linux-{}", platform.architecture));
+            let bundle = server
+                .client
+                .fetch(cache.path(), &directory, "v0.2.0", None)
+                .await
+                .unwrap();
+            assert_eq!(bundle.inventory.platform, platform);
+            drop(server);
+            let offline = resolve_for_platform(
+                None,
+                Some(&bundle.digest),
+                Some("0.2.0"),
+                Some(cache.path()),
+                true,
+                &platform,
+            )
+            .await
+            .unwrap();
+            assert_eq!(offline.inventory.platform, platform);
+        }
+        let arm_directory = cache.path().join("v0.2.0-linux-arm64");
+        let amd_directory = cache.path().join("v0.2.0-linux-amd64");
+        fs::remove_dir_all(&arm_directory).unwrap();
+        fs::rename(&amd_directory, &arm_directory).unwrap();
+        assert!(
+            resolve_for_platform(
+                None,
+                None,
+                Some("0.2.0"),
+                Some(cache.path()),
+                true,
+                &Platform::linux_arm64()
+            )
+            .await
+            .is_err()
+        );
     }
 
     #[test]

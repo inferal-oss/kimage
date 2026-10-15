@@ -1,5 +1,10 @@
 # Clean implementation acceptance ledger
 
+For 0.3.0 platform selection, default on-demand production, eager configuration,
+and namespace/cluster installation, see [native platforms and scope](platforms-and-scope.md).
+Earlier acceptance receipts below describe the historical amd64 fixture; native
+Kubernetes E2E now covers both architectures and both installation scopes.
+
 2026-10-15. **All four original acceptance milestones passed for the documented
 supported profile.** The binary-upgrade gap is closed by real Distribution
 3.1.1 ↔ 3.1.2 and gateway/proxy 0.1.0 ↔ 0.2.0 cycles, including interrupted

@@ -46,6 +46,7 @@ jobs:
         run: python3 -m compileall -q scripts
       - name: Check documentation and examples
         run: |
+          python3 scripts/check-changelog.py
           python3 scripts/test-release.py
           python3 scripts/check-docs.py
           python3 scripts/check-site.py
@@ -63,6 +64,9 @@ jobs:
           - platform: Linux/amd64 musl
             os: ubuntu-24.04
             target: x86_64-unknown-linux-musl
+          - platform: Linux/arm64 musl
+            os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
           - platform: macOS/arm64
             os: macos-15
             target: aarch64-apple-darwin
@@ -92,6 +96,6 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           mkdir -p .local/tutorial
-          rustc +1.99.0 --edition=2024 --target x86_64-unknown-linux-musl \
+          rustc +1.99.0 --edition=2024 --target ${{ matrix.target }} \
             -C opt-level=z -C strip=symbols -C panic=abort \
             examples/hello/main.rs -o .local/tutorial/hello

@@ -211,7 +211,7 @@ async fn stream(
     drop(destination);
     let path = file.path().to_owned();
     tokio::task::spawn_blocking(move || {
-        oci::verify_export_archive(&path, &oci::Platform::linux_amd64(), oci::Limits::default())
+        oci::verify_export_archive(&path, &oci::Platform::automatic(), oci::Limits::default())
     })
     .await?
 }
@@ -899,9 +899,10 @@ pub async fn reconcile(
         .context("BuilderConfigurationRequired")?;
     let mut previous = build_state::load(&image, &config).await?;
     let releases: Api<ImageRelease> = Api::namespaced(config.client.clone(), &config.namespace);
-    let release_name = kimage_core::catalog::release_name(
+    let release_name = kimage_core::catalog::platform_release_name(
         &image.uid().context("MissingImageUid")?,
         &image.spec.version,
+        &image.spec.platform,
     );
     let release = releases.get_opt(&release_name).await?;
     if let Some(release) = &release {

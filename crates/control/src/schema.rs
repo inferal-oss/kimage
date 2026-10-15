@@ -16,7 +16,7 @@ use kube::{
 };
 use serde_json::{Value, json};
 const MANAGER: &str = "kimage-schema-manager";
-pub const REVISION: u32 = 4;
+pub const REVISION: u32 = 5;
 fn nonnullable(v: &mut Value) {
     match v {
         Value::Object(m) => {
@@ -51,7 +51,10 @@ pub fn definitions() -> Result<Vec<Crd>> {
             r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*))?$"
         );
         if release {
-            spec["x-kubernetes-validations"] = json!([{"rule":"self == oldSelf","message":"published identity and content are immutable"}]);
+            spec["x-kubernetes-validations"] = json!([
+                {"rule":"self == oldSelf","message":"published identity and content are immutable"},
+                {"rule":"self.platform.architecture != 'auto' || self.root.mediaType == 'application/vnd.oci.image.index.v1+json'","message":"aggregate releases require an OCI index"}
+            ]);
             for field in [
                 "imageName",
                 "imageUid",
@@ -108,7 +111,16 @@ pub fn definitions() -> Result<Vec<Crd>> {
         }
         let platform = &mut spec["properties"]["platform"]["properties"];
         platform["os"]["enum"] = json!(["linux"]);
-        platform["architecture"]["enum"] = json!(["amd64"]);
+        platform["architecture"]["enum"] = json!(["amd64", "arm64", "auto"]);
+        if !release {
+            let platforms = &mut spec["properties"]["platforms"];
+            platforms["maxItems"] = json!(2);
+            platforms["x-kubernetes-list-type"] = json!("set");
+            platforms["items"]["x-kubernetes-map-type"] = json!("atomic");
+            platforms["items"]["properties"]["os"]["enum"] = json!(["linux"]);
+            platforms["items"]["properties"]["architecture"]["enum"] = json!(["amd64", "arm64"]);
+            spec["x-kubernetes-validations"] = json!([{"rule":"!has(self.platform) || self.platform.architecture == 'auto' || !has(self.platforms) || size(self.platforms) == 0","message":"use platform or platforms, not both"}]);
+        }
         let root = if release {
             &mut spec["properties"]["root"]
         } else {
@@ -134,6 +146,20 @@ pub fn definitions() -> Result<Vec<Crd>> {
         v["metadata"]["annotations"] = json!({"kimage.dev/schema-manager":MANAGER,"kimage.dev/schema-revision":REVISION.to_string(),"kimage.dev/schema-digest":kimage_core::oci::digest(&serde_json::to_vec(&v["spec"])?)});
         result.push(serde_json::from_value(v)?);
     }
+    let mut demand = serde_json::to_value(crate::configuration::ImageDemand::crd())?;
+    nonnullable(&mut demand["spec"]["versions"][0]["schema"]["openAPIV3Schema"]);
+    let spec =
+        &mut demand["spec"]["versions"][0]["schema"]["openAPIV3Schema"]["properties"]["spec"];
+    for field in ["namespace", "imageName", "imageUid", "version"] {
+        spec["properties"][field]["maxLength"] = json!(253);
+    }
+    spec["properties"]["platforms"]["minItems"] = json!(1);
+    spec["properties"]["platforms"]["maxItems"] = json!(2);
+    spec["properties"]["platforms"]["items"]["properties"]["os"]["enum"] = json!(["linux"]);
+    spec["properties"]["platforms"]["items"]["properties"]["architecture"]["enum"] =
+        json!(["amd64", "arm64"]);
+    demand["metadata"]["annotations"] = json!({"kimage.dev/schema-manager":MANAGER,"kimage.dev/schema-revision":REVISION.to_string(),"kimage.dev/schema-digest":kimage_core::oci::digest(&serde_json::to_vec(&demand["spec"])?)});
+    result.push(serde_json::from_value(demand)?);
     Ok(result)
 }
 pub fn compatibility(existing: &Crd, desired: &Crd) -> Result<()> {
@@ -144,16 +170,18 @@ pub fn compatibility(existing: &Crd, desired: &Crd) -> Result<()> {
             .and_then(|a| a.get("kimage.dev/schema-revision"))
             .cloned()
     };
-    if matches!(revision(existing).as_deref(), Some("2" | "3"))
-        && revision(desired).as_deref() == Some("4")
+    if matches!(revision(existing).as_deref(), Some("2" | "3" | "4"))
+        && revision(desired).as_deref() == Some("5")
     {
         // Only this shipped historical definition is eligible, never an arbitrary
         // old-looking schema. Existing objects remain in the same storage version.
         let previous: Vec<Crd> =
             serde_json::from_str(if revision(existing).as_deref() == Some("2") {
                 include_str!("../schemas/revision-2.json")
-            } else {
+            } else if revision(existing).as_deref() == Some("3") {
                 include_str!("../schemas/revision-3.json")
+            } else {
+                include_str!("../schemas/revision-4.json")
             })?;
         let previous = previous
             .iter()
@@ -405,6 +433,7 @@ mod tests {
         let old: Vec<Crd> = [
             include_str!("../schemas/revision-2.json"),
             include_str!("../schemas/revision-3.json"),
+            include_str!("../schemas/revision-4.json"),
         ]
         .iter()
         .flat_map(|text| serde_json::from_str::<Vec<Crd>>(text).unwrap())
@@ -419,10 +448,9 @@ mod tests {
             assert!(compatibility(&desired, previous).is_err());
         }
         for desired in definitions().unwrap() {
-            let previous = old
-                .iter()
-                .find(|c| c.name_any() == desired.name_any())
-                .unwrap();
+            let Some(previous) = old.iter().find(|c| c.name_any() == desired.name_any()) else {
+                continue;
+            };
             let before = serde_json::to_value(previous).unwrap();
             compatibility(previous, &desired).unwrap();
             assert_eq!(serde_json::to_value(previous).unwrap(), before);

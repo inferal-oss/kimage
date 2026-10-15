@@ -17,6 +17,7 @@ use std::{collections::BTreeSet, path::PathBuf, sync::Arc, time::Duration};
 use tokio_util::sync::CancellationToken;
 #[derive(Clone)]
 pub struct Config {
+    pub scope: Option<kimage_core::scope::NamespaceScope>,
     pub client: Client,
     pub namespace: String,
     pub system_namespace: String,
@@ -330,6 +331,17 @@ pub async fn reconcile(
     config: Arc<Config>,
 ) -> Result<kube::runtime::controller::Action> {
     use kube::runtime::controller::Action;
+    let config = if let Some(scope) = &config.scope {
+        let namespace = image.namespace().context("MissingImageNamespace")?;
+        if !scope.allows(&namespace) {
+            return Ok(Action::await_change());
+        }
+        let mut config = (*config).clone();
+        config.namespace = namespace;
+        Arc::new(config)
+    } else {
+        config
+    };
     if image.metadata.deletion_timestamp.is_some() {
         return Ok(Action::await_change());
     }
