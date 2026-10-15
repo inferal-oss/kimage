@@ -9,13 +9,31 @@ import subprocess
 REPOSITORY = 'inferal-oss/kimage'
 
 
-def release(tag):
-    result = subprocess.run(['gh', 'api', f'repos/{REPOSITORY}/releases/tags/{tag}'], text=True, capture_output=True)
+def api(path):
+    result = subprocess.run(['gh', 'api', f'repos/{REPOSITORY}/{path}'], text=True, capture_output=True)
     if result.returncode:
         if 'HTTP 404' in result.stderr:
             return None
         raise RuntimeError(result.stderr)
     return json.loads(result.stdout)
+
+
+def release(tag):
+    value = api(f'releases/tags/{tag}')
+    if value is not None:
+        return value
+    # The by-tag endpoint omits drafts. Authenticated listing includes them,
+    # so interrupted staging can resume without creating a duplicate draft.
+    for page in range(1, 11):
+        values = api(f'releases?per_page=100&page={page}')
+        assert isinstance(values, list), 'could not list release drafts'
+        matches = [value for value in values if value['tag_name'] == tag]
+        assert len(matches) <= 1, 'duplicate release tag'
+        if matches:
+            return matches[0]
+        if len(values) < 100:
+            return None
+    raise RuntimeError('release lookup exceeded 1000 entries; refusing to create another draft')
 
 
 def sha256(path):

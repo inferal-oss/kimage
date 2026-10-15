@@ -7,6 +7,7 @@ import io
 import json
 from pathlib import Path
 import struct
+from subprocess import CompletedProcess
 import sys
 import tarfile
 import tempfile
@@ -53,6 +54,22 @@ def fixture(root):
 
 
 class ReleaseTests(unittest.TestCase):
+    def test_github_lookup_finds_drafts_and_resumes_without_duplicate_creation(self):
+        missing = CompletedProcess([], 1, '', 'HTTP 404: Not Found')
+        draft = {'tag_name': 'v0.2.0', 'draft': True, 'id': 123}
+        page = CompletedProcess([], 0, json.dumps([draft]), '')
+        with patch.object(github.subprocess, 'run', side_effect=[missing, page]) as run:
+            self.assertEqual(github.release('v0.2.0'), draft)
+            self.assertEqual(run.call_args.args[0][-1], 'repos/inferal-oss/kimage/releases?per_page=100&page=1')
+        full = CompletedProcess([], 0, json.dumps([{'tag_name': f'v0.0.{i}'} for i in range(100)]), '')
+        with patch.object(github.subprocess, 'run', side_effect=[missing, full, page]):
+            self.assertEqual(github.release('v0.2.0'), draft)
+        with patch.object(github.subprocess, 'run', side_effect=[missing, CompletedProcess([], 0, '[]', '')]):
+            self.assertIsNone(github.release('v0.2.0'))
+        with patch.object(github.subprocess, 'run', return_value=CompletedProcess([], 1, '', 'HTTP 403: Forbidden')):
+            with self.assertRaises(RuntimeError):
+                github.release('v0.2.0')
+
     def test_site_waits_for_both_crates_and_complete_public_bundle(self):
         version = {'version': {'yanked': False}}
         assets = [{'name': f'kimage-bundle-v0.2.0-linux-amd64{suffix}', 'state': 'uploaded', 'digest': 'sha256:fixture'} for suffix in ('.tar.gz', '.inventory.json')]

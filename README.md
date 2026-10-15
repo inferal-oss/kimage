@@ -345,7 +345,7 @@ python3 -m compileall -q scripts
 
 [GitHub Actions](https://github.com/inferal-oss/kimage/actions/workflows/ci.yml)
 runs formatting, Clippy, documentation/example checks, and the workspace tests
-on macOS/arm64 and Linux/amd64 musl. Seven Python release-tooling tests verify
+on macOS/arm64 and Linux/amd64 musl. Eight Python release-tooling tests verify
 pinned inputs, deterministic packaging, and immutable asset checks. The current Rust suite has 63 tests, including
 loopback HTTP and mocked Kubernetes API recovery regressions. Live cluster
 acceptance exercises installation, builds, two-node pulls, interruption/recovery,
