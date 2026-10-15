@@ -332,6 +332,38 @@ changes affect newly created Pods and can produce mixed versions; use exact vers
 for uniform rollouts. Direct internal references are denied in application scope.
 Metadata signatures bind one admission request, not tenant authorization.
 
+### Workload and custom-controller compatibility
+
+The same selector works in a Deployment, StatefulSet, DaemonSet, ReplicaSet,
+ReplicationController, or Job at `spec.template.spec.containers[].image`, and in a
+CronJob at `spec.jobTemplate.spec.template.spec.containers[].image`. The equivalent
+`initContainers` image fields also work, including native sidecars with
+`restartPolicy: Always`. Each controller-created Pod passes through the same
+admission path. Parent templates retain selectors and their normal rollout policy.
+
+Custom controllers can use their own image or Pod-template fields, provided their
+CRD schema, validation, and reconciliation accept `platform://` and copy it
+unchanged into a Pod image field. The Image and generated Pod must share the
+configured application namespace; the controller can run elsewhere. Controllers
+that parse OCI syntax or fetch registry metadata before Pod creation need an
+adapter. There is no generic recursive replacement of arbitrary CRD fields.
+ConfigMap strings, environment/argument values, Containerfile image references,
+image-backed volumes, static Pods, and ephemeral-container updates are outside
+the 0.2.0 selector contract.
+
+CI exercises the real admission handler and catalog capture for seven built-in
+controller template paths and a custom template path, normal/init/sidecar
+containers, reinvocation, and replacement selection after a new version appears.
+`scripts/live-workload-consumers.py` additionally exercises actual built-in
+controllers and a small custom-controller fixture on the owned QEMU test cluster.
+It requires that fixture's published build-probe image, records successful pulls
+and starts, and removes its temporary workloads and CRD. It does not establish
+compatibility with every third-party operator's validation or registry behavior.
+The [recorded live results](workload-consumers-results.json) cover all eight cases
+and complete cleanup. That retained fixture predates readable colon ranges, so
+its live run uses `--selector-format legacy-query`; current-handler CI coverage
+independently verifies both readable colon and encoded query forms.
+
 The native control-plane phase provisions administrator-controlled system exclusion,
 application namespace routing and API-authenticated source-reader exceptions. It
 activates the fail-closed webhook only after schemas and serving endpoint are ready. With namespace-wide

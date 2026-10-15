@@ -1,0 +1,84 @@
+{
+  "cases": [
+    {
+      "kind": "Deployment",
+      "templatePreserved": true,
+      "podDigestPinned": true,
+      "normalInitAndSidecarStarted": true,
+      "podNames": [
+        "kimage-consumers-d3ea6c7c-deployment-69b59fd66f-kn5wx"
+      ]
+    },
+    {
+      "kind": "StatefulSet",
+      "templatePreserved": true,
+      "podDigestPinned": true,
+      "normalInitAndSidecarStarted": true,
+      "podNames": [
+        "kimage-consumers-d3ea6c7c-statefulset-0"
+      ]
+    },
+    {
+      "kind": "DaemonSet",
+      "templatePreserved": true,
+      "podDigestPinned": true,
+      "normalInitAndSidecarStarted": true,
+      "podNames": [
+        "kimage-consumers-d3ea6c7c-daemonset-j42f6"
+      ]
+    },
+    {
+      "kind": "ReplicaSet",
+      "templatePreserved": true,
+      "podDigestPinned": true,
+      "normalInitAndSidecarStarted": true,
+      "podNames": [
+        "kimage-consumers-d3ea6c7c-replicaset-ds9tk"
+      ]
+    },
+    {
+      "kind": "ReplicationController",
+      "templatePreserved": true,
+      "podDigestPinned": true,
+      "normalInitAndSidecarStarted": true,
+      "podNames": [
+        "kimage-consumers-d3ea6c7c-replicationcontroller-ffbs8"
+      ]
+    },
+    {
+      "kind": "Job",
+      "templatePreserved": true,
+      "podDigestPinned": true,
+      "normalInitAndSidecarStarted": true,
+      "podNames": [
+        "kimage-consumers-d3ea6c7c-job-k66ft"
+      ]
+    },
+    {
+      "kind": "CronJob",
+      "templatePreserved": true,
+      "podDigestPinned": true,
+      "normalInitAndSidecarStarted": true,
+      "podNames": [
+        "kimage-consumers-d3ea6c7c-cronjob-29868094-52n8w"
+      ]
+    },
+    {
+      "kind": "FixtureWorkload",
+      "templatePreserved": true,
+      "podDigestPinned": true,
+      "normalInitAndSidecarStarted": true,
+      "podNames": [
+        "kimage-consumers-d3ea6c7c-fixtureworkload"
+      ]
+    }
+  ],
+  "cleanupComplete": true,
+  "selector": "platform://kimage-app/kimage-matrix-a1-cached?version=%5E1.0.0",
+  "selectorFormat": "legacy-query",
+  "expectedDigest": "sha256:89aff01796ca5a6fdc22261e9d97d2ec435f09c833d9e2bb84d73b33d8a13c18",
+  "cleanupErrors": [],
+  "scope": "Owned two-node QEMU acceptance fixture; existing kimage installation and retained content unchanged.",
+  "liveSyntaxNote": "The retained fixture admission binary predates readable colon ranges, so live controller execution uses the legacy encoded query form. Current handler regression tests independently cover both readable colon and encoded query forms across all eight workload template paths.",
+  "customControllerNote": "Fixture reconciliation reads a namespaced custom resource at spec.task.podTemplate and copies it into an owned Pod. This is not certification of third-party controllers that validate or rewrite image syntax."
+}

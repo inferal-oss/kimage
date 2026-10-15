@@ -197,6 +197,23 @@ Changing a range/channel affects newly created Pods, not existing Pods; use exac
 versions for a uniform rollout. Unsupported image-update/ephemeral-container
 paths are rejected. Create replacements through the workload controller.
 
+**Workload compatibility.** Deployments, StatefulSets, DaemonSets, ReplicaSets,
+ReplicationControllers, and Jobs use spec.template.spec.containers[].image (or
+initContainers[].image). CronJobs use
+spec.jobTemplate.spec.template.spec.containers[].image (or initContainers).
+Regular containers, init containers, and native restartPolicy: Always init
+sidecars all resolve through actual Pod CREATE admission. Custom controllers work
+when their schema/validation accepts platform:// and they copy the selector
+unchanged into a Pod image field in the configured application namespace. The
+controller may run elsewhere; the Image and Pod must share the application scope.
+Controllers that pre-parse OCI references, fetch image metadata before creating
+Pods, or rewrite selectors require integration. No arbitrary CRD field scanning
+is performed. Image strings in ConfigMaps, env/args, Containerfiles, image-backed
+volumes, static Pods, or ephemeral-container updates are not supported selectors
+in 0.2.0. Edit workload templates for ordinary rollouts; publishing versions or
+moving channels does not itself restart workloads. Full reference:
+https://kimage.dev/docs/#workload-compatibility
+
 **Selector rules.** `platform://apps/hello:1.2.4` selects that exact release;
 `:^1.2.0` selects the highest compatible published release below 2.0.0;
 `:~1.2.0` stays in the 1.2 patch series; `:stable` reads the explicit mapping

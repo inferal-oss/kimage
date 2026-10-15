@@ -445,6 +445,163 @@ pub async fn serve(state: Admission, cert: PathBuf, key: PathBuf) -> Result<()> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Exercise the real admission handler and catalog capture, including
+    // requests from controllers rather than only hand-written core patches.
+    #[tokio::test]
+    async fn workload_controllers_and_custom_templates_resolve_generated_pods() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let generation = Arc::new(AtomicUsize::new(0));
+        let observed = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let server_generation = generation.clone();
+        let server_observed = observed.clone();
+        let router = Router::new().fallback(move |request: axum::extract::Request| {
+            let generation = server_generation.clone();
+            let observed = server_observed.clone();
+            async move {
+                let method = request.method().clone();
+                let path = request.uri().path().to_owned();
+                observed.lock().unwrap().push((method.clone(), path.clone()));
+                assert_eq!(method, axum::http::Method::GET);
+                match path.as_str() {
+                    "/apis/kimage.dev/v1alpha1/namespaces/ns/images/app" => (
+                        StatusCode::NOT_FOUND,
+                        Json(json!({"apiVersion":"v1","kind":"Status","status":"Failure","reason":"NotFound","code":404})),
+                    ),
+                    "/apis/kimage.dev/v1alpha1/namespaces/ns/imagereleases" => {
+                        let versions = if generation.load(Ordering::SeqCst) == 0 {
+                            vec!["1.2.0"]
+                        } else {
+                            vec!["1.2.0", "1.9.0"]
+                        };
+                        let releases: Vec<_> = versions.into_iter().map(|v| json!({
+                            "apiVersion":"kimage.dev/v1alpha1","kind":"ImageRelease",
+                            "metadata":{"name":format!("release-{v}"),"uid":v,"resourceVersion":"2","generation":1},
+                            "spec":{"imageName":"app","imageUid":"image-uid","version":v,
+                                "snapshot":kimage_core::oci::digest(b"snapshot"),
+                                "requestDigest":kimage_core::oci::digest(b"request"),
+                                "sourceGeneration":1,"publisherVersion":"0.2.0",
+                                "root":kimage_core::oci::descriptor(v.as_bytes(), kimage_core::oci::MANIFEST),
+                                "platform":{"os":"linux","architecture":"amd64"}},
+                            "status":{"verified":true,"observedGeneration":1}
+                        })).collect();
+                        (StatusCode::OK, Json(json!({"apiVersion":"kimage.dev/v1alpha1","kind":"ImageReleaseList","metadata":{},"items":releases})))
+                    }
+                    _ => panic!("unexpected catalog request: {path}"),
+                }
+            }
+        });
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
+        let key = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(key.path(), [7; 32]).unwrap();
+        let state = Admission {
+            client: Client::try_from(kube::Config::new(
+                format!("http://{address}").parse().unwrap(),
+            ))
+            .unwrap(),
+            namespace: "ns".into(),
+            endpoint: "127.0.0.1:17500".into(),
+            nodes: BTreeSet::from(["node".into()]),
+            key_file: key.path().into(),
+            input_identity: None,
+            builder_image: None,
+            readiness_scope: None,
+        };
+        let workloads: Vec<Value> =
+            serde_json::from_str(include_str!("../tests/fixtures/workload-consumers.json"))
+                .unwrap();
+        for workload in workloads {
+            for selector in [
+                "platform://ns/app:^1.2.0",
+                "platform://ns/app?version=%5E1.2.0",
+            ] {
+                generation.store(0, Ordering::SeqCst);
+                let template = json!({"metadata":{"labels":{"app":"example"}},"spec":{
+                    "containers":[{"name":"app","image":selector},{"name":"external","image":"example.org/other:v1"}],
+                    "initContainers":[{"name":"init","image":selector},{"name":"sidecar","image":selector,"restartPolicy":"Always"}]
+                }});
+                let mut controller =
+                    json!({"apiVersion":workload["apiVersion"],"kind":workload["kind"],"spec":{}});
+                let mut cursor = &mut controller;
+                for field in workload["template"].as_str().unwrap().split('/').skip(1) {
+                    if !cursor.is_object() {
+                        *cursor = json!({});
+                    }
+                    cursor = cursor
+                        .as_object_mut()
+                        .unwrap()
+                        .entry(field)
+                        .or_insert(json!({}));
+                }
+                *cursor = template.clone();
+                let unchanged = controller.clone();
+                let mut pod = controller
+                    .pointer(workload["template"].as_str().unwrap())
+                    .unwrap()
+                    .clone();
+                pod["apiVersion"] = json!("v1");
+                pod["kind"] = json!("Pod");
+                let mut request = json!({"uid":"initial","namespace":"ns","operation":"CREATE",
+                    "resource":{"group":"","version":"v1","resource":"pods"},
+                    "userInfo":{"username":"system:serviceaccount:controllers:custom"},"object":pod});
+                let changes: json_patch::Patch =
+                    serde_json::from_value(json!(handle(&state, &request).await.unwrap())).unwrap();
+                json_patch::patch(&mut request["object"], &changes).unwrap();
+                let pinned = request["object"].clone();
+                let expected = format!(
+                    "127.0.0.1:17500/ns/image-uid@{}",
+                    kimage_core::oci::digest(b"1.2.0")
+                );
+                for (kind, index) in [
+                    ("containers", 0),
+                    ("initContainers", 0),
+                    ("initContainers", 1),
+                ] {
+                    assert_eq!(
+                        pinned["spec"][kind][index]["image"], expected,
+                        "{}",
+                        workload["kind"]
+                    );
+                    assert_eq!(
+                        pinned["spec"][kind][index]["imagePullPolicy"],
+                        "IfNotPresent"
+                    );
+                }
+                assert_eq!(
+                    pinned["spec"]["containers"][1]["image"],
+                    "example.org/other:v1"
+                );
+                assert_eq!(
+                    pinned["spec"]["initContainers"][1]["restartPolicy"],
+                    "Always"
+                );
+                assert!(handle(&state, &request).await.unwrap().is_empty());
+                generation.store(1, Ordering::SeqCst);
+                // Reinvocation keeps the first selection, while the controller's
+                // next Pod resolves against the newer published catalog.
+                assert!(handle(&state, &request).await.unwrap().is_empty());
+                request["uid"] = json!("replacement");
+                request["object"] = pod;
+                let replacement: json_patch::Patch =
+                    serde_json::from_value(json!(handle(&state, &request).await.unwrap())).unwrap();
+                json_patch::patch(&mut request["object"], &replacement).unwrap();
+                assert_eq!(
+                    request["object"]["spec"]["containers"][0]["image"],
+                    format!(
+                        "127.0.0.1:17500/ns/image-uid@{}",
+                        kimage_core::oci::digest(b"1.9.0")
+                    )
+                );
+                assert_eq!(pinned["spec"]["containers"][0]["image"], expected);
+                assert_eq!(controller, unchanged);
+                assert!(!observed.lock().unwrap().is_empty());
+            }
+        }
+        server.abort();
+    }
+
     #[test]
     fn input_exception_requires_api_authenticated_identity_and_fixed_image() {
         let id = (

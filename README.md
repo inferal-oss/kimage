@@ -27,6 +27,13 @@ Admission resolves the selector to a published release and pins each new Pod to
 its image digest. Kubelet pulls it through the node's local proxy using the normal
 container runtime.
 
+Use the same reference in **Deployments, StatefulSets, DaemonSets, ReplicaSets,
+Jobs, CronJobs, and custom controllers** that pass image fields into Pods. Normal
+containers, init containers, and native sidecars use the same resolution path.
+Workload templates keep the selector; each generated Pod gets its own digest.
+See [workload compatibility](https://kimage.dev/docs/#workload-compatibility)
+for field locations, custom-controller requirements, and limits.
+
 Application authors apply the desired `Image`; build execution and publication
 are handled by the controller. They do not need to create a separate build-run
 resource or choose an output registry URL and push credentials for each image.

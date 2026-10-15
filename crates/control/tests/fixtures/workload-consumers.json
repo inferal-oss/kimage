@@ -1,0 +1,10 @@
+[
+  {"apiVersion":"apps/v1","kind":"Deployment","template":"/spec/template"},
+  {"apiVersion":"apps/v1","kind":"StatefulSet","template":"/spec/template"},
+  {"apiVersion":"apps/v1","kind":"DaemonSet","template":"/spec/template"},
+  {"apiVersion":"apps/v1","kind":"ReplicaSet","template":"/spec/template"},
+  {"apiVersion":"v1","kind":"ReplicationController","template":"/spec/template"},
+  {"apiVersion":"batch/v1","kind":"Job","template":"/spec/template"},
+  {"apiVersion":"batch/v1","kind":"CronJob","template":"/spec/jobTemplate/spec/template"},
+  {"apiVersion":"fixtures.kimage.dev/v1","kind":"FixtureWorkload","template":"/spec/task/podTemplate"}
+]

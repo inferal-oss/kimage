@@ -633,6 +633,62 @@ source:
               Unsupported image updates and ephemeral-container paths are
               rejected; create replacement Pods through the workload controller.
             </p>
+            <h3 id="workload-compatibility">Workload compatibility</h3>
+            <p>
+              Put <code>platform://apps/hello:^1.0.0</code> in the container image
+              field of your workload. Resolution happens when its controller
+              creates a Pod, so controllers need no kimage-specific plugin.
+              Normal containers, init containers, and native sidecars
+              (<code>initContainers</code> with <code>restartPolicy: Always</code>)
+              follow the same path.
+            </p>
+            <table>
+              <thead><tr><th>Resource</th><th>Where to put the selector</th></tr></thead>
+              <tbody>
+                <tr><td>Pod</td><td><code>spec.containers[].image</code> or <code>spec.initContainers[].image</code></td></tr>
+                <tr><td>Deployment, StatefulSet, DaemonSet, ReplicaSet, ReplicationController, Job</td><td><code>spec.template.spec.containers[].image</code> or the equivalent <code>initContainers</code> field</td></tr>
+                <tr><td>CronJob</td><td><code>spec.jobTemplate.spec.template.spec.containers[].image</code> or the equivalent <code>initContainers</code> field</td></tr>
+                <tr><td>Custom controller</td><td>Its documented image or Pod-template field, provided the controller copies the selector into a generated Pod</td></tr>
+              </tbody>
+            </table>
+            <pre><code>apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: report
+  namespace: apps
+spec:
+  schedule: "0 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: report
+              image: "platform://apps/report:^1.0.0"</code></pre>
+            <p>
+              For this CronJob, publish a <code>report</code> Image whose default
+              command finishes after one run. The tutorial's long-running hello
+              executable is intended for a Deployment.
+            </p>
+            <p>
+              The Image and generated Pod must be in the configured application
+              namespace, even if the controller runs elsewhere. A custom resource's
+              schema, validation webhooks, and controller must accept the selector
+              unchanged. Controllers that parse image references themselves,
+              inspect an external registry first, or rewrite image strings may
+              need an adapter. kimage does not scan arbitrary custom-resource
+              fields or strings in ConfigMaps, environment variables, build
+              definitions, or container arguments.
+            </p>
+            <p>
+              Update the workload template to select another image; its ordinary
+              rollout or scheduling policy creates new Pods. Changing a channel
+              or publishing another matching version does not itself trigger a
+              rollout. Managed ephemeral-container updates, image-backed volume
+              references, static Pods, and execution outside Kubernetes Pod
+              admission are not supported in 0.2.0.
+            </p>
             <p>
               The application webhook is fail-closed. An outage can block other
               Pod creation in its namespace too. Direct internal registry

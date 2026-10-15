@@ -34,6 +34,11 @@ adapter uses Containerfiles, scratch images, and provisioned local inputs.
 Read the [compatibility limits](https://kimage.dev/docs/#compatibility)
 before installation. The public APIs are alpha.
 
+Selectors also work in Deployments, StatefulSets, DaemonSets, Jobs, CronJobs, and
+custom controllers that pass them unchanged into Pod container or init-container
+image fields. See [workload compatibility](https://kimage.dev/docs/#workload-compatibility)
+for field locations and controller validation requirements.
+
 The crates.io package is called `kimage-control`; the `kimage` crate name belongs
 to a separate project. Gateway and proxy retain their serving compatibility
 version, currently 0.2.0, independently of the Cargo package version.

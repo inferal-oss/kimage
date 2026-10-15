@@ -223,6 +223,41 @@ Query ranges accept literal characters or percent encoding decoded once, includi
 
 Admission resolves actual Pod CREATE requests, including init containers, to digest references with `IfNotPresent` and eligible-node constraints. Templates remain symbolic. Channel/range changes affect new Pods; existing Pods keep their digest. Use exact versions for a uniform rollout. Unsupported image updates and ephemeral-container paths are rejected; create replacement Pods through the workload controller.
 
+### Workload compatibility
+
+Put `platform://apps/hello:^1.0.0` in the container image field of your workload. Resolution happens when its controller creates a Pod, so controllers need no kimage-specific plugin. Normal containers, init containers, and native sidecars (`initContainers` with `restartPolicy: Always`) follow the same path.
+
+| Resource | Where to put the selector |
+| --- | --- |
+| Pod | `spec.containers[].image` or `spec.initContainers[].image` |
+| Deployment, StatefulSet, DaemonSet, ReplicaSet, ReplicationController, Job | `spec.template.spec.containers[].image` or the equivalent `initContainers` field |
+| CronJob | `spec.jobTemplate.spec.template.spec.containers[].image` or the equivalent `initContainers` field |
+| Custom controller | Its documented image or Pod-template field, provided the controller copies the selector into a generated Pod |
+
+```
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: report
+  namespace: apps
+spec:
+  schedule: "0 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: report
+              image: "platform://apps/report:^1.0.0"
+```
+
+For this CronJob, publish a `report` Image whose default command finishes after one run. The tutorial's long-running hello executable is intended for a Deployment.
+
+The Image and generated Pod must be in the configured application namespace, even if the controller runs elsewhere. A custom resource's schema, validation webhooks, and controller must accept the selector unchanged. Controllers that parse image references themselves, inspect an external registry first, or rewrite image strings may need an adapter. kimage does not scan arbitrary custom-resource fields or strings in ConfigMaps, environment variables, build definitions, or container arguments.
+
+Update the workload template to select another image; its ordinary rollout or scheduling policy creates new Pods. Changing a channel or publishing another matching version does not itself trigger a rollout. Managed ephemeral-container updates, image-backed volume references, static Pods, and execution outside Kubernetes Pod admission are not supported in 0.2.0.
+
 The application webhook is fail-closed. An outage can block other Pod creation in its namespace too. Direct internal registry references are denied in application scope, and an opt-in Pod label is not a bypass.
 
 ## Optional registry export
