@@ -810,23 +810,13 @@ impl Installer {
             .await?;
         // Stop the supervisor before deleting its worker; otherwise an active
         // build observer can recreate the worker during the uninstall scan.
-        let pods: Api<Pod> = Api::namespaced(self.client.clone(), &self.options.namespace);
+        let pods = self.api_at("Pod", Some(&self.options.namespace))?;
         if let Some(operator) = pods.get_opt(&self.name("operator")).await? {
             ensure!(
                 operator.labels().get(LABEL) == Some(&self.options.installation),
                 "OperatorOwnershipConflict"
             );
-            pods.delete(
-                &self.name("operator"),
-                &DeleteParams {
-                    preconditions: Some(Preconditions {
-                        uid: operator.uid(),
-                        resource_version: operator.resource_version(),
-                    }),
-                    ..Default::default()
-                },
-            )
-            .await?;
+            delete_snapshot(&pods, &operator).await?;
             self.wait_absent(&self.name("operator")).await?;
         }
         // Stop controllers and the shared worker before deleting application
@@ -906,17 +896,7 @@ impl Installer {
                             && Some(&o.uid) == item.labels().get("kimage.dev/image-uid")),
                     "BuildSessionCleanupOwnershipConflict"
                 );
-                api.delete(
-                    &item.name_any(),
-                    &DeleteParams {
-                        preconditions: Some(Preconditions {
-                            uid: item.uid(),
-                            resource_version: item.resource_version(),
-                        }),
-                        ..Default::default()
-                    },
-                )
-                .await?;
+                delete_snapshot(&api, &item).await?;
                 if kind == "Pod" {
                     let deadline = tokio::time::Instant::now() + Duration::from_secs(90);
                     while api.get_opt(&item.name_any()).await?.is_some() {
@@ -942,23 +922,70 @@ impl Installer {
                     .starts_with(&format!("{}-", self.options.installation)),
                 "UnexpectedOwnedResourceName"
             );
-            api.delete(
-                &item.name_any(),
-                &DeleteParams {
-                    preconditions: Some(Preconditions {
-                        uid: item.uid(),
-                        resource_version: item.resource_version(),
-                    }),
-                    ..Default::default()
-                },
-            )
-            .await?;
+            delete_snapshot(&api, &item).await?;
             if kind == "Pod" {
                 self.wait_absent(&item.name_any()).await?;
             }
         }
         Ok(())
     }
+}
+fn cleanup_identity(object: &DynamicObject) -> Result<Value> {
+    let mut value = serde_json::to_value(object)?;
+    value.as_object_mut().unwrap().remove("status");
+    if let Some(metadata) = value["metadata"].as_object_mut() {
+        metadata.remove("resourceVersion");
+        metadata.remove("managedFields");
+    }
+    Ok(value)
+}
+/// A kubelet status update must not defeat uninstall, but a replacement UID or
+/// a concurrent spec/ownership edit must never inherit a stale delete decision.
+async fn delete_snapshot(api: &Api<DynamicObject>, original: &DynamicObject) -> Result<()> {
+    let uid = original.uid().context("MissingCleanupUid")?;
+    let identity = cleanup_identity(original)?;
+    let mut current = original.clone();
+    for attempt in 0..3 {
+        match api
+            .delete(
+                &current.name_any(),
+                &DeleteParams {
+                    preconditions: Some(Preconditions {
+                        uid: Some(uid.clone()),
+                        resource_version: Some(
+                            current
+                                .resource_version()
+                                .context("MissingCleanupResourceVersion")?,
+                        ),
+                    }),
+                    ..Default::default()
+                },
+            )
+            .await
+        {
+            Ok(_) => return Ok(()),
+            Err(kube::Error::Api(error)) if error.code == 404 => return Ok(()),
+            Err(kube::Error::Api(error)) if error.code == 409 && attempt < 2 => {
+                let Some(fresh) = api.get_opt(&current.name_any()).await? else {
+                    return Ok(());
+                };
+                ensure!(
+                    fresh.uid().as_deref() == Some(uid.as_str()),
+                    "CleanupIdentityConflict"
+                );
+                if fresh.metadata.deletion_timestamp.is_some() {
+                    return Ok(());
+                }
+                ensure!(
+                    cleanup_identity(&fresh)? == identity,
+                    "CleanupIdentityConflict"
+                );
+                current = fresh;
+            }
+            Err(error) => return Err(error.into()),
+        }
+    }
+    unreachable!()
 }
 fn normalize_empty_network_rules(actual: &mut Value, expected: &Value) {
     // Kubernetes omits empty ingress/egress arrays. Their meaning is preserved
@@ -1065,6 +1092,76 @@ fn contains(actual: &Value, expected: &Value) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn cleanup_retries_status_races_but_refuses_replacements_and_spec_or_ownership_edits() {
+        use axum::{Json, Router, http::StatusCode, response::IntoResponse};
+        use std::sync::{Arc, Mutex};
+        for mode in ["status", "replacement", "spec", "ownership", "continual"] {
+            let original: DynamicObject = serde_json::from_value(json!({"apiVersion":"v1","kind":"Pod","metadata":{"name":"dev-registry","namespace":"system","uid":"original","resourceVersion":"1","labels":{LABEL:"dev"}},"spec":{"nodeName":"native"},"status":{"phase":"Pending"}})).unwrap();
+            let counts = Arc::new(Mutex::new((0, 0)));
+            let shared = counts.clone();
+            let object = original.clone();
+            let router = Router::new().fallback(move |request:axum::extract::Request| {
+                let counts = shared.clone();
+                let original = object.clone();
+                async move {
+                    assert_eq!(request.uri().path(),"/api/v1/namespaces/system/pods/dev-registry");
+                    let method = request.method().clone();
+                    let body = axum::body::to_bytes(request.into_body(),16384).await.unwrap();
+                    let mut counts = counts.lock().unwrap();
+                    if method == "DELETE" {
+                        counts.0 += 1;
+                        let params:Value = serde_json::from_slice(&body).unwrap();
+                        assert_eq!(params["preconditions"]["uid"],"original");
+                        assert_eq!(params["preconditions"]["resourceVersion"],counts.0.to_string());
+                        if counts.0 == 1 || mode == "continual" {
+                            (StatusCode::CONFLICT, Json(json!({"apiVersion":"v1","kind":"Status","status":"Failure","reason":"Conflict","code":409,"message":"status advanced"}))).into_response()
+                        } else {
+                            Json(json!({"apiVersion":"v1","kind":"Status","status":"Success","code":200})).into_response()
+                        }
+                    } else {
+                        assert_eq!(method,"GET");
+                        counts.1 += 1;
+                        let mut value = serde_json::to_value(original).unwrap();
+                        value["metadata"]["resourceVersion"] = json!((counts.1+1).to_string());
+                        value["status"]["phase"] = json!("Running");
+                        match mode {
+                            "replacement" => value["metadata"]["uid"] = json!("replacement"),
+                            "spec" => value["spec"]["nodeName"] = json!("different"),
+                            "ownership" => value["metadata"]["labels"][LABEL] = json!("foreign"),
+                            _ => {},
+                        }
+                        Json(value).into_response()
+                    }
+                }
+            });
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let client = Client::try_from(kube::Config::new(
+                format!("http://{}", listener.local_addr().unwrap())
+                    .parse()
+                    .unwrap(),
+            ))
+            .unwrap();
+            let server = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
+            let api = Api::<DynamicObject>::namespaced_with(
+                client,
+                "system",
+                &ApiResource::erase::<Pod>(&()),
+            );
+            let result = delete_snapshot(&api, &original).await;
+            if mode == "status" {
+                result.unwrap();
+                assert_eq!(*counts.lock().unwrap(), (2, 1));
+            } else if mode == "continual" {
+                assert!(result.is_err());
+                assert_eq!(*counts.lock().unwrap(), (3, 2));
+            } else {
+                assert_eq!(result.err().unwrap().to_string(), "CleanupIdentityConflict");
+                assert_eq!(*counts.lock().unwrap(), (1, 1));
+            }
+            server.abort();
+        }
+    }
     #[test]
     fn identities_need_different_effective_passwords() {
         assert!(!distinct_passwords("same\n", "same\r\n"));

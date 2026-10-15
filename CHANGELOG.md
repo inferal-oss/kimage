@@ -40,6 +40,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 - Interrupted registry publication retries within a bounded deadline using fresh
   upload sessions and complete byte readback. Integrity and authorization errors
   still fail immediately.
+- Uninstall tolerates status-only resource-version races while retaining UID and
+  ownership checks and refusing concurrent spec edits or replacement resources.
 - README, tutorial, handbook and agent essentials document platform inputs,
   selection, demand/eager policy, both scopes and automatic bundle delivery.
 
