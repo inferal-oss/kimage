@@ -7,6 +7,11 @@ on:
         description: Existing draft release ID to inspect (read only)
         required: true
         type: string
+      test_create:
+        description: Create, observe, and delete a temporary empty test draft
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -18,6 +23,10 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: inputs.test_create
+        with:
+          persist-credentials: false
       - name: Check draft visibility with the release job token permissions
         env:
           GH_TOKEN: ${{ github.token }}
@@ -28,3 +37,26 @@ jobs:
             --jq '{id,tag_name,draft,target_commitish,assets: [.assets[]|{id,name,digest}]}'
           gh api 'repos/inferal-oss/kimage/releases?per_page=100&page=1' \
             --jq '[.[]|{id,tag_name,draft}]'
+      - name: Verify new draft creation and visibility without publishing
+        if: inputs.test_create
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          python3 - <<'PY'
+          import importlib.util, os, subprocess
+          spec = importlib.util.spec_from_file_location('release', 'scripts/publish-github-release.py')
+          release = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(release)
+          tag = 'staging-check-' + os.environ['RUN_ID'] + '-' + os.environ['RUN_ATTEMPT']
+          commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          draft = release.api('releases', {'tag_name': tag, 'target_commitish': commit, 'draft': True, 'name': tag, 'body': 'Temporary empty release integration test; never published.'})
+          try:
+              observed = release.await_created_release(tag, draft['id'])
+              assert observed['draft'] and observed['tag_name'] == tag
+              assert release.api(f"releases/{draft['id']}")['id'] == draft['id']
+          finally:
+              subprocess.run(['gh', 'api', '--method', 'DELETE', f"repos/inferal-oss/kimage/releases/{draft['id']}"], check=True)
+          print('Created, observed, and removed the temporary test draft.')
+          PY

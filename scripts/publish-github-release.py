@@ -5,14 +5,19 @@ import hashlib
 import json
 from pathlib import Path
 import subprocess
+import time
 
 REPOSITORY = 'inferal-oss/kimage'
 
 
-def api(path):
-    result = subprocess.run(['gh', 'api', f'repos/{REPOSITORY}/{path}'], text=True, capture_output=True)
+def api(path, data=None, method='POST'):
+    arguments = ['gh', 'api', '-H', 'Cache-Control: no-cache']
+    if data is not None:
+        arguments.extend(['--method', method, '--input', '-'])
+    arguments.append(f'repos/{REPOSITORY}/{path}')
+    result = subprocess.run(arguments, input=json.dumps(data) if data is not None else None, text=True, capture_output=True)
     if result.returncode:
-        if 'HTTP 404' in result.stderr:
+        if data is None and 'HTTP 404' in result.stderr:
             return None
         raise RuntimeError(result.stderr)
     return json.loads(result.stdout)
@@ -34,6 +39,19 @@ def release(tag):
         if len(values) < 100:
             return None
     raise RuntimeError('release lookup exceeded 1000 entries; refusing to create another draft')
+
+
+def await_created_release(tag, expected_id):
+    # A successful create response can precede visibility in the tag/list index.
+    # Never create a second draft while waiting for the first one to appear.
+    for delay in (0, 1, 2, 4, 8, 16, 30):
+        if delay:
+            time.sleep(delay)
+        value = release(tag)
+        if value is not None:
+            assert value['id'] == expected_id, 'created release lookup conflict'
+            return value
+    raise RuntimeError(f'created draft {expected_id} is not indexed yet; resume it rather than creating another')
 
 
 def sha256(path):
@@ -66,8 +84,10 @@ def main():
     value = release(args.tag)
     if value is None:
         assert not args.finalize, 'draft release must be staged first'
-        subprocess.run(['gh', 'release', 'create', args.tag, '--repo', REPOSITORY, '--verify-tag', '--target', commit, '--draft', '--title', 'kimage ' + args.tag.removeprefix('v'), '--notes-file', str(args.assets / 'RELEASE_NOTES.md')], check=True)
-        value = release(args.tag)
+        value = api('releases', {'tag_name': args.tag, 'target_commitish': commit, 'draft': True,
+            'name': 'kimage ' + args.tag.removeprefix('v'), 'body': (args.assets / 'RELEASE_NOTES.md').read_text()})
+        print('Created draft release ' + str(value['id']), flush=True)
+        await_created_release(args.tag, value['id'])
     assert value['tag_name'] == args.tag and value['target_commitish'] == commit, 'release commit mismatch'
     assets = {asset['name']: asset for asset in value['assets']}
     for path in paths:
@@ -76,10 +96,12 @@ def main():
         else:
             assert value['draft'] and not args.finalize, 'cannot add missing assets to a published release'
             subprocess.run(['gh', 'release', 'upload', args.tag, str(path), '--repo', REPOSITORY], check=True)
-    value = release(args.tag)
+    value = api(f"releases/{value['id']}")
     verify_assets(value, paths)
     if args.finalize and value['draft']:
-        subprocess.run(['gh', 'release', 'edit', args.tag, '--repo', REPOSITORY, '--draft=false', '--latest'], check=True)
+        value = api(f"releases/{value['id']}", {'draft': False, 'make_latest': 'true'}, method='PATCH')
+        assert not value['draft'] and value['tag_name'] == args.tag
+        verify_assets(value, paths)
     print(('Published' if args.finalize else 'Staged') + ' exact release assets for ' + args.tag)
 
 

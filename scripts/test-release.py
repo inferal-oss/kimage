@@ -54,6 +54,18 @@ def fixture(root):
 
 
 class ReleaseTests(unittest.TestCase):
+    def test_new_draft_visibility_delay_never_creates_another_draft(self):
+        draft = {'id': 123, 'tag_name': 'v0.2.0', 'draft': True}
+        with patch.object(github, 'release', side_effect=[None, None, draft]), patch.object(github.time, 'sleep') as sleep, patch.object(github.subprocess, 'run', side_effect=AssertionError('must not create another draft')):
+            self.assertEqual(github.await_created_release('v0.2.0', 123), draft)
+            self.assertEqual([call.args[0] for call in sleep.call_args_list], [1, 2])
+        with patch.object(github, 'release', return_value=None), patch.object(github.time, 'sleep'):
+            with self.assertRaisesRegex(RuntimeError, 'created draft 123'):
+                github.await_created_release('v0.2.0', 123)
+        with patch.object(github, 'release', return_value=draft):
+            with self.assertRaisesRegex(AssertionError, 'lookup conflict'):
+                github.await_created_release('v0.2.0', 456)
+
     def test_github_lookup_finds_drafts_and_resumes_without_duplicate_creation(self):
         missing = CompletedProcess([], 1, '', 'HTTP 404: Not Found')
         draft = {'tag_name': 'v0.2.0', 'draft': True, 'id': 123}
