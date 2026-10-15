@@ -116,7 +116,7 @@ def main():
             sidecar = copy.deepcopy(container)
             sidecar.update(name='sidecar', args=[], restartPolicy='Always')
             template = {'metadata': {'labels': labels}, 'spec': {
-                'nodeSelector': {'kubernetes.io/hostname': 'kimage-clean'},
+                'nodeSelector': {'kubernetes.io/hostname': 'kimage-e2e' if args.ci_owned_cluster else 'kimage-clean'},
                 'terminationGracePeriodSeconds': 1,
                 'automountServiceAccountToken': False,
                 'restartPolicy': 'Never' if job else 'Always',
