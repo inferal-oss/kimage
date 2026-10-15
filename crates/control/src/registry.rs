@@ -204,12 +204,36 @@ impl Registry {
         let mut measured = crate::metrics::Observation::begin(crate::metrics::Stage::Publication);
         tokio::select! {
             _ = cancel.cancelled() => anyhow::bail!("PublicationCancelled"),
-            result = tokio::time::timeout(Duration::from_secs(600), self.publish_inner(image)) => {
+            result = tokio::time::timeout(Duration::from_secs(600), self.publish_retry(image)) => {
                 result.context("PublicationDeadlineExceeded")??;
                 measured.success();
                 Ok(PublicationReceipt { root: image.root().clone() })
             }
         }
+    }
+    async fn publish_retry(&self, image: &VerifiedImage) -> Result<()> {
+        for attempt in 0..3 {
+            match self.publish_inner(image).await {
+                Ok(()) => return Ok(()),
+                Err(error)
+                    if attempt < 2
+                        && matches!(
+                            error.to_string().as_str(),
+                            "RegistryTransportFailed"
+                                | "BlobChunkTransportFailed"
+                                | "RegistryReadInterrupted"
+                        ) =>
+                {
+                    // A lost response can follow an accepted PATCH. Restart the
+                    // graph with HEAD/readback and a fresh upload session rather
+                    // than replaying an ambiguous chunk at the previous offset.
+                    tracing::warn!(attempt = attempt + 1, reason = %error, "retrying interrupted registry publication");
+                    tokio::time::sleep(Duration::from_secs(1 << attempt)).await;
+                }
+                Err(error) => return Err(error),
+            }
+        }
+        unreachable!()
     }
     /// Recover publication from retained registry bytes after a crash between
     /// immutable release creation and its verified-status acknowledgment.
@@ -542,4 +566,242 @@ fn check_digest_header(
         "RegistryDigestHeaderMismatch"
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use kimage_core::oci::{self, CONFIG, MANIFEST};
+    use serde_json::json;
+    use std::{
+        collections::BTreeMap,
+        sync::{Arc, Mutex},
+    };
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    fn image() -> VerifiedImage {
+        let config = serde_json::to_vec(
+            &json!({"os":"linux","architecture":"arm64","rootfs":{"type":"layers","diff_ids":[]}}),
+        )
+        .unwrap();
+        let manifest = serde_json::to_vec(&json!({"schemaVersion":2,"mediaType":MANIFEST,"config":oci::descriptor(&config,CONFIG),"layers":[]})).unwrap();
+        let root = oci::descriptor(&manifest, MANIFEST);
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let mut tar = tar::Builder::new(std::fs::File::create(file.path()).unwrap());
+        let mut entries = vec![
+            (
+                "oci-layout".to_owned(),
+                br#"{"imageLayoutVersion":"1.0.0"}"#.to_vec(),
+            ),
+            (
+                "index.json".to_owned(),
+                serde_json::to_vec(&json!({"schemaVersion":2,"manifests":[root]})).unwrap(),
+            ),
+        ];
+        for bytes in [config, manifest] {
+            entries.push((format!("blobs/sha256/{}", &oci::digest(&bytes)[7..]), bytes));
+        }
+        for (name, bytes) in entries {
+            let mut header = tar::Header::new_gnu();
+            header.set_size(bytes.len() as u64);
+            header.set_mode(0o444);
+            header.set_cksum();
+            tar.append_data(&mut header, name, bytes.as_slice())
+                .unwrap();
+        }
+        tar.finish().unwrap();
+        drop(tar);
+        oci::verify_archive(
+            file.path(),
+            &root,
+            &Platform::linux_arm64(),
+            oci::Limits::default(),
+        )
+        .unwrap()
+    }
+
+    #[derive(Default)]
+    struct Remote {
+        requests: usize,
+        starts: usize,
+        uploads: BTreeMap<String, Vec<u8>>,
+        blobs: BTreeMap<String, Vec<u8>>,
+        manifests: BTreeMap<String, Vec<u8>>,
+    }
+    async fn publication_case(
+        disconnects: usize,
+        corrupt_readback: bool,
+        deny: bool,
+    ) -> (Result<PublicationReceipt>, usize, usize) {
+        let state = Arc::new(Mutex::new(Remote::default()));
+        let remote = state.clone();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            loop {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut header = Vec::new();
+                while !header.ends_with(b"\r\n\r\n") {
+                    header.push(socket.read_u8().await.unwrap());
+                    assert!(header.len() <= 16384);
+                }
+                let text = String::from_utf8(header).unwrap();
+                let mut request = text.lines().next().unwrap().split_whitespace();
+                let method = request.next().unwrap();
+                let target = request.next().unwrap();
+                let length: usize = text
+                    .lines()
+                    .filter_map(|line| line.split_once(':'))
+                    .find(|(name, _)| name.eq_ignore_ascii_case("content-length"))
+                    .map(|(_, value)| value.trim().parse().unwrap())
+                    .unwrap_or(0);
+                assert!(length <= 16384);
+                let mut bytes = vec![0; length];
+                socket.read_exact(&mut bytes).await.unwrap();
+                let response = {
+                    let mut state = remote.lock().unwrap();
+                    state.requests += 1;
+                    let url = Url::parse(&format!("http://localhost{target}")).unwrap();
+                    let path = url.path().strip_prefix("/v2/apps/image/").unwrap();
+                    if deny {
+                        Some((403, Vec::new(), Vec::new()))
+                    } else if method == "POST" && path == "blobs/uploads/" {
+                        state.starts += 1;
+                        let id = state.starts.to_string();
+                        state.uploads.insert(id.clone(), Vec::new());
+                        Some((
+                            202,
+                            vec![("Location", format!("/v2/apps/image/blobs/uploads/{id}"))],
+                            Vec::new(),
+                        ))
+                    } else if let Some(id) = path.strip_prefix("blobs/uploads/") {
+                        if method == "PATCH" {
+                            // Accept bytes, then lose the response. Replaying
+                            // this PATCH in the same session would duplicate data.
+                            let upload = state.uploads.get_mut(id).unwrap();
+                            upload.extend(bytes);
+                            let end = upload.len() - 1;
+                            if state.starts <= disconnects {
+                                None
+                            } else {
+                                Some((
+                                    202,
+                                    vec![
+                                        ("Location", format!("/v2/apps/image/blobs/uploads/{id}")),
+                                        ("Range", format!("0-{end}")),
+                                    ],
+                                    Vec::new(),
+                                ))
+                            }
+                        } else {
+                            assert_eq!(method, "PUT");
+                            let digest = url
+                                .query_pairs()
+                                .find(|(key, _)| key == "digest")
+                                .unwrap()
+                                .1
+                                .into_owned();
+                            let uploaded = state.uploads.remove(id).unwrap();
+                            assert_eq!(oci::digest(&uploaded), digest);
+                            state.blobs.insert(digest.clone(), uploaded);
+                            Some((201, vec![("Docker-Content-Digest", digest)], Vec::new()))
+                        }
+                    } else if let Some(digest) = path.strip_prefix("manifests/") {
+                        if method == "PUT" {
+                            assert_eq!(oci::digest(&bytes), digest);
+                            state.manifests.insert(digest.to_owned(), bytes);
+                            Some((
+                                201,
+                                vec![("Docker-Content-Digest", digest.to_owned())],
+                                Vec::new(),
+                            ))
+                        } else {
+                            Some((
+                                200,
+                                vec![("Docker-Content-Digest", digest.to_owned())],
+                                state.manifests[digest].clone(),
+                            ))
+                        }
+                    } else {
+                        let digest = path.strip_prefix("blobs/").unwrap();
+                        if method == "HEAD" {
+                            Some((
+                                if state.blobs.contains_key(digest) {
+                                    200
+                                } else {
+                                    404
+                                },
+                                Vec::new(),
+                                Vec::new(),
+                            ))
+                        } else {
+                            assert_eq!(method, "GET");
+                            let mut bytes = state.blobs[digest].clone();
+                            if corrupt_readback {
+                                bytes[0] ^= 1;
+                            }
+                            Some((
+                                200,
+                                vec![("Docker-Content-Digest", digest.to_owned())],
+                                bytes,
+                            ))
+                        }
+                    }
+                };
+                if let Some((status, headers, bytes)) = response {
+                    let mut response = format!(
+                        "HTTP/1.1 {status} Fixture\r\nConnection: close\r\nContent-Length: {}\r\n",
+                        bytes.len()
+                    );
+                    for (name, value) in headers {
+                        response.push_str(&format!("{name}: {value}\r\n"));
+                    }
+                    response.push_str("\r\n");
+                    socket.write_all(response.as_bytes()).await.unwrap();
+                    socket.write_all(&bytes).await.unwrap();
+                }
+            }
+        });
+        // Only this private HTTP fixture bypasses the production HTTPS constructor.
+        let registry = Registry {
+            client: Client::builder()
+                .no_proxy()
+                .timeout(Duration::from_secs(5))
+                .build()
+                .unwrap(),
+            origin: format!("http://{address}/").parse().unwrap(),
+            repository: "apps/image".into(),
+            username: String::new(),
+            password: String::new(),
+        };
+        let image = image();
+        let result = registry.publish(&image, &CancellationToken::new()).await;
+        if let Ok(receipt) = &result {
+            assert_eq!(receipt.root(), image.root());
+        }
+        let starts = state.lock().unwrap().starts;
+        let requests = state.lock().unwrap().requests;
+        server.abort();
+        (result, starts, requests)
+    }
+
+    #[tokio::test]
+    async fn interrupted_upload_restarts_session_but_integrity_auth_and_retry_limits_still_apply() {
+        let (result, starts, _) = publication_case(1, false, false).await;
+        result.unwrap();
+        assert_eq!(starts, 2);
+        let (result, starts, _) = publication_case(usize::MAX, false, false).await;
+        assert_eq!(
+            result.err().unwrap().to_string(),
+            "BlobChunkTransportFailed"
+        );
+        assert_eq!(starts, 3);
+        let (result, starts, _) = publication_case(1, true, false).await;
+        assert_eq!(result.err().unwrap().to_string(), "RegistryDigestMismatch");
+        assert_eq!(starts, 2);
+        let (result, starts, requests) = publication_case(0, false, true).await;
+        assert!(result.is_err());
+        assert_eq!(starts, 0);
+        assert_eq!(requests, 1);
+    }
 }

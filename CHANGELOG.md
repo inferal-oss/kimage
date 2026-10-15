@@ -37,6 +37,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 - Schema revision 5 accepts exact shipped revision 2/3/4 definitions, preserving
   data and rejecting drift or downgrades. Serving binaries report version 0.3.0;
   cluster scope requires that version's namespace routing support.
+- Interrupted registry publication retries within a bounded deadline using fresh
+  upload sessions and complete byte readback. Integrity and authorization errors
+  still fail immediately.
 - README, tutorial, handbook and agent essentials document platform inputs,
   selection, demand/eager policy, both scopes and automatic bundle delivery.
 

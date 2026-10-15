@@ -216,6 +216,9 @@ def main():
         for role in ['operator','admission']:
             result = kubectl(['logs', 'e2e-'+role, '-n', system, '--tail=200', '--timestamps'], ok=False)
             (args.output/(role+'.log')).write_text(result.stdout+result.stderr)
+        for container in ['gateway', 'registry']:
+            result = kubectl(['logs', 'e2e-registry', '-n', system, '-c', container, '--tail=100', '--timestamps'], ok=False)
+            (args.output/('registry-'+container+'.log')).write_text(result.stdout+result.stderr)
         (args.output/'results.json').write_text(json.dumps(report, indent=2)+'\n')
     print('E2E complete: '+args.scope+' linux/'+arch)
 
