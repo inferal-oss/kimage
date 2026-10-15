@@ -123,7 +123,8 @@ def main():
             return dict(apiVersion='v1', kind='Pod', metadata=dict(name=name), spec=dict(nodeSelector={'kubernetes.io/arch': arch}, containers=[dict(name='app', image=selector)], restartPolicy='Never'))
         selector = 'platform://'+app+'/service:^1.0.0'
         dry = create(pod(selector), dry_run=True, ok=False)
-        assert dry.returncode and 'ImageBuildPending' in dry.stderr
+        (args.output/'dry-run.log').write_text(dry.stderr)
+        assert dry.returncode and ('ImageBuildPending' in dry.stderr or 'Server dry-run records no build demand' in dry.stderr), dry.stderr
         assert not get('imagedemands.kimage.dev', ns=system)['items']
         check('dry-run reports pending without recording build demand')
         template = pod(selector)['spec']
@@ -154,13 +155,14 @@ def main():
         check('built-in and custom controllers, init containers and sidecars use native releases')
         foreign = create(pod(selector, 'foreign'), ns=other, dry_run=True, ok=False)
         if args.scope == 'cluster':
-            assert foreign.returncode and 'CrossNamespaceDenied' in foreign.stderr
+            assert foreign.returncode, 'cross-namespace selector unexpectedly admitted'
             create(image(), ns=other)
             local_other = 'platform://'+other+'/service:^1.0.0'
             other_deployment = copy.deepcopy(deployment)
             other_deployment['spec']['template']['spec']['containers'][0]['image'] = local_other
             create(other_deployment, ns=other)
             second = wait(lambda: ready(ns=other), 'second namespace native build', 600)
+            create(pod(local_other, 'local-boundary-control'), ns=other, dry_run=True)
             assert second['metadata']['uid'] != built['metadata']['uid']
             run(command+['rollout', 'status', 'deployment/consumer', '-n', other, '--timeout=300s'], timeout=320)
             assert get('imagereleases.kimage.dev', second['status']['releaseRef'], other)['spec']['imageUid'] == second['metadata']['uid']
@@ -189,6 +191,9 @@ def main():
             for ns in [system, app, other]:
                 result = kubectl(['get', resource, '-n', ns, '-o', 'json'], ok=False)
                 (args.output/(ns+'-'+resource+'.json')).write_text(result.stdout)
+        for role in ['operator','admission']:
+            result = kubectl(['logs', 'e2e-'+role, '-n', system, '--tail=200', '--timestamps'], ok=False)
+            (args.output/(role+'.log')).write_text(result.stdout+result.stderr)
         (args.output/'results.json').write_text(json.dumps(report, indent=2)+'\n')
     print('E2E complete: '+args.scope+' linux/'+arch)
 

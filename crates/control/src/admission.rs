@@ -544,8 +544,10 @@ async fn handle(state: &Admission, request: &Value) -> Result<Vec<Value>> {
     match kimage_core::admission::patch(pod, &policy, &catalogs) {
         Ok(patch) => Ok(patch),
         Err(error) if error.to_string() == "NoPublishedRelease" => {
-            request_builds(state, request, &policy, &catalogs).await?;
-            anyhow::bail!("ImageBuildPending")
+            if request_builds(state, request, &policy, &catalogs).await? {
+                anyhow::bail!("ImageBuildPending");
+            }
+            anyhow::bail!("NoPublishedRelease")
         }
         Err(error) => Err(error),
     }
@@ -555,7 +557,7 @@ async fn request_builds(
     request: &Value,
     policy: &Policy<'_>,
     catalogs: &BTreeMap<String, Catalog>,
-) -> Result<()> {
+) -> Result<bool> {
     let Some((system, installation)) = &state.readiness_scope else {
         anyhow::bail!("NoPublishedRelease");
     };
@@ -563,16 +565,18 @@ async fn request_builds(
         kimage_core::admission::requested_platforms(&request["object"], policy, catalogs)?;
     // Dry runs are side-effect free. The real CREATE records only bounded,
     // non-sensitive platform demand, never input data or build credentials.
-    if request["dryRun"] == true {
-        return Ok(());
-    }
-    let configuration =
-        crate::configuration::load(state.client.clone(), system, installation).await?;
-    if configuration.build_policy == crate::configuration::BuildPolicy::Eager {
-        return Ok(());
-    }
+    let dry_run = request["dryRun"] == true;
+    let eager = if dry_run {
+        false
+    } else {
+        crate::configuration::load(state.client.clone(), system, installation)
+            .await?
+            .build_policy
+            == crate::configuration::BuildPolicy::Eager
+    };
     let images: Api<Image> = Api::namespaced(state.client.clone(), &state.namespace);
     let mut requested = BTreeSet::new();
+    let mut pending = false;
     for kind in ["containers", "initContainers"] {
         for container in request["object"]["spec"][kind]
             .as_array()
@@ -590,7 +594,6 @@ async fn request_builds(
                 continue;
             };
             if image.metadata.deletion_timestamp.is_some()
-                || image.spec.explicit_platforms().is_some()
                 || !matches!(image.spec.source, crate::api::Source::Build(_))
             {
                 continue;
@@ -606,6 +609,10 @@ async fn request_builds(
             if !matches || !requested.insert(selector.name.clone()) {
                 continue;
             }
+            pending = true;
+            if dry_run || eager || image.spec.explicit_platforms().is_some() {
+                continue;
+            }
             crate::configuration::record(
                 state.client.clone(),
                 system,
@@ -615,7 +622,7 @@ async fn request_builds(
             .await?;
         }
     }
-    Ok(())
+    Ok(pending)
 }
 async fn review(State(state): State<Arc<Admission>>, Json(review): Json<Value>) -> Json<Value> {
     let request = &review["request"];
@@ -631,9 +638,25 @@ async fn review(State(state): State<Arc<Admission>>, Json(review): Json<Value>) 
             r
         }
         Ok(Err(error)) if error.to_string() == "ImageBuildPending" => {
-            json!({"uid":uid,"allowed":false,"status":{"code":429,"reason":"ImageBuildPending","message":"The requested native image platforms are being prepared. Workload controllers retry automatically; retry a direct Pod CREATE after the Image is ready.","details":{"retryAfterSeconds":5}}})
+            if request["dryRun"] == true {
+                json!({"uid":uid,"allowed":false,"status":{"code":403,"reason":"ImageBuildPending","message":"No matching native image release is ready. Server dry-run records no build demand. Create a real workload or use Eager policy, then retry."}})
+            } else {
+                json!({"uid":uid,"allowed":false,"status":{"code":429,"reason":"ImageBuildPending","message":"The requested native image platforms are being prepared. Workload controllers retry automatically; retry a direct Pod CREATE after the Image is ready.","details":{"retryAfterSeconds":5}}})
+            }
         }
-        _ => {
+        failure => {
+            let message = match failure {
+                Ok(Err(error)) => error.to_string(),
+                _ => "AdmissionTimedOut".into(),
+            };
+            let reason = message
+                .split(':')
+                .next()
+                .filter(|r| {
+                    !r.is_empty() && r.len() <= 64 && r.bytes().all(|b| b.is_ascii_alphanumeric())
+                })
+                .unwrap_or("AdmissionUnavailable");
+            tracing::warn!(reason, "managed image admission denied");
             json!({"uid":uid,"allowed":false,"status":{"code":403,"reason":"KimageResolutionDenied","message":"Managed reference could not be resolved; check release, scope, endpoint and catalog readiness"}})
         }
     };
@@ -686,6 +709,90 @@ pub async fn serve(state: Admission, cert: PathBuf, key: PathBuf) -> Result<()> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn dry_run_is_side_effect_free_and_only_current_build_versions_record_native_demand() {
+        use axum::response::IntoResponse;
+        let writes = Arc::new(std::sync::Mutex::new(Vec::<Value>::new()));
+        let recorded = writes.clone();
+        let router = Router::new().fallback(move |request:axum::extract::Request| {
+            let recorded = recorded.clone();
+            async move {
+                let method = request.method().to_string();
+                let path = request.uri().path().to_owned();
+                let bytes = axum::body::to_bytes(request.into_body(),1024*1024).await.unwrap();
+                let missing = || (StatusCode::NOT_FOUND,Json(json!({"apiVersion":"v1","kind":"Status","status":"Failure","reason":"NotFound","code":404}))).into_response();
+                let value = match (method.as_str(),path.as_str()) {
+                    ("GET","/apis/kimage.dev/v1alpha1/namespaces/apps/images/service") => json!({"apiVersion":"kimage.dev/v1alpha1","kind":"Image","metadata":{"name":"service","namespace":"apps","uid":"image-uid","generation":1,"resourceVersion":"1"},"spec":{"version":"1.0.0","source":{"build":{"format":"Containerfile","definition":{"inline":"FROM scratch\nCOPY message /message\n"},"execution":{"strategy":"Direct","builderRef":"default"},"inputs":{"contextPath":"/workspace/context","volumes":[{"name":"source","configMap":{"name":"source"}}],"volumeMounts":[{"name":"source","mountPath":"/workspace/context","readOnly":true}]}}}}}),
+                    ("GET","/apis/kimage.dev/v1alpha1/namespaces/apps/imagereleases") => json!({"apiVersion":"kimage.dev/v1alpha1","kind":"ImageReleaseList","metadata":{},"items":[]}),
+                    ("GET","/api/v1/namespaces/system/pods/dev-proxy") => json!({"apiVersion":"v1","kind":"Pod","metadata":{"name":"dev-proxy","labels":{"kimage.dev/installation":"dev"},"annotations":{"kimage.dev/node-uid":"node-uid"}},"spec":{"nodeName":"node","containers":[]},"status":{"conditions":[{"type":"Ready","status":"True"}]}}),
+                    ("GET","/api/v1/namespaces/system/pods/dev-proxy-next") => return missing(),
+                    ("GET","/api/v1/nodes/node") => json!({"apiVersion":"v1","kind":"Node","metadata":{"name":"node","uid":"node-uid","labels":{"kubernetes.io/os":"linux","kubernetes.io/arch":"arm64"}},"status":{"conditions":[{"type":"Ready","status":"True"}],"nodeInfo":{"architecture":"arm64","bootID":"","containerRuntimeVersion":"containerd://2.3.4","kernelVersion":"6.8","kubeProxyVersion":"","kubeletVersion":"v1.36.5+k3s1","machineID":"","operatingSystem":"linux","osImage":"fixture","systemUUID":""}}}),
+                    ("GET","/api/v1/namespaces/system/configmaps") => json!({"apiVersion":"v1","kind":"ConfigMapList","metadata":{},"items":[]}),
+                    ("GET","/api/v1/namespaces/system/configmaps/dev-config") => return missing(),
+                    ("GET",path) if path.contains("/imagedemands/") => return missing(),
+                    ("POST","/apis/kimage.dev/v1alpha1/namespaces/system/imagedemands") => {
+                        let value:Value = serde_json::from_slice(&bytes).unwrap();
+                        recorded.lock().unwrap().push(value.clone()); value
+                    },
+                    _ => panic!("unexpected admission API call: {method} {path}"),
+                };
+                Json(value).into_response()
+            }
+        });
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let client = Client::try_from(kube::Config::new(
+            format!("http://{}", listener.local_addr().unwrap())
+                .parse()
+                .unwrap(),
+        ))
+        .unwrap();
+        let server = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
+        let key = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(key.path(), [7; 32]).unwrap();
+        let state = Arc::new(Admission {
+            client,
+            namespace: "apps".into(),
+            cluster_wide: false,
+            excluded_namespaces: BTreeSet::new(),
+            endpoint: "127.0.0.1:17701".into(),
+            nodes: BTreeSet::from(["node".into()]),
+            key_file: key.path().into(),
+            input_identity: None,
+            builder_image: None,
+            readiness_scope: Some(("system".into(), "dev".into())),
+        });
+        let mut request = json!({"request":{"uid":"review","namespace":"apps","operation":"CREATE","resource":{"resource":"pods"},"userInfo":{"username":"author"},"dryRun":true,"object":{"metadata":{},"spec":{"containers":[{"name":"app","image":"platform://apps/service:^1.0.0"}]}}}});
+        for selector in [
+            "platform://apps/service:^1.0.0",
+            "platform://apps/service?version=%5E1.0.0",
+        ] {
+            request["request"]["object"]["spec"]["containers"][0]["image"] = json!(selector);
+            let result = review(State(state.clone()), Json(request.clone())).await.0;
+            assert_eq!(result["response"]["allowed"], false);
+            assert_eq!(result["response"]["status"]["reason"], "ImageBuildPending");
+            assert_eq!(result["response"]["status"]["code"], 403);
+            assert!(writes.lock().unwrap().is_empty());
+        }
+        request["request"]["dryRun"] = json!(false);
+        let result = review(State(state.clone()), Json(request.clone())).await.0;
+        assert_eq!(result["response"]["status"]["code"], 429);
+        let demand = writes.lock().unwrap()[0].clone();
+        assert_eq!(
+            demand["spec"]["platforms"],
+            json!([{"os":"linux","architecture":"arm64"}])
+        );
+        assert_eq!(demand["spec"]["imageUid"], "image-uid");
+        request["request"]["object"]["spec"]["containers"][0]["image"] =
+            json!("platform://apps/service:2.0.0");
+        let result = review(State(state), Json(request)).await.0;
+        assert_eq!(
+            result["response"]["status"]["reason"],
+            "KimageResolutionDenied"
+        );
+        assert_eq!(writes.lock().unwrap().len(), 1);
+        server.abort();
+    }
 
     // Exercise the real admission handler and catalog capture, including
     // requests from controllers rather than only hand-written core patches.

@@ -114,6 +114,6 @@ jobs:
           name: e2e-${{ matrix.architecture }}-${{ matrix.scope }}
           path: |
             .local/e2e/results/*.json
-            .local/e2e/results/install.log
+            .local/e2e/results/*.log
           if-no-files-found: warn
           retention-days: 14
