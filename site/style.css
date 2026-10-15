@@ -72,9 +72,19 @@ button:disabled {
 }
 .header nav {
   display: flex;
+  align-items: center;
   gap: 32px;
   font-size: 14px;
   font-weight: 500;
+}
+.header nav a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 20px;
+}
+.header nav a > span {
+  line-height: 1;
 }
 .header nav a:hover,
 .text-link:hover,
