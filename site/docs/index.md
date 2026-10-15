@@ -266,7 +266,7 @@ kimage-install bundle-check --bundle dist/complete-linux-amd64 \
   --trusted-inventory <independently-trusted-sha256>
 ```
 
-An adjacent checksum alone does not authenticate origin. Verification checks inventory bytes, ELF architecture/static linkage, and complete component OCI graphs before cluster mutation. Native executable delivery uses bounded ConfigMap chunks; credentials never enter the OCI archives.
+Pass trusted inventory digests as `sha256:` followed by 64 lowercase hexadecimal characters. An adjacent checksum alone does not authenticate origin. Verification checks inventory bytes, ELF architecture/static linkage, and complete component OCI graphs before cluster mutation. Native executable delivery uses bounded ConfigMap chunks; credentials never enter the OCI archives.
 
 **Run the installation phases**
 

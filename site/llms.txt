@@ -42,6 +42,7 @@ tools, not a cluster or Linux component bundle. There are no prebuilt GitHub
 release bundles or Helm chart yet. An administrator prepares trusted static
 Linux/amd64 components with scripts/package-bundle.py, authenticates their origin
 and inventory SHA-256 independently, and supplies issuer-managed credentials.
+Trusted inventory values use sha256: followed by 64 lowercase hexadecimal digits.
 Keep current and previous bundles/installers outside the cluster for recovery.
 The full acceptance fixture uses Kubernetes v1.36.5+k3s1, containerd
 2.3.4-k3s1.36, Linux/amd64, Ubuntu 24.04.5, kernel 6.8.0-142. Choose

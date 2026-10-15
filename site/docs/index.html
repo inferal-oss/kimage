@@ -715,11 +715,13 @@ python3 scripts/package-bundle.py \
 kimage-install bundle-check --bundle dist/complete-linux-amd64 \
   --trusted-inventory &lt;independently-trusted-sha256&gt;</code></pre>
               <p>
-                An adjacent checksum alone does not authenticate origin.
-                Verification checks inventory bytes, ELF architecture/static
-                linkage, and complete component OCI graphs before cluster
-                mutation. Native executable delivery uses bounded ConfigMap
-                chunks; credentials never enter the OCI archives.
+                Pass trusted inventory digests as <code>sha256:</code> followed
+                by 64 lowercase hexadecimal characters. An adjacent checksum
+                alone does not authenticate origin. Verification checks
+                inventory bytes, ELF architecture/static linkage, and complete
+                component OCI graphs before cluster mutation. Native executable
+                delivery uses bounded ConfigMap chunks; credentials never enter
+                the OCI archives.
               </p>
             </details>
             <details>
