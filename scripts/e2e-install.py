@@ -112,7 +112,7 @@ def main():
         for ns in [app, other]:
             create(dict(apiVersion='v1', kind='ConfigMap', metadata=dict(name='source'), binaryData={'hello-'+arch: probe}), ns)
         def image(name='service'):
-            return dict(apiVersion='kimage.dev/v1alpha1', kind='Image', metadata=dict(name=name), spec=dict(version='1.0.0', source=dict(build=dict(format='Containerfile', definition=dict(inline='FROM scratch\nARG TARGETARCH\nCOPY hello-${TARGETARCH} /probe\nENTRYPOINT ["/probe"]\n'), execution=dict(strategy='Direct', builderRef='default'), inputs=dict(contextPath='/workspace/context', volumes=[dict(name='source', configMap=dict(name='source', defaultMode=365))], volumeMounts=[dict(name='source', mountPath='/workspace/context', readOnly=True)])))))
+            return dict(apiVersion='kimage.dev/v1alpha1', kind='Image', metadata=dict(name=name), spec=dict(version='1.0.0', source=dict(build=dict(format='Containerfile', definition=dict(inline='FROM scratch\nARG TARGETARCH\nCOPY hello-${TARGETARCH} /probe\nRUN ["/probe", "wait", "0"]\nENTRYPOINT ["/probe"]\n'), execution=dict(strategy='Direct', builderRef='default'), inputs=dict(contextPath='/workspace/context', volumes=[dict(name='source', configMap=dict(name='source', defaultMode=365))], volumeMounts=[dict(name='source', mountPath='/workspace/context', readOnly=True)])))))
         create(image())
         wait(lambda: any(c.get('reason')=='AwaitingDemand' for c in (get('images.kimage.dev', 'service') or {}).get('status', {}).get('conditions', [])), 'default awaiting demand')
         time.sleep(8)
@@ -138,6 +138,7 @@ def main():
         release = get('imagereleases.kimage.dev', built['status']['releaseRef'])
         assert release['status']['verified'] and release['spec']['platform'] == dict(os='linux', architecture=arch)
         assert release['spec']['provenance']['execution']['platform'] == dict(os='linux', architecture=arch)
+        assert release['spec']['provenance']['execution']['executedSteps'] > 0
         demand = get('imagedemands.kimage.dev', ns=system)['items'][0]
         assert demand['spec']['platforms'] == [dict(os='linux', architecture=arch)]
         children = [v for v in get('images.kimage.dev')['items'] if v['metadata'].get('labels', {}).get('kimage.dev/platform-parent') == built['metadata']['uid']]
@@ -149,6 +150,12 @@ def main():
         encoded = create(pod('platform://'+app+'/service?version=%5E1.0.0', 'encoded'), dry_run=True)
         assert json.loads(encoded.stdout)['spec']['containers'][0]['image'].endswith('@'+release['spec']['root']['digest'])
         check('readable and percent-encoded selectors resolve the same native digest')
+        wrong_platform = pod(selector, 'wrong-platform')
+        wrong_platform['spec']['nodeSelector']['kubernetes.io/arch'] = 'arm64' if arch == 'amd64' else 'amd64'
+        rejected = create(wrong_platform, dry_run=True, ok=False)
+        assert rejected.returncode, 'unavailable native architecture unexpectedly admitted'
+        assert len([v for v in get('images.kimage.dev')['items'] if v['metadata'].get('labels', {}).get('kimage.dev/platform-parent') == built['metadata']['uid']]) == 1
+        check('unavailable platform placement is rejected without a fallback build')
         # Exercise eight built-in/custom controller Pod templates, including init
         # containers and native sidecars, through the real admission server.
         run(['python3', ROOT/'scripts/live-workload-consumers.py', '--kubeconfig', kubeconfig, '--namespace', app, '--image', 'service', '--ci-owned-cluster', '--output', args.output/'controllers.json'], timeout=900)
