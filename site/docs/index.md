@@ -448,7 +448,7 @@ The serving-only updater requires identical non-serving component versions and r
 
 Do not force-remove finalizers or delete the namespace/backend as ordinary cleanup. Administrator bypass, forced deletion, namespace deletion, and storage-provider loss are outside the retention guarantee. Recovery cannot repair a lost PVC or unavailable Kubernetes control plane.
 
-Schema revision 4 supports only the shipped additive transitions from exact revisions 2/3, preserving CRD identities and the served/storage API version. Foreign definitions, incompatible owners, arbitrary conversion, storage migration, and schema downgrade are refused.
+Schema revision 5 supports only the shipped transitions from exact revisions 2/3/4, preserving CRD identities and the served/storage API version. Foreign definitions, incompatible owners, arbitrary conversion, storage migration, and schema downgrade are refused.
 
 ## Credentials and renewal
 

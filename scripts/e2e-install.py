@@ -76,7 +76,12 @@ def main():
     nodes = json.loads(kubectl(['get', 'nodes', '-o', 'json']).stdout)['items']
     assert len(nodes) == 1 and nodes[0]['metadata']['name'] == 'kimage-e2e'
     assert nodes[0]['status']['nodeInfo']['architecture'] == arch
-    images = nodes[0]['status']['images']
+    report['runtime'] = {field:nodes[0]['status']['nodeInfo'][field] for field in ['architecture','operatingSystem','kernelVersion','osImage','kubeletVersion','containerRuntimeVersion']}
+    def cached_prerequisites():
+        value = json.loads(kubectl(['get', 'nodes', '-o', 'json']).stdout)['items'][0]
+        images = value['status'].get('images', [])
+        return images if any('mirrored-pause@sha256:' in name for image in images for name in image.get('names', [])) else None
+    images = wait(cached_prerequisites, 'kubelet cached prerequisite image report', 180)
     assert not any(name.startswith('127.0.0.1:') for image in images for name in image.get('names', []))
     carriers = sorted(name for image in images for name in image.get('names', []) if 'mirrored-pause@sha256:' in name)
     assert carriers, 'cached prerequisite carrier required'

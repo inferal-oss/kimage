@@ -20,7 +20,7 @@ only the native installer, add `--bin kimage` to the Cargo command.
 
 `cargo install` builds native tools for your machine. The installer fetches the
 exact official GitHub release matching its package version, verifies the asset
-digests and complete bundle, and caches it before cluster access. No source
+digests and complete bundle, and caches it before cluster writes. Cluster phases first read the target Node architecture; standalone bundle-fetch needs no kubeconfig. No source
 checkout or packaging script is needed. `--release`, `--bundle-cache`, and
 `--offline` control selection/reuse; independently pinned local bundles remain
 supported with `--bundle` and `--trusted-inventory`. `kimage install` runs bootstrap, seed, handover, control plane, and the default

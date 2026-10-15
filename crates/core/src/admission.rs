@@ -78,6 +78,12 @@ fn matches_requirement(requirement: &Value, value: Option<&str>) -> Result<bool>
 /// Infer requested platforms from actual eligible nodes and immutable workload
 /// placement constraints. Unknown placement retains every possible platform.
 pub fn placement_nodes(pod: &Value, policy: &Policy<'_>) -> Result<BTreeSet<String>> {
+    ensure!(
+        pod["spec"]["os"]["name"]
+            .as_str()
+            .is_none_or(|os| os == "linux"),
+        "UnsupportedPodOperatingSystem"
+    );
     let mut selected = BTreeSet::new();
     for name in policy.nodes {
         if pod["spec"]["nodeName"]
@@ -604,6 +610,12 @@ mod tests {
         assert!(patch(&pod, &policy, &incomplete).is_err());
         let mut incompatible = pod;
         incompatible["spec"]["nodeSelector"] = json!({"kubernetes.io/arch":"s390x"});
+        assert!(patch(&incompatible, &policy, &catalogs).is_err());
+        incompatible["spec"]
+            .as_object_mut()
+            .unwrap()
+            .remove("nodeSelector");
+        incompatible["spec"]["os"] = json!({"name":"windows"});
         assert!(patch(&incompatible, &policy, &catalogs).is_err());
         assert_ne!(
             crate::catalog::platform_release_name("uid", "1.0.0", &Platform::linux_amd64()),

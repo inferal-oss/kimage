@@ -265,7 +265,7 @@ pub async fn reconcile(image: Arc<Image>, config: Arc<Config>) -> Result<Action>
             status.conditions = vec![condition(
                 image.metadata.generation.unwrap_or(1),
                 false,
-                if requested.is_empty() {
+                if requested.is_empty() && image.spec.explicit_platforms().is_none() {
                     "AwaitingDemand"
                 } else {
                     "AwaitingNativePlatform"
