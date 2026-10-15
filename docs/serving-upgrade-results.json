@@ -1,0 +1,40 @@
+{
+  "previousInventory": "sha256:e6968c85e9ee96cf6923cab98427dd16d6224d960b3725d47c19b5a5e3b18710",
+  "targetInventory": "sha256:22a947aff49a0dcef5de7ee4e1f501c71b41a33d45068b177b698514951be309",
+  "originalPods": {
+    "kimage-clean-n-8ca50531fce823d8-proxy": "9e854a51-4210-43ad-b4eb-eca2c0de77ba",
+    "kimage-clean-proxy": "f92583d2-896e-4035-ab0c-794ee5c9773d",
+    "kimage-clean-registry": "dd81e26b-7495-4d07-94d4-96d156ab07df"
+  },
+  "interruptedAtWriterGap": true,
+  "readOnlyReadthroughObserved": true,
+  "nodeTargetedWarmupPods": [
+    {
+      "node": "kimage-clean",
+      "image": "127.0.0.1:17641/kimage-system/system-registry@sha256:84fd01cdcf47b4346345a2d8043a9ec685c625e8895791daac2ff84960dee2db",
+      "imagePullPolicy": "IfNotPresent"
+    },
+    {
+      "node": "kimage-clean",
+      "image": "127.0.0.1:17641/kimage-system/system-proxy@sha256:5ba99b56841554175896e7c4dfe0b91ce6c754445da1dbf917cd6cf6dd659bef",
+      "imagePullPolicy": "IfNotPresent"
+    },
+    {
+      "node": "kimage-clean",
+      "image": "127.0.0.1:17641/kimage-system/system-gateway@sha256:1a5188e0ba99ec6dbaa2c5d2449ed7de35b406ffff9110ed9d710313024b2bda",
+      "imagePullPolicy": "IfNotPresent"
+    },
+    {
+      "node": "kimage-clean-2",
+      "image": "127.0.0.1:17641/kimage-system/system-proxy@sha256:5ba99b56841554175896e7c4dfe0b91ce6c754445da1dbf917cd6cf6dd659bef",
+      "imagePullPolicy": "IfNotPresent"
+    }
+  ],
+  "retainedNormalPullDuringWriterGap": true,
+  "resumedUpgrade": true,
+  "compatibleRollback": true,
+  "retainedPvcAndReleaseUidsSpecsPreserved": true,
+  "schemaUidsSpecsPreserved": true,
+  "registryExecutableVersion": "3.1.2",
+  "transitionScope": "serving OCI packaging revision; identical executable versions; no storage migration"
+}

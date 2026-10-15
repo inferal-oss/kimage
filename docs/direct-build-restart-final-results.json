@@ -1,0 +1,10 @@
+{
+  "action": "restart",
+  "imageUid": "4ba6fccf-0983-40f9-b510-170b1751ad78",
+  "activeEngineSolveObserved": true,
+  "oldWorkerUid": "5743d585-bc1d-4eb9-9be9-a52477201b51",
+  "replacementWorkerUid": "384d56f4-6f1c-46e9-9c7f-926d4ce1e084",
+  "oldAttemptNotPublished": true,
+  "currentGenerationPublished": true,
+  "releaseUid": "8561fd1b-a7d3-450c-a9ba-4475f0784724"
+}

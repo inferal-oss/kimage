@@ -1,0 +1,65 @@
+[
+  {
+    "verb": "get",
+    "resource": "secrets",
+    "subresource": null,
+    "namespace": "kimage-app",
+    "allowed": true
+  },
+  {
+    "verb": "list",
+    "resource": "secrets",
+    "subresource": null,
+    "namespace": "kimage-app",
+    "allowed": false
+  },
+  {
+    "verb": "get",
+    "resource": "nodes",
+    "subresource": null,
+    "namespace": null,
+    "allowed": false
+  },
+  {
+    "verb": "create",
+    "resource": "pods",
+    "subresource": null,
+    "namespace": "kimage-system",
+    "allowed": false
+  },
+  {
+    "verb": "create",
+    "resource": "pods",
+    "subresource": "exec",
+    "namespace": "kimage-app",
+    "allowed": false
+  },
+  {
+    "verb": "patch",
+    "resource": "images.kimage.dev",
+    "subresource": "status",
+    "namespace": "kimage-app",
+    "allowed": true
+  },
+  {
+    "verb": "delete",
+    "resource": "imagereleases.kimage.dev",
+    "subresource": null,
+    "namespace": "kimage-app",
+    "allowed": false
+  },
+  {
+    "verb": "patch",
+    "resource": "customresourcedefinitions.apiextensions.k8s.io",
+    "subresource": null,
+    "namespace": null,
+    "allowed": false
+  },
+  {
+    "verb": "update",
+    "resource": "leases.coordination.k8s.io",
+    "subresource": null,
+    "namespace": "kimage-system",
+    "allowed": true
+  }
+]

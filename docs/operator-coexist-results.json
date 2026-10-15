@@ -1,0 +1,20 @@
+{
+  "oldOperatorImage": "127.0.0.1:17641/kimage-system/system-operator@sha256:db121ab8396e06bf749a543359c39646830d1572ca07b8aea7c594bbd8cf375f",
+  "newOperatorImage": "127.0.0.1:17641/kimage-system/system-operator@sha256:db121ab8396e06bf749a543359c39646830d1572ca07b8aea7c594bbd8cf375f",
+  "oldAndNewReadyTogether": true,
+  "publishedWithBothControllers": true,
+  "oldCompatibleBinaryRestarted": true,
+  "schemaUidsAndSpecsPreserved": true,
+  "releaseUid": "4dacea85-0fa0-4e3f-84d5-73efc7b04db1",
+  "root": {
+    "annotations": {},
+    "digest": "sha256:19f51306dba68b229a180fadeca2526b2beecfc9edbf60d6be2ec1dec25fce48",
+    "mediaType": "application/vnd.oci.image.manifest.v1+json",
+    "platform": {
+      "architecture": "amd64",
+      "os": "linux"
+    },
+    "size": 667
+  },
+  "binaryCompatibility": "same v1alpha1 schema revision 3; no storage-version migration"
+}

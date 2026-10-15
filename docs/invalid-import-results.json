@@ -1,0 +1,37 @@
+{
+  "missing": {
+    "noFalseReadiness": true,
+    "noVerifiedRelease": true,
+    "permanentFailure": true,
+    "readerCleaned": true,
+    "reason": "MissingBlob"
+  },
+  "size": {
+    "noFalseReadiness": true,
+    "noVerifiedRelease": true,
+    "permanentFailure": true,
+    "readerCleaned": true,
+    "reason": "RootDescriptorMismatch"
+  },
+  "truncated": {
+    "noFalseReadiness": true,
+    "noVerifiedRelease": true,
+    "permanentFailure": true,
+    "readerCleaned": true,
+    "reason": "BlobDigestOrSizeMismatch"
+  },
+  "digest": {
+    "noFalseReadiness": true,
+    "noVerifiedRelease": true,
+    "permanentFailure": true,
+    "readerCleaned": true,
+    "reason": "BlobDigestOrSizeMismatch"
+  },
+  "platform": {
+    "noFalseReadiness": true,
+    "noVerifiedRelease": true,
+    "permanentFailure": true,
+    "readerCleaned": true,
+    "reason": "WrongPlatform"
+  }
+}

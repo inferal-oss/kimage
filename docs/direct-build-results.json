@@ -1,0 +1,37 @@
+{
+  "runtimeRootRequestObserved": true,
+  "imageUid": "e5990a2f-1e61-48b1-bfa9-29b24849e36a",
+  "releaseUid": "d8bdce70-f50c-44be-a3df-637acb09a9d5",
+  "root": {
+    "annotations": {},
+    "digest": "sha256:0589c3ef4ea72fc48fa73c0d213677cbfd031b75d6d6c33aa40da78636ea0a84",
+    "mediaType": "application/vnd.oci.image.manifest.v1+json",
+    "platform": {
+      "architecture": "amd64",
+      "os": "linux"
+    },
+    "size": 667
+  },
+  "execution": {
+    "adapterVersion": "kimage.dev/containerfile-v1",
+    "attemptId": "59bdc884c688279e817c05302bf0c3818684f41b5c37a0fe31b53ee2e534f07e",
+    "builder": "default",
+    "cacheMode": "Local",
+    "cachedExecutionSteps": 0,
+    "engine": "BuildKit",
+    "engineOperationId": "gf92r9u620z6puydrhd06hwtv",
+    "engineVersion": "0.33.0",
+    "engineWorkerId": "miw20ymnz52a28st8fwtwfl0u",
+    "executedSteps": 0,
+    "platform": {
+      "architecture": "amd64",
+      "os": "linux"
+    },
+    "strategy": "Direct",
+    "workerUid": "f11b73e5-f5e1-40fd-ab0d-8c704ecee4ac"
+  },
+  "workloadUid": "63603f87-ff20-4560-a71c-370a6801e0cd",
+  "workloadReady": true,
+  "configMapBinaryMapping": true,
+  "inlineDefinition": true
+}

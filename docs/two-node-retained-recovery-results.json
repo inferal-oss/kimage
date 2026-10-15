@@ -1,0 +1,9 @@
+{
+  "inventory": "sha256:28e48f3956082e6f3f610ce09964b363ae4708f43ca101327020af2807b02b5f",
+  "sameRegistryPvc": true,
+  "retainedReleaseUidsAndSpecsPreserved": true,
+  "schemaUidsPreserved": true,
+  "deploymentMethod": "API-only maintenance uninstall/recover; not self-upgrade",
+  "bothNodeComponentCachesAbsentBeforeRecovery": true,
+  "additionalNodeRestoredThroughNativeJoin": "kimage-clean-2"
+}

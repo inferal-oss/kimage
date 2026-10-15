@@ -1,0 +1,18 @@
+{
+  "releaseUid": "4dacea85-0fa0-4e3f-84d5-73efc7b04db1",
+  "root": {
+    "annotations": {},
+    "digest": "sha256:19f51306dba68b229a180fadeca2526b2beecfc9edbf60d6be2ec1dec25fce48",
+    "mediaType": "application/vnd.oci.image.manifest.v1+json",
+    "platform": {
+      "architecture": "amd64",
+      "os": "linux"
+    },
+    "size": 667
+  },
+  "rootAbsentFromTargetCache": true,
+  "sourceImageAndConfigMapGone": true,
+  "retainedCatalogFallback": true,
+  "normalIfNotPresentPullAfterBundleRecovery": true,
+  "podUid": "a12f738a-bab5-46d8-8145-fd504092c686"
+}

@@ -1,0 +1,31 @@
+{
+  "imageUid": "c59304e2-5a2a-40f1-a3d1-9f678e5e1e09",
+  "firstReleaseUid": "698cdc78-3388-4b7e-896d-6aa676479e7e",
+  "secondReleaseUid": "086b7b39-5bf1-4b94-b79f-cf22465da48c",
+  "firstRoot": {
+    "annotations": {},
+    "digest": "sha256:b18bf37eeb1f38f1038e7228da04492247b7f7bc985b318c4482d067dd41b3a4",
+    "mediaType": "application/vnd.oci.image.manifest.v1+json",
+    "platform": {
+      "architecture": "amd64",
+      "os": "linux"
+    },
+    "size": 476
+  },
+  "secondRoot": {
+    "annotations": {},
+    "digest": "sha256:8cb135488112ff44282757053862699c7eaf7d8bbf534b01d4cecc53bc5c7012",
+    "mediaType": "application/vnd.oci.image.manifest.v1+json",
+    "platform": {
+      "architecture": "amd64",
+      "os": "linux"
+    },
+    "size": 476
+  },
+  "changedInputObservedWithoutImageGenerationChange": true,
+  "sameVersionConflict": true,
+  "firstReleaseUnchanged": true,
+  "newVersionPublished": true,
+  "sourceUidStable": true,
+  "changedResourceVersionRecorded": true
+}

@@ -1,0 +1,210 @@
+{
+  "mounted": {
+    "imageUid": "08dcc018-796c-4ee1-8de5-0e375bac426a",
+    "releaseUid": "fa3f8db6-e4ba-416e-b1fb-ae9ca6a66bd8",
+    "root": {
+      "annotations": {},
+      "digest": "sha256:e75012dea5a697b3a78f9f014bfec74f3943345ee56e88180b76c95ee7db128f",
+      "mediaType": "application/vnd.oci.image.manifest.v1+json",
+      "platform": {
+        "architecture": "amd64",
+        "os": "linux"
+      },
+      "size": 667
+    },
+    "execution": {
+      "adapterVersion": "kimage.dev/containerfile-v1",
+      "attemptId": "500925ecacb673752c854869accd5da016e970d8433c4833e719d175d1c40994",
+      "builder": "default",
+      "cacheMode": "Local",
+      "cachedExecutionSteps": 0,
+      "engine": "BuildKit",
+      "engineOperationId": "i55y9y4c7iux7dzf07cop47x1",
+      "engineVersion": "0.33.0",
+      "engineWorkerId": "zig6n15cllutszrw5po3c019t",
+      "executedSteps": 1,
+      "platform": {
+        "architecture": "amd64",
+        "os": "linux"
+      },
+      "strategy": "Direct",
+      "workerUid": "198a54fc-c2dd-45f9-8105-7c9266022113"
+    }
+  },
+  "cached": {
+    "imageUid": "a23edf57-10f0-400f-acba-29504597395d",
+    "releaseUid": "20c86eb9-0709-4b7a-8f50-6e51fbb01a01",
+    "root": {
+      "annotations": {},
+      "digest": "sha256:e75012dea5a697b3a78f9f014bfec74f3943345ee56e88180b76c95ee7db128f",
+      "mediaType": "application/vnd.oci.image.manifest.v1+json",
+      "platform": {
+        "architecture": "amd64",
+        "os": "linux"
+      },
+      "size": 667
+    },
+    "execution": {
+      "adapterVersion": "kimage.dev/containerfile-v1",
+      "attemptId": "f8c1dd2f839eaf85b42abb8614a5bdf468b427b8bd70f1f6d72947892196791a",
+      "builder": "default",
+      "cacheMode": "Local",
+      "cachedExecutionSteps": 1,
+      "engine": "BuildKit",
+      "engineOperationId": "quhmh8n21mx3h1btbrgqus44m",
+      "engineVersion": "0.33.0",
+      "engineWorkerId": "zig6n15cllutszrw5po3c019t",
+      "executedSteps": 0,
+      "platform": {
+        "architecture": "amd64",
+        "os": "linux"
+      },
+      "strategy": "Direct",
+      "workerUid": "198a54fc-c2dd-45f9-8105-7c9266022113"
+    }
+  },
+  "disabled": {
+    "imageUid": "4e81e4d4-dcad-49fb-95dd-23cdf9905e82",
+    "releaseUid": "4c9bf62f-650d-4afe-809f-c35dd2ba39c6",
+    "root": {
+      "annotations": {},
+      "digest": "sha256:cfd54c1056df336b2efad92807ec617845e61664b504f9829602e159fb4a14b8",
+      "mediaType": "application/vnd.oci.image.manifest.v1+json",
+      "platform": {
+        "architecture": "amd64",
+        "os": "linux"
+      },
+      "size": 667
+    },
+    "execution": {
+      "adapterVersion": "kimage.dev/containerfile-v1",
+      "attemptId": "2129918d04511f865842ebe3aeee1c1cd02077c90694e0e497b208064ec29a65",
+      "builder": "default",
+      "cacheMode": "Disabled",
+      "cachedExecutionSteps": 0,
+      "engine": "BuildKit",
+      "engineOperationId": "iqa78yi2p8ebrqaae3l54xpy3",
+      "engineVersion": "0.33.0",
+      "engineWorkerId": "zig6n15cllutszrw5po3c019t",
+      "executedSteps": 1,
+      "platform": {
+        "architecture": "amd64",
+        "os": "linux"
+      },
+      "strategy": "Direct",
+      "workerUid": "198a54fc-c2dd-45f9-8105-7c9266022113"
+    }
+  },
+  "secret-definition": {
+    "imageUid": "379aa889-4d6b-4879-8330-29b23019c4a9",
+    "releaseUid": "4b423994-0a8c-4c4a-b933-e366df751c8b",
+    "root": {
+      "annotations": {},
+      "digest": "sha256:cfd54c1056df336b2efad92807ec617845e61664b504f9829602e159fb4a14b8",
+      "mediaType": "application/vnd.oci.image.manifest.v1+json",
+      "platform": {
+        "architecture": "amd64",
+        "os": "linux"
+      },
+      "size": 667
+    },
+    "execution": {
+      "adapterVersion": "kimage.dev/containerfile-v1",
+      "attemptId": "bd8d789a27ba29cf74ce2d2aa88367981aa093eb3aea4c99d7d032f7cf1f27b0",
+      "builder": "default",
+      "cacheMode": "Local",
+      "cachedExecutionSteps": 1,
+      "engine": "BuildKit",
+      "engineOperationId": "r7n9dbzi60bhwq86kce0nex94",
+      "engineVersion": "0.33.0",
+      "engineWorkerId": "zig6n15cllutszrw5po3c019t",
+      "executedSteps": 0,
+      "platform": {
+        "architecture": "amd64",
+        "os": "linux"
+      },
+      "strategy": "Direct",
+      "workerUid": "198a54fc-c2dd-45f9-8105-7c9266022113"
+    }
+  },
+  "pvc": {
+    "imageUid": "2b8fa402-34d1-4601-ad84-5ba528315702",
+    "releaseUid": "e682d445-aa11-4c5d-811a-809a0fa9761e",
+    "root": {
+      "annotations": {},
+      "digest": "sha256:2b1b2317283d6191e89e4708637a8c4f9a76bdaa972371c078fe1d2f6aa6f615",
+      "mediaType": "application/vnd.oci.image.manifest.v1+json",
+      "platform": {
+        "architecture": "amd64",
+        "os": "linux"
+      },
+      "size": 667
+    },
+    "execution": {
+      "adapterVersion": "kimage.dev/containerfile-v1",
+      "attemptId": "59be03b89246d98aa5ba0eeef993cec9d5a4857464d47d70153c761e52465ef9",
+      "builder": "default",
+      "cacheMode": "Local",
+      "cachedExecutionSteps": 0,
+      "engine": "BuildKit",
+      "engineOperationId": "umwudxe23f3a9cwydgprpxfm3",
+      "engineVersion": "0.33.0",
+      "engineWorkerId": "zig6n15cllutszrw5po3c019t",
+      "executedSteps": 1,
+      "platform": {
+        "architecture": "amd64",
+        "os": "linux"
+      },
+      "strategy": "Direct",
+      "workerUid": "198a54fc-c2dd-45f9-8105-7c9266022113"
+    }
+  },
+  "pvc-definition": {
+    "imageUid": "5a8cd43c-e03f-483c-876d-0e9d5336ff09",
+    "releaseUid": "b0e5e527-43f6-4650-b6a5-6760984ce185",
+    "root": {
+      "annotations": {},
+      "digest": "sha256:09eb20b9e1be1dd866c639ca06e97a8fb514787d398e0e14a76fd58fe3539717",
+      "mediaType": "application/vnd.oci.image.manifest.v1+json",
+      "platform": {
+        "architecture": "amd64",
+        "os": "linux"
+      },
+      "size": 667
+    },
+    "execution": {
+      "adapterVersion": "kimage.dev/containerfile-v1",
+      "attemptId": "30e99f3e193c9a15ba0c4151ef88880963012a191606feda092eedfeb5990720",
+      "builder": "default",
+      "cacheMode": "Local",
+      "cachedExecutionSteps": 0,
+      "engine": "BuildKit",
+      "engineOperationId": "r5x1gyzv3ub8d0ixp54pit824",
+      "engineVersion": "0.33.0",
+      "engineWorkerId": "r3a2u0rtwbzqpmbdggxrriskd",
+      "executedSteps": 1,
+      "platform": {
+        "architecture": "amd64",
+        "os": "linux"
+      },
+      "strategy": "Direct",
+      "workerUid": "164bf026-cc61-4b7e-a920-d5d49d4be150"
+    }
+  },
+  "checks": {
+    "mountedConfigMapDefinition": true,
+    "subPathDefinition": true,
+    "contextRootIndependent": true,
+    "binaryKeyMappingAndModes": true,
+    "ordinaryRunBindMount": true,
+    "runSecretMount": true,
+    "localCacheHit": true,
+    "disabledExecutes": true,
+    "secretDefinitionOmittedFromStatusAndLogs": true,
+    "cachePolicyChangeRetainsRelease": true,
+    "pvcSubPathContext": true,
+    "knownWriterDeferred": true,
+    "pvcAndVolumeUidsRecorded": true,
+    "pvcMountedDefinition": true
+  }
+}

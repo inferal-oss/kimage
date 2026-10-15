@@ -1,0 +1,57 @@
+{
+  "twoNodesReady": true,
+  "allSevenServingControlExporterPodsReady": true,
+  "allImagesMatchFinalInventory": true,
+  "registryPvcUid": "eeebd68c-0301-4e49-aea1-74082ea9194a",
+  "nodes": [
+    {
+      "name": "kimage-clean",
+      "uid": "cc01b19d-e059-4f9b-ace4-70b4f63c03bb",
+      "runtime": "containerd://2.3.4-k3s1.36",
+      "kubelet": "v1.36.5+k3s1"
+    },
+    {
+      "name": "kimage-clean-2",
+      "uid": "e1fdf919-31d7-4230-abb1-2c8aab800961",
+      "runtime": "containerd://2.3.4-k3s1.36",
+      "kubelet": "v1.36.5+k3s1"
+    }
+  ],
+  "pods": [
+    {
+      "name": "kimage-clean-admission",
+      "uid": "0a58ecc1-b218-4a01-8b37-7934de2948fa",
+      "node": "kimage-clean"
+    },
+    {
+      "name": "kimage-clean-builder",
+      "uid": "11daea97-2856-4989-84c3-8235f067a2db",
+      "node": "kimage-clean"
+    },
+    {
+      "name": "kimage-clean-exporter",
+      "uid": "0db81c9c-6013-4fab-b383-bb910b801f2f",
+      "node": "kimage-clean"
+    },
+    {
+      "name": "kimage-clean-n-8ca50531fce823d8-proxy",
+      "uid": "3fa13c17-a3f1-422f-ae5b-da5f51228883",
+      "node": "kimage-clean-2"
+    },
+    {
+      "name": "kimage-clean-operator",
+      "uid": "0b3b83b1-27cd-4154-b46c-a0ebf96669fc",
+      "node": "kimage-clean"
+    },
+    {
+      "name": "kimage-clean-proxy",
+      "uid": "6bbaefbb-203f-4b91-b29c-8302d370d511",
+      "node": "kimage-clean"
+    },
+    {
+      "name": "kimage-clean-registry",
+      "uid": "d5e6a1ff-e3b2-40fc-bdec-fea158d233d7",
+      "node": "kimage-clean"
+    }
+  ]
+}

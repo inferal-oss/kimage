@@ -1,0 +1,10 @@
+{
+  "previousInventory": "sha256:3a44c8f495319b1e3e8a7060e081a42e814c613d4dd491f000067f34440d1383",
+  "targetInventory": "sha256:d49c04fbae9582a4fda78db8974b2698cc6ad1fb651294cfd3f42dbdd70a0f3e",
+  "changedComponents": [
+    "proxy"
+  ],
+  "nativeCompatibleServingRollout": true,
+  "allServingPodsReady": true,
+  "pvcReleaseCrdIdentitiesSpecsPreserved": true
+}

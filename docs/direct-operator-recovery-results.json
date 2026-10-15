@@ -1,0 +1,7 @@
+{
+  "oldPodUid": "a81f4ad9-9c7b-4e55-ab3a-f4c000570c35",
+  "podUid": "14ca75c6-2d33-40fc-87c4-1b7075b9f035",
+  "operatorRoot": "sha256:3cce29b13bc6efae420d7efaaeba4fe09df3ca3bbfa5c6f2533314fd42d1b39b",
+  "bundleInventory": "sha256:94de2cfef3376b8a8932ea2f27b0e6e839e1ebe59149e8c48d3adaa55cf52b3c",
+  "deploymentMethod": "ordinary API development Pod replacement; not product self-upgrade"
+}

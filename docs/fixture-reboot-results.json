@@ -1,0 +1,10 @@
+{
+  "pvcUid": "eeebd68c-0301-4e49-aea1-74082ea9194a",
+  "releaseUid": "cbcf0abe-1080-40de-bd0f-aca079cf9cae",
+  "releaseVerified": true,
+  "sameDisk": true,
+  "cpu": 4,
+  "memoryMiB": 8192,
+  "privateRouteRestored": true,
+  "proxyUpstreamReady": true
+}

@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "completedMilestones": [],
+  "checks": {
+    "nativeBootstrap": true,
+    "componentSeeding": true,
+    "separateReaderPublisher": true,
+    "freshNormalPulls": 3,
+    "ordinaryHandover": true,
+    "interruptedHandoverResumed": true,
+    "retainedGraphRecovery": true,
+    "cacheAbsentRecovery": false,
+    "fullDisconnectedRuntime": false,
+    "missingCarrierRejectedBeforeMutation": true,
+    "isolatedApiSchemaNegatives": 4,
+    "nonrootDisconnectedInputCapture": true,
+    "sourceSymlinkRejected": true
+  },
+  "probeRoots": [
+    "sha256:715fff6bd5ba929a718ded317a0a9b9b8984831d1712d0716a6734ea8a8bcbaa",
+    "sha256:3484001cac9037bae5d57e8e180b0e86589bd43e12ad4a74e2e589834f60b831",
+    "sha256:7784981fe17ae7d94c285fee1d7dfdfd1588f32f868603f664a112142d4dedd7"
+  ],
+  "newRegistryPvc": {
+    "namespace": "dev-yrashk",
+    "name": "kimage-foundation-fdedd0a9-data",
+    "uid": "d682c1d1-c1b5-4776-959c-42db9fac47e9"
+  },
+  "preservation": {
+    "originalRegistryPvcUid": "ac63d957-55dd-414b-b2b0-0756720d0f69",
+    "images": 3,
+    "releases": 6,
+    "productCrdDefinitionsUnchanged": true
+  }
+}

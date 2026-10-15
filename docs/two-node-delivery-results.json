@@ -1,0 +1,32 @@
+{
+  "imageUid": "d58eb5b8-bb3d-4f3c-8b58-63def512f68d",
+  "releaseUid": "c92dbb03-5a44-4dd9-b530-f4bef9c14232",
+  "root": {
+    "annotations": {},
+    "digest": "sha256:9b1b771a9fc331b1ba054c3ff9934a2a9709df1c15b2717e068e67400f49a668",
+    "mediaType": "application/vnd.oci.image.manifest.v1+json",
+    "platform": {
+      "architecture": "amd64",
+      "os": "linux"
+    },
+    "size": 667
+  },
+  "firstPodUid": "3fc1d8f8-285a-420b-8d8d-322cb2e921ab",
+  "secondPodUid": "1e55a057-2372-4356-af4f-0dda315f0f91",
+  "firstNode": "kimage-clean",
+  "secondNode": "kimage-clean-2",
+  "cache": {
+    "kimage-clean": {
+      "rootAbsentBeforeWorkload": true
+    },
+    "kimage-clean-2": {
+      "rootAbsentBeforeWorkload": true
+    }
+  },
+  "bothProxyRootRequestsObserved": true,
+  "normalIfNotPresentPulls": true,
+  "controllerRescheduled": true,
+  "releaseAndExecutionUnchanged": true,
+  "userSelectorAffinityAndAnnotationPreserved": true,
+  "ineligibleNodeExcludedDespiteReadyPod": true
+}

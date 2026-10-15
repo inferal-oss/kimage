@@ -373,13 +373,14 @@ Secrets use a separate `buildSecrets` mapping to BuildKit secret mounts. Never c
 Implement a custom parser with a documented grammar for:
 
 - Exact: `platform://core-apps/api-service:1.2.4`
-- Range: `platform://core-apps/api-service?version=~1.2.0`
-- Range: `platform://core-apps/api-service?version=%5E1.2.0`
+- Range: `platform://core-apps/api-service:^1.2.0`
+- Range: `platform://core-apps/api-service:~1.2.0`
+- Query range (also supported): `platform://core-apps/api-service?version=^1.2.0`
 - Channel: `platform://core-apps/api-service:stable`
 
-Namespace and name must satisfy Kubernetes naming rules. The colon selector is either a complete exact semantic version or a validated channel name. A numeric-looking invalid version must not fall back to a channel. Reserve numeric-leading channel names to eliminate ambiguity.
+Namespace and name must satisfy Kubernetes naming rules. The colon selector is a complete exact semantic version, a validated channel name, or a range beginning with an explicit operator (`^`, `~`, `>`, `<`, `=`) or `*`. A numeric-looking invalid version must not fall back to a channel or range. Reserve numeric-leading channel names to eliminate ambiguity.
 
-Only the query form accepts a range. Percent-decode once; reject fragments, userinfo, ports, extra path segments, duplicate/unknown query parameters, malformed encoding, and conflicting selectors. A generic URL library alone does not define this custom grammar.
+Both colon and query forms accept ranges. Prefer readable literal syntax in manifests. The query form also accepts percent encoding, decoded once; colon ranges use literal characters. Reject fragments, userinfo, ports, extra path segments, duplicate/unknown query parameters, malformed encoding, and conflicting colon/query selectors. A generic URL library alone does not define this custom grammar.
 
 Parse exact selectors with `semver::Version`, not a bare `VersionReq` that can interpret `1.2.4` as a compatible range. For ranges, use the pinned `semver` crate's documented requirement syntax and prerelease matching rules, then choose the highest eligible version by semantic precedence. Do not sort strings lexicographically. Treat channels as exact mappings. No match is an explicit admission denial.
 

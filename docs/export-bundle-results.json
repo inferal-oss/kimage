@@ -1,0 +1,80 @@
+{
+  "inventory": "sha256:232c6578af9407af6bcc9ae278a47ab497f87af59b4ec310f0b8965467d0b72f",
+  "apiSchemaRevision": 4,
+  "components": {
+    "admission": {
+      "version": "0.1.0",
+      "root": {
+        "digest": "sha256:33998375418770b01099a1217119f5e9e50a4c0ff0f8a263903bfacd9d0fb2a3",
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "size": 400
+      }
+    },
+    "builder": {
+      "version": "0.33.0",
+      "root": {
+        "digest": "sha256:78e0f6ce7a4b407a210357b34c0e61a2e8e058fb02ec894a0aa41213e0297616",
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "size": 402
+      }
+    },
+    "exporter": {
+      "version": "0.1.0",
+      "root": {
+        "digest": "sha256:537604738c0151a04f1efd3900db935bfbc0de49f28bdbbcdf6229531acd36da",
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "size": 400
+      }
+    },
+    "gateway": {
+      "version": "0.1.0",
+      "root": {
+        "digest": "sha256:cc6ba7f3ae0f684707a0eef472075df4dc79f250871a47ea93c38335a92e115e",
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "size": 400
+      }
+    },
+    "input": {
+      "version": "0.1.0",
+      "root": {
+        "digest": "sha256:f6953cb88afa2eb86eeb6e98874210d612f35b1d1167270b9b0e584cff854f0f",
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "size": 400
+      }
+    },
+    "operator": {
+      "version": "0.1.0",
+      "root": {
+        "digest": "sha256:38c7ee9605ae92a1aa6f741105847446cb1235e6aa445f2d119b4211af405db0",
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "size": 401
+      }
+    },
+    "proxy": {
+      "version": "0.1.0",
+      "root": {
+        "digest": "sha256:5c16f24c6398992db6eefb61b41e56aa851c85cdd609cf46fcd4739f074e8e6e",
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "size": 400
+      }
+    },
+    "registry": {
+      "version": "3.1.2",
+      "root": {
+        "digest": "sha256:39854ca4b5f78d72ad6f0fd7a434ba43a85336143776db2597d2f8f87282a931",
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "size": 401
+      }
+    }
+  },
+  "nativeInstallers": [
+    "darwin-arm64",
+    "linux-amd64"
+  ],
+  "macosNativeBundleCheck": true,
+  "packagedLinuxNativeBundleCheck": true,
+  "macosWorkspaceTests": 44,
+  "linuxMuslWorkspaceTests": 44,
+  "strictClippyAndFormatting": true,
+  "pythonSyntax": true
+}

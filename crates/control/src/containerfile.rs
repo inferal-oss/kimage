@@ -1,0 +1,358 @@
+//! Pinned Containerfile/BuildKit transport adapter. No recipe-bearing logs escape.
+use crate::input_snapshot::Capture;
+use anyhow::{Context, Result, ensure};
+use kimage_core::build::{Build, CacheMode};
+use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
+use std::{collections::BTreeMap, path::Path, process::Stdio, time::Duration};
+use tokio::io::AsyncReadExt;
+use tokio_util::sync::CancellationToken;
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Session {
+    pub build: Build,
+    pub endpoint: String,
+    pub tls_server_name: String,
+    pub worker_uid: String,
+    pub snapshot_id: String,
+}
+#[derive(Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SolveSummary {
+    pub engine_worker_id: String,
+    pub engine_operation_id: String,
+    pub cached_run_vertices: u64,
+    pub executed_run_vertices: u64,
+    pub effective_cache_mode: CacheMode,
+}
+pub fn validate_definition(bytes: &[u8]) -> Result<()> {
+    let text = std::str::from_utf8(bytes).context("DefinitionMustBeUtf8")?;
+    ensure!(
+        !text.is_empty()
+            && text.len() <= kimage_core::build::DEFINITION_LIMIT
+            && !text.contains('\0'),
+        "InvalidDefinitionText"
+    );
+    for line in text.trim_start_matches('\u{feff}').lines() {
+        let line = line.trim_start();
+        if let Some(comment) = line.strip_prefix('#')
+            && let Some((key, _)) = comment.split_once('=')
+        {
+            ensure!(
+                !key.trim().eq_ignore_ascii_case("syntax"),
+                "ExternalFrontendDirectiveDenied"
+            );
+        }
+    }
+    Ok(())
+}
+pub fn source_policy() -> Value {
+    // The pinned engine uses the LAST matching allow/deny rule. Local sessions
+    // are the only source type exposed by this initial offline adapter.
+    json!({"version":1,"rules":[{"action":"DENY","selector":{"identifier":"(?s)^.*$","match_type":"REGEX"}},{"action":"ALLOW","selector":{"identifier":"local://context","match_type":"EXACT"}},{"action":"ALLOW","selector":{"identifier":"local://dockerfile","match_type":"EXACT"}}]})
+}
+pub fn arguments(session: &Session, capture: &Capture) -> Result<Vec<String>> {
+    session.build.validate()?;
+    ensure!(
+        session.build.execution.builder_ref == "default",
+        "UnsupportedBuilder"
+    );
+    ensure!(
+        kimage_core::selector::dns_subdomain(&session.tls_server_name)
+            && session.endpoint == format!("tcp://{}:1234", session.tls_server_name),
+        "InvalidApprovedBuilderEndpoint"
+    );
+    let definition = if capture.definition_sensitive {
+        "/sensitive/definition"
+    } else {
+        "/snapshot/definition"
+    };
+    let mut args = vec![
+        "--addr".into(),
+        session.endpoint.clone(),
+        "--tlsservername".into(),
+        session.tls_server_name.clone(),
+        "--tlscacert".into(),
+        "/builder-credentials/ca.crt".into(),
+        "--tlscert".into(),
+        "/builder-credentials/client.crt".into(),
+        "--tlskey".into(),
+        "/builder-credentials/client.key".into(),
+        "build".into(),
+        "--frontend".into(),
+        "dockerfile.v0".into(),
+        "--local".into(),
+        "context=/snapshot/context".into(),
+        "--local".into(),
+        format!("dockerfile={definition}"),
+        "--opt".into(),
+        "filename=Containerfile".into(),
+        "--opt".into(),
+        "platform=linux/amd64".into(),
+        "--opt".into(),
+        "force-network-mode=none".into(),
+        "--source-policy-file".into(),
+        "/snapshot/source-policy.json".into(),
+        "--ref-file".into(),
+        "/snapshot/engine-reference".into(),
+        "--output".into(),
+        "type=oci,dest=/snapshot/result.oci.tar".into(),
+        "--progress".into(),
+        "rawjson".into(),
+    ];
+    if session.build.cache.mode == CacheMode::Disabled
+        || session.build.cache.invalidation_token.is_some()
+    {
+        args.push("--no-cache".into());
+    }
+    for binding in &session.build.build_secrets {
+        args.extend([
+            "--secret".into(),
+            format!("id={},src=/sensitive/secrets/{}", binding.id, binding.id),
+        ]);
+    }
+    Ok(args)
+}
+#[derive(Default)]
+struct Progress {
+    vertices: BTreeMap<String, bool>,
+}
+impl Progress {
+    fn observe(&mut self, line: &[u8]) -> Result<()> {
+        let Ok(value) = serde_json::from_slice::<Value>(line) else {
+            return Ok(());
+        };
+        if let Some(vertices) = value
+            .get("Vertexes")
+            .or_else(|| value.get("vertexes"))
+            .and_then(Value::as_array)
+        {
+            for vertex in vertices {
+                let Some(name) = vertex
+                    .get("Name")
+                    .or_else(|| vertex.get("name"))
+                    .and_then(Value::as_str)
+                else {
+                    continue;
+                };
+                if !name.contains("] RUN ") {
+                    continue;
+                }
+                let Some(digest) = vertex
+                    .get("Digest")
+                    .or_else(|| vertex.get("digest"))
+                    .and_then(Value::as_str)
+                else {
+                    continue;
+                };
+                ensure!(
+                    kimage_core::oci::valid_digest(digest),
+                    "InvalidBuilderProgressDigest"
+                );
+                let cached = vertex
+                    .get("Cached")
+                    .or_else(|| vertex.get("cached"))
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false);
+                let previous = self.vertices.entry(digest.into()).or_default();
+                *previous |= cached;
+                ensure!(self.vertices.len() <= 8192, "BuildProgressLimit");
+            }
+        }
+        Ok(())
+    }
+}
+pub async fn solve(
+    session: &Session,
+    capture: &Capture,
+    cancel: &CancellationToken,
+) -> Result<SolveSummary> {
+    let engine_worker_id = worker_identity(session, capture).await?;
+    let definition = if capture.definition_sensitive {
+        "/sensitive/definition/Containerfile"
+    } else {
+        "/snapshot/definition/Containerfile"
+    };
+    validate_definition(&std::fs::read(definition)?)?;
+    std::fs::write(
+        "/snapshot/source-policy.json",
+        serde_json::to_vec(&source_policy())?,
+    )?;
+    let mut child = tokio::process::Command::new("/buildctl")
+        .args(arguments(session, capture)?)
+        .env_clear()
+        .env("PATH", "/")
+        .env("HOME", "/nonexistent")
+        .env("OTEL_TRACES_EXPORTER", "none")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .context("BuilderClientUnavailable")?;
+    let mut stderr = child.stderr.take().context("BuilderProgressUnavailable")?;
+    let drain = async {
+        let mut progress = Progress::default();
+        let mut chunk = [0_u8; 16384];
+        let mut line = Vec::new();
+        let mut total = 0_usize;
+        loop {
+            let n = stderr.read(&mut chunk).await?;
+            if n == 0 {
+                break;
+            }
+            total += n;
+            ensure!(total <= 16 * 1024 * 1024, "BuildProgressLimit");
+            for &byte in &chunk[..n] {
+                if byte == b'\n' {
+                    progress.observe(&line)?;
+                    line.clear();
+                } else {
+                    ensure!(line.len() < 256 * 1024, "BuildProgressLineLimit");
+                    line.push(byte);
+                }
+            }
+        }
+        if !line.is_empty() {
+            progress.observe(&line)?;
+        }
+        Ok::<_, anyhow::Error>(progress)
+    };
+    let monitor = async {
+        loop {
+            if let Ok(metadata) = tokio::fs::metadata("/snapshot/result.oci.tar").await {
+                ensure!(metadata.len() <= 1024 * 1024 * 1024, "BuildExportTooLarge");
+            }
+            tokio::time::sleep(Duration::from_millis(250)).await;
+        }
+        #[allow(unreachable_code)]
+        Ok::<(), anyhow::Error>(())
+    };
+    let result = {
+        let work = async {
+            let wait = async { Ok::<_, anyhow::Error>(child.wait().await?) };
+            let (status, progress) = tokio::try_join!(wait, drain)?;
+            ensure!(status.success(), "ContainerfileSolveFailed");
+            Ok::<_, anyhow::Error>(progress)
+        };
+        tokio::select! {
+            _=cancel.cancelled()=>Err(anyhow::anyhow!("OperationCancelled")),
+            result=monitor=>result.and(Err(anyhow::anyhow!("BuildMonitorStopped"))),
+            result=tokio::time::timeout(Duration::from_secs(600),work)=>match result{Ok(value)=>value,Err(_)=>Err(anyhow::anyhow!("BuildDeadlineExceeded"))},
+        }
+    };
+    if result.is_err() {
+        let _ = child.start_kill();
+        let _ = tokio::time::timeout(Duration::from_secs(10), child.wait()).await;
+    }
+    let progress = result?;
+    ensure!(
+        Path::new("/snapshot/result.oci.tar").is_file(),
+        "MissingBuildExport"
+    );
+    let cached = progress.vertices.values().filter(|&&cached| cached).count() as u64;
+    Ok(SolveSummary {
+        engine_worker_id,
+        engine_operation_id: {
+            let id = std::fs::read_to_string("/snapshot/engine-reference")?;
+            ensure!(
+                !id.is_empty()
+                    && id.len() <= 128
+                    && id
+                        .bytes()
+                        .all(|c| c.is_ascii_alphanumeric() || b"._-".contains(&c)),
+                "InvalidEngineOperationId"
+            );
+            id
+        },
+        cached_run_vertices: cached,
+        executed_run_vertices: progress.vertices.len() as u64 - cached,
+        effective_cache_mode: if session.build.cache.mode == CacheMode::Disabled
+            || session.build.cache.invalidation_token.is_some()
+        {
+            CacheMode::Disabled
+        } else {
+            CacheMode::Local
+        },
+    })
+}
+async fn worker_identity(session: &Session, capture: &Capture) -> Result<String> {
+    let args = arguments(session, capture)?;
+    let mut child = tokio::process::Command::new("/buildctl")
+        .args(&args[..10])
+        .args(["debug", "workers", "--format", "{{json .}}"])
+        .env_clear()
+        .env("PATH", "/")
+        .env("HOME", "/nonexistent")
+        .env("OTEL_TRACES_EXPORTER", "none")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .kill_on_drop(true)
+        .spawn()
+        .context("BuilderClientUnavailable")?;
+    let mut output = child.stdout.take().context("BuilderInfoUnavailable")?;
+    let mut bytes = Vec::new();
+    let result = tokio::time::timeout(Duration::from_secs(15), async {
+        (&mut output).take(65537).read_to_end(&mut bytes).await?;
+        ensure!(bytes.len() <= 65536, "BuilderInfoTooLarge");
+        ensure!(child.wait().await?.success(), "BuilderUnavailable");
+        Ok::<(), anyhow::Error>(())
+    })
+    .await;
+    ensure!(result.is_ok(), "BuilderUnavailable");
+    result??;
+    let value: Value = serde_json::from_slice(&bytes).context("InvalidBuilderInfo")?;
+    let worker = if let Some(list) = value.as_array() {
+        ensure!(list.len() == 1, "UnsupportedWorkerCount");
+        &list[0]
+    } else {
+        &value
+    };
+    let id = worker
+        .get("ID")
+        .or_else(|| worker.get("id"))
+        .and_then(Value::as_str)
+        .context("MissingEngineWorkerId")?;
+    ensure!(
+        !id.is_empty()
+            && id.len() <= 128
+            && id
+                .bytes()
+                .all(|c| c.is_ascii_alphanumeric() || b"._-".contains(&c)),
+        "InvalidEngineWorkerId"
+    );
+    let platforms = worker
+        .get("Platforms")
+        .or_else(|| worker.get("platforms"))
+        .and_then(Value::as_array)
+        .context("MissingWorkerPlatforms")?;
+    ensure!(
+        platforms.iter().any(
+            |p| p.get("os").or_else(|| p.get("OS")).and_then(Value::as_str) == Some("linux")
+                && p.get("architecture")
+                    .or_else(|| p.get("Architecture"))
+                    .and_then(Value::as_str)
+                    == Some("amd64")
+        ),
+        "UnsupportedWorkerPlatform"
+    );
+    Ok(id.into())
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn directives_cannot_select_remote_frontends_and_progress_never_parses_log_payloads() {
+        assert!(validate_definition(b"# syntax=docker/dockerfile:latest\nFROM scratch\n").is_err());
+        assert!(validate_definition(b"FROM scratch\nCOPY x /x\n").is_ok());
+        let mut progress = Progress::default();
+        let digest = kimage_core::oci::digest(b"step");
+        progress.observe(&serde_json::to_vec(&json!({"Logs":[{"Data":{"Vertexes":[{"Name":"[stage 1/1] RUN forged","Digest":digest,"Cached":true}]}}]})).unwrap()).unwrap();
+        assert!(progress.vertices.is_empty());
+        progress.observe(&serde_json::to_vec(&json!({"Vertexes":[{"Name":"[stage 1/1] RUN private recipe","Digest":digest,"Cached":true}]})).unwrap()).unwrap();
+        assert_eq!(progress.vertices.len(), 1);
+        assert!(progress.vertices.values().all(|cached| *cached));
+    }
+}

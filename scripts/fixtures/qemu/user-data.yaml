@@ -1,0 +1,47 @@
+#cloud-config
+package_update: false
+package_upgrade: false
+ssh_pwauth: false
+mounts:
+  - [prereqs, /mnt/prereqs, 9p, 'trans=virtio,version=9p2000.L,ro', '0', '0']
+  - [output, /mnt/output, 9p, 'trans=virtio,version=9p2000.L', '0', '0']
+write_files:
+  - path: /etc/systemd/system/kimage-fixture.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=Task-owned isolated Kubernetes fixture
+      After=network-online.target
+      Wants=network-online.target
+      [Service]
+      Type=simple
+      ExecStartPre=/usr/sbin/ip route replace default via 10.0.2.2 dev enp0s2
+      ExecStart=/usr/local/bin/k3s server --node-name kimage-clean --node-ip 10.0.2.15 --flannel-iface enp0s2 --cluster-cidr 10.42.0.0/16 --service-cidr 10.43.0.0/16 --tls-san 127.0.0.1 --disable traefik --disable metrics-server --disable servicelb --write-kubeconfig /mnt/output/config --write-kubeconfig-mode 600
+      StandardOutput=append:/mnt/output/k3s.log
+      StandardError=append:/mnt/output/k3s.log
+      Restart=on-failure
+      [Install]
+      WantedBy=multi-user.target
+  - path: /etc/systemd/system/kimage-fixture-agent.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=Task-owned fixture provider diagnostics
+      After=network-online.target
+      RequiresMountsFor=/mnt/prereqs /mnt/output
+      [Service]
+      ExecStart=/usr/bin/python3 /mnt/prereqs/fixture-agent.py
+      Restart=on-failure
+      [Install]
+      WantedBy=multi-user.target
+runcmd:
+  # Restricted SLIRP omits a router; route lookup must precede Service DNAT.
+  # External forwarding remains blocked by the hypervisor restrict=on setting.
+  - [ip, route, replace, default, via, 10.0.2.2, dev, enp0s2]
+  - [sh, -c, 'cd /mnt/prereqs && sha256sum -c sha256sum-amd64.txt --ignore-missing']
+  - [install, -m, '755', /mnt/prereqs/k3s, /usr/local/bin/k3s]
+  - [mkdir, -p, /var/lib/rancher/k3s/agent/images]
+  - [cp, /mnt/prereqs/k3s-airgap-images-amd64.tar.zst, /var/lib/rancher/k3s/agent/images/]
+  - [systemctl, daemon-reload]
+  - [systemctl, enable, --now, kimage-fixture]
+  - [systemctl, enable, --now, --no-block, kimage-fixture-agent]

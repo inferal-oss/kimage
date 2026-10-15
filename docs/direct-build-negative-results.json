@@ -1,0 +1,57 @@
+{
+  "format": {
+    "schemaRefused": true
+  },
+  "strategy": {
+    "schemaRefused": true
+  },
+  "builder": {
+    "schemaRefused": true
+  },
+  "platform": {
+    "schemaRefused": true
+  },
+  "definition-union": {
+    "schemaRefused": true
+  },
+  "escape": {
+    "controllerRefused": true,
+    "reason": "UnsafeInputPath",
+    "imageUid": "c3f27ac0-6d5e-4f96-81c6-cda905607c3a"
+  },
+  "overlap": {
+    "controllerRefused": true,
+    "reason": "OverlappingInputMounts",
+    "imageUid": "76c41e94-ec40-4cb6-9a63-af5a00e49fec"
+  },
+  "missing-key": {
+    "controllerRefused": true,
+    "reason": "MissingInputKey",
+    "imageUid": "2402d066-f7f8-4a7f-bacb-3fe71784e382"
+  },
+  "missing-file": {
+    "controllerRefused": true,
+    "reason": "MissingInputFile",
+    "imageUid": "1097d7e0-0a67-4001-ac4f-f562683f5be4"
+  },
+  "frontend": {
+    "controllerRefused": true,
+    "reason": "ExternalFrontendDirectiveDenied",
+    "imageUid": "58071843-0999-474f-972b-e6f9dc41633e"
+  },
+  "secret-definition": {
+    "controllerRefused": true,
+    "reason": "ContainerfileSolveFailed",
+    "imageUid": "0b80ad5d-396c-498b-aaa9-461b80019a3a",
+    "privateDefinitionAndFingerprintAbsentFromStatusAndDaemonLogs": true
+  },
+  "source-union": {
+    "schemaRefused": true
+  },
+  "host-path": {
+    "schemaRefused": true
+  },
+  "mount-expression": {
+    "schemaRefused": true
+  }
+}

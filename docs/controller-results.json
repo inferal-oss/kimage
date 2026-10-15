@@ -1,0 +1,21 @@
+{
+  "root": "sha256:5906842771e9c2ac5abfcec58731833c4590b8f1920cbfe609c99c8f8e177fcc",
+  "imageUid": "e9b8969b-7e8f-47a8-b2df-ed8abe541071",
+  "releaseUid": "cbcf0abe-1080-40de-bd0f-aca079cf9cae",
+  "sourceRemoved": true,
+  "producerHandoff": true,
+  "operatorCreatedSchemas": true,
+  "controlPlaneIdempotent": true,
+  "dryRunReadOnly": true,
+  "regularAndInitSidecarRunning": true,
+  "unmanagedPreserved": true,
+  "rawInternalAndCrossNamespaceDenied": true,
+  "runtimeRootRequestObserved": true,
+  "retainedAfterImageDeletion": true,
+  "coldSystemImagesAbsent": true,
+  "coldApiRecovery": true,
+  "registryPvcUidPreserved": true,
+  "freshColdRecoveryPullRoot": "sha256:1c42a2778f85eebe51549d81ad07d4b0c1f6cabe42b8842a165b7e9fd04c579e",
+  "freshColdRecoveryRequestObserved": true,
+  "externalForwardingBlocked": true
+}

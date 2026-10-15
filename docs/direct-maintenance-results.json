@@ -1,0 +1,7 @@
+{
+  "inventory": "sha256:01e46f28cd60f6e69b680c9a200262e0a38988deebb1e7b8f620fe7d22f86de2",
+  "sameRegistryPvc": true,
+  "retainedReleaseUidsAndSpecsPreserved": true,
+  "schemaUidsPreserved": true,
+  "deploymentMethod": "API-only maintenance uninstall/recover; not self-upgrade"
+}

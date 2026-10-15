@@ -1,0 +1,10 @@
+{
+  "action": "generation",
+  "imageUid": "88d2c063-058f-47cc-a881-5a2381d8470d",
+  "activeEngineSolveObserved": true,
+  "oldWorkerUid": "19fd5692-8125-4f6e-8b5d-fde03771643b",
+  "replacementWorkerUid": "4b32109e-347c-4912-9cc0-54dcd162241a",
+  "oldAttemptNotPublished": true,
+  "currentGenerationPublished": true,
+  "releaseUid": "e0c60ba2-bde3-4f4d-b80c-07782e5aa061"
+}

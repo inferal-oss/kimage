@@ -1,0 +1,22 @@
+{
+  "releaseName": "release-e85418b4ecc7cab929ec30c03d1090b6a78dd2df",
+  "releaseUid": "c92dbb03-5a44-4dd9-b530-f4bef9c14232",
+  "oldNodeUid": "2c00c621-dd5c-4f23-916c-a328921b17c0",
+  "newNodeUid": "e1fdf919-31d7-4230-abb1-2c8aab800961",
+  "staleNodeUidExcluded": true,
+  "proxyName": "kimage-clean-n-8ca50531fce823d8-proxy",
+  "recoveredProxyUid": "569dedd6-b8de-42e7-ba5e-f36e8820ec21",
+  "nativeRecoveryIdempotent": true,
+  "cacheEvictionNormalRepull": true,
+  "repullPodUid": "1f12858c-ad2a-4c0b-95a9-a658c6edce92",
+  "proxyRestart": {
+    "oldPodUid": "569dedd6-b8de-42e7-ba5e-f36e8820ec21",
+    "podUid": "9e854a51-4210-43ad-b4eb-eca2c0de77ba"
+  },
+  "registryRestart": {
+    "oldPodUid": "7c2da26e-482b-4697-b884-0fd8993d57dc",
+    "podUid": "05c8e590-4163-41a6-bbd4-f8cf0b0a5cbb"
+  },
+  "runningContainerSurvivedRestarts": true,
+  "releaseAndExecutionUnchanged": true
+}

@@ -1,0 +1,19 @@
+{
+  "root": {
+    "annotations": {},
+    "digest": "sha256:92aa8db125edacd364fada0bd39958628dae94b19cbf4ea0017634716cae79fc",
+    "mediaType": "application/vnd.oci.image.manifest.v1+json",
+    "platform": {
+      "architecture": "amd64",
+      "os": "linux"
+    },
+    "size": 667
+  },
+  "releaseUid": "2e56848a-228d-4161-80d5-476404eda9f7",
+  "rootAbsentBeforePull": true,
+  "runningContainerSurvived": true,
+  "retainedReadinessPreserved": true,
+  "uncachedPullBlocked": true,
+  "samePodNormalRetryRecovered": true,
+  "noRebuild": true
+}

@@ -1,0 +1,18 @@
+{
+  "trustedInventory": "sha256:ca392eb16f890b9f3177a355ee612ed5680b070a4628fad6bcd3b6f30a209dc9",
+  "externalUnprivilegedLinuxNativeInstaller": true,
+  "allSevenComponentReferencesAbsentBeforeRecovery": true,
+  "nodeExternalNetworkBlocked": true,
+  "samePvcUid": "eeebd68c-0301-4e49-aea1-74082ea9194a",
+  "retainedVerifiedReleasesPreserved": 3,
+  "crdUidsAndSchemasPreserved": true,
+  "newRegistryAndAdmissionTrustRoots": true,
+  "newIndependentRegistryPasswords": true,
+  "allNativePhasesPassed": true,
+  "credentialRejectionAndFreshPullChecksPending": false,
+  "credentialRotationReceipt": "credential-rotation-results.json",
+  "freshPullReceipt": "cold-controller-results.json",
+  "finalPackagedInventory": "sha256:7ec0fe9266e81d69015647b206334bef6ffe10c85434bcf7f53048674838cf19",
+  "sevenRuntimeComponentsAndLauncherIdenticalAcrossInventories": true,
+  "finalPackagedLinuxInstallerCleanupVerified": true
+}

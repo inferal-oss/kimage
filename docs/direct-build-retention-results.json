@@ -1,0 +1,24 @@
+{
+  "releaseUid": "e682d445-aa11-4c5d-811a-809a0fa9761e",
+  "root": {
+    "annotations": {},
+    "digest": "sha256:2b1b2317283d6191e89e4708637a8c4f9a76bdaa972371c078fe1d2f6aa6f615",
+    "mediaType": "application/vnd.oci.image.manifest.v1+json",
+    "platform": {
+      "architecture": "amd64",
+      "os": "linux"
+    },
+    "size": 667
+  },
+  "oldWorkerUid": "164bf026-cc61-4b7e-a920-d5d49d4be150",
+  "restoredWorkerUid": "f2ce556e-1230-4e38-8114-a1ba50642248",
+  "readySamplesDuringCacheReplacement": 39,
+  "readinessPreserved": true,
+  "noRebuild": true,
+  "sourceObjectsAndPvcRemoved": true,
+  "imageRemoved": true,
+  "workerAndCacheAbsent": true,
+  "retainedWorkloadUid": "4dc5c1a7-5d23-41fc-8d49-5b10f1dcf62b",
+  "retainedWorkloadReady": true,
+  "runtimeRootRequestObserved": true
+}

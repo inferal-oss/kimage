@@ -1,0 +1,16 @@
+{
+  "root": "sha256:a626e74ec58cb4a0e76fd8603ea1d3ff287ca1c419e167221196bac18bafe1e0",
+  "imageUid": "f363c130-04a8-4c57-8b14-729129f4ad06",
+  "releaseUid": "d97c1014-e1ab-47b6-8113-f212232c135b",
+  "sourceRemoved": true,
+  "producerHandoff": true,
+  "knownWriterDeferred": true,
+  "controlPlaneIdempotent": true,
+  "dryRunReadOnly": true,
+  "regularAndInitSidecarRunning": true,
+  "unmanagedPreserved": true,
+  "loopbackAliasesDenied": true,
+  "runtimeRootRequestObservedBeforeFixtureApiRestart": true,
+  "retainedAfterImageDeletion": true,
+  "finalVerificationAfterFixtureApiRestart": true
+}

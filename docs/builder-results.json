@@ -1,0 +1,29 @@
+{
+  "workerUid": "65ff8c8b-dc5c-4564-a72d-5d5656804b04",
+  "hostUsers": false,
+  "privileged": false,
+  "runtimeSocket": false,
+  "buildkitVersion": "0.33.0",
+  "frontend": "dockerfile.v0",
+  "frontendVersion": "1.27.0",
+  "root": {
+    "mediaType": "application/vnd.oci.image.manifest.v1+json",
+    "digest": "sha256:ba516d9ee66981277c672ffb56e4956093dae34a90e387328115e91a523531b9",
+    "size": 476,
+    "annotations": {
+      "org.opencontainers.image.created": "2026-10-14T23:22:45Z"
+    },
+    "platform": {
+      "architecture": "amd64",
+      "os": "linux"
+    }
+  },
+  "uniqueInput": "55a56e566f0aa50582cdb1e791ec365e4196563b50e91857a3a892f74bf237da",
+  "ociVerified": true,
+  "nativeBuilderInstall": true,
+  "repeatInstallIdempotent": true,
+  "failedReadinessHelperRecovered": true,
+  "builderJournalIndependentOfServing": true,
+  "missingClientCertificateRejected": true,
+  "authenticatedWorkerId": "9ih3o7md2b6pdo5loi2vucvj0"
+}

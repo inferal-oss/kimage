@@ -1,0 +1,26 @@
+{
+  "releaseUid": "a2c3ead8-d6b0-4bbe-bb41-14b4b468b1c2",
+  "root": {
+    "annotations": {},
+    "digest": "sha256:2f8ab167855eee7aea92a85ab27428d28753703978d706e4932cb8b6ae111595",
+    "mediaType": "application/vnd.oci.image.manifest.v1+json",
+    "platform": {
+      "architecture": "amd64",
+      "os": "linux"
+    },
+    "size": 667
+  },
+  "internallyPublishedWithoutExports": true,
+  "authenticatedDigestPreservingExport": true,
+  "independentFullRemoteReadback": true,
+  "sourceWorkerAndBuildControllerAbsent": true,
+  "sameDigestTagIdempotent": true,
+  "interruptedExporterResumedSameRetainedIdentity": true,
+  "differentDigestTagConflictKeepsInternalReady": true,
+  "externalDowntimeDoesNotGateBuildPublicationOrNormalPull": true,
+  "destinationRecoveryRetriesWithoutRebuild": true,
+  "credentialRotationRetriesSameRetainedRelease": true,
+  "targetRemovalDoesNotDeleteRemoteContent": true,
+  "retainedReleaseAndExecutionUnchanged": true,
+  "credentialsAbsentFromStatusAndExporterLogs": true
+}

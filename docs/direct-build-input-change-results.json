@@ -1,0 +1,13 @@
+{
+  "action": "input",
+  "imageUid": "bca75ecb-c6af-42ef-87b9-9ce6345b6ef0",
+  "activeEngineSolveObserved": true,
+  "oldWorkerUid": "5c45d942-3db4-49ff-a85c-74b9371c215f",
+  "replacementWorkerUid": "93879c64-ffc6-4fe7-86cf-3ceb0e903372",
+  "oldAttemptNotPublished": true,
+  "currentGenerationPublished": true,
+  "releaseUid": "1aae16e9-11d7-48e1-a616-ce26da7be1aa",
+  "frozenSnapshotMutationRefused": true,
+  "sourceChangeDuringRunCanceled": true,
+  "newSourceVersionPublished": true
+}

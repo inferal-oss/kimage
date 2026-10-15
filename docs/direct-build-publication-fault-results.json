@@ -1,0 +1,22 @@
+{
+  "imageUid": "b6c34c7e-0522-4d21-9820-f152490c7809",
+  "releaseUid": "c98ecea5-2b24-468a-a1b0-8ceb5e6498b5",
+  "root": {
+    "annotations": {},
+    "digest": "sha256:567d5e77c1a0926b7f3633786b1d3a01d57f9e8ea21320fff8f4b41b5735a7c0",
+    "mediaType": "application/vnd.oci.image.manifest.v1+json",
+    "platform": {
+      "architecture": "amd64",
+      "os": "linux"
+    },
+    "size": 476
+  },
+  "apiSealDenied": true,
+  "noFalseReadiness": true,
+  "trustedRootCheckpointPreserved": true,
+  "operatorRestarted": true,
+  "sourceAndClientAbsentOnRecovery": true,
+  "workerAndCacheAbsentOnRecovery": true,
+  "releaseUidAndExecutionUnchanged": true,
+  "recoveredThroughRetainedGraph": true
+}

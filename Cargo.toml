@@ -1,0 +1,32 @@
+[workspace]
+members = ["crates/core", "crates/control", "crates/bootstrap"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+license = "Apache-2.0"
+
+[workspace.dependencies]
+anyhow = "=1.0.104"
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.154"
+sha2 = "=0.10.9"
+hex = "=0.4.3"
+tokio = { version = "=1.53.3", features = ["full"] }
+base64 = "=0.22.1"
+clap = { version = "=4.6.7", features = ["derive"] }
+tracing = "=0.1.44"
+tracing-subscriber = { version = "=0.3.23", features = ["env-filter", "json"] }
+flate2 = "=1.1.10"
+tempfile = "=3.27.0"
+semver = { version = "=1.0.28", features = ["serde"] }
+schemars = "=1.2.3"
+
+[profile.release]
+opt-level = "z"
+strip = true
+lto = "thin"
+panic = "abort"
+codegen-units = 1

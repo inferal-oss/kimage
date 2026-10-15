@@ -1,0 +1,9 @@
+{
+  "action": "delete",
+  "imageUid": "3a1eefce-f885-4b88-b975-60fe631187f1",
+  "activeEngineSolveObserved": true,
+  "oldWorkerUid": "4b32109e-347c-4912-9cc0-54dcd162241a",
+  "replacementWorkerUid": "5743d585-bc1d-4eb9-9be9-a52477201b51",
+  "finalizerCompleted": true,
+  "noStaleRelease": true
+}

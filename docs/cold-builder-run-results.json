@@ -1,0 +1,25 @@
+{
+  "workerUid": "75210af9-84ba-4abf-927d-15167e30ad2b",
+  "hostUsers": false,
+  "privileged": false,
+  "runtimeSocket": false,
+  "processSandbox": true,
+  "runInstruction": true,
+  "buildkitVersion": "0.33.0",
+  "frontend": "dockerfile.v0",
+  "frontendVersion": "1.27.0",
+  "root": {
+    "mediaType": "application/vnd.oci.image.manifest.v1+json",
+    "digest": "sha256:a48dc3c9231c9db453e0156a30d56c14b8e7b163821fd9ccc082ff46d949e492",
+    "size": 667,
+    "annotations": {
+      "org.opencontainers.image.created": "2026-10-15T01:35:56Z"
+    },
+    "platform": {
+      "architecture": "amd64",
+      "os": "linux"
+    }
+  },
+  "uniqueInput": "16108e9ea36d5562c799754c06728ee75a431e2c306b5f14bfe503376ca0c915",
+  "ociVerified": true
+}

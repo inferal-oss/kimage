@@ -1,0 +1,16 @@
+{
+  "renewed": [
+    {
+      "certificateSha256": "sha256:08b76efce0fb36c30e1204a383fa372d2eea6cfc0004a2d9ddf4b19b468b1a28",
+      "role": "registry",
+      "verifiedReload": true
+    },
+    {
+      "certificateSha256": "sha256:d5e57b45e08c1f977f4c235b507477bd71952076b5b701f4057f0f9fa88db6a4",
+      "role": "admission",
+      "verifiedReload": true
+    }
+  ],
+  "wrongSanRejectedBeforeWrites": true,
+  "secretUidsAndResourceVersionsUnchanged": true
+}

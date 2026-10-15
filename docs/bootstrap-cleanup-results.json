@@ -1,0 +1,7 @@
+{
+  "activePayloadMountRefused": true,
+  "conflictingPayloadPreserved": true,
+  "ownedPayloadRemovedAfterUnmount": true,
+  "idempotentRepeat": true,
+  "noBootstrapExecutableConfigMapsRemain": true
+}

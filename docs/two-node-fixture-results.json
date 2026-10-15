@@ -1,0 +1,9 @@
+{
+  "twoReadyNodes": true,
+  "serverNodeUidPreserved": true,
+  "registryPvcPreserved": true,
+  "retainedReleaseUidsAndSpecsPreserved": true,
+  "productSchemaUidsAndSpecsPreserved": true,
+  "privateInterVmLink": true,
+  "nodeRegistryTrustOrRuntimeConfigurationChangedByProduct": false
+}

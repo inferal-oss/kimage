@@ -1,0 +1,24 @@
+{
+  "baselineReleaseUid": "fa3f8db6-e4ba-416e-b1fb-ae9ca6a66bd8",
+  "releaseUid": "562814ff-d725-4493-9f94-fecb53e071f7",
+  "execution": {
+    "adapterVersion": "kimage.dev/containerfile-v1",
+    "attemptId": "f97c66b4f5a9cfa6034a57c6adc04350986a5973d37aff70b197c8d5eeffb39e",
+    "builder": "default",
+    "cacheMode": "Local",
+    "cachedExecutionSteps": 0,
+    "engine": "BuildKit",
+    "engineOperationId": "kdtsfp9fnxnhj4hyn4cid51ab",
+    "engineVersion": "0.33.0",
+    "engineWorkerId": "r3a2u0rtwbzqpmbdggxrriskd",
+    "executedSteps": 1,
+    "platform": {
+      "architecture": "amd64",
+      "os": "linux"
+    },
+    "strategy": "Direct",
+    "workerUid": "164bf026-cc61-4b7e-a920-d5d49d4be150"
+  },
+  "ordinarySnapshotChanged": true,
+  "localCacheInvalidatedForChangedBindInput": true
+}

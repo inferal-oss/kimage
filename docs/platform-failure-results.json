@@ -1,0 +1,11 @@
+{
+  "platform": {
+    "noFalseReadiness": true,
+    "noVerifiedRelease": true,
+    "permanentFailure": true,
+    "readerCleaned": true,
+    "reason": "WrongPlatform"
+  },
+  "operatorRoot": "sha256:a906f557dd706ead5807cee1e59a72fccb901e5dd3822a2cdd61d64c5ada4d53",
+  "developmentReplacementOnly": true
+}

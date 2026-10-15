@@ -1,0 +1,16 @@
+{
+  "destination": "https://kimage-export-target.kimage-export-target.svc:5443/",
+  "serviceType": "ClusterIP",
+  "clusterIP": "10.43.174.61",
+  "namespace": "kimage-export-target",
+  "podUid": "a4552fc1-b2c7-4671-a097-7e477c976ffc",
+  "node": "kimage-clean",
+  "fixtureLabel": "kimage-export-target",
+  "separatePvc": "kimage-export-target-data",
+  "payloadDefinition": "FROM scratch; COPY probe /probe; COPY message /message; ENTRYPOINT /probe",
+  "probeSource": "crates/bootstrap/src/bin/kimage-probe.rs",
+  "probeExecutableSha256": "749a2773a34ac3db941096cccd9b636236f6a2f5d5c6098d72bb1bfa8886e66c",
+  "message": "fresh kimage-export-a1 fixture name",
+  "onlyBuildVolume": "fresh ConfigMap with probe and message keys; no Secret volume or build secret",
+  "externalInternetBlocked": "both QEMU uplinks use restrict=on"
+}

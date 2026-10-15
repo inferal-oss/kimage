@@ -1,0 +1,101 @@
+{
+  "bundle": "dist/complete-final-linux-amd64",
+  "inventory": "sha256:d49c04fbae9582a4fda78db8974b2698cc6ad1fb651294cfd3f42dbdd70a0f3e",
+  "apiSchemaRevision": 4,
+  "components": {
+    "admission": {
+      "version": "0.1.0",
+      "root": {
+        "digest": "sha256:0963667096e85672c5caed8dffffb3a25b7581847cc844d5bf50f7a534853ccb",
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "size": 400
+      },
+      "executable": "sha256:10e2c9f78473274b64df9ab8deb2655d86dfa18df3d17a9331dec68a4f6848fc"
+    },
+    "builder": {
+      "version": "0.33.0",
+      "root": {
+        "digest": "sha256:78e0f6ce7a4b407a210357b34c0e61a2e8e058fb02ec894a0aa41213e0297616",
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "size": 402
+      },
+      "executable": "sha256:157da954fa081d9ec4f063d62029fbbf12437c1d47ab63080594eae5a85b36f2"
+    },
+    "exporter": {
+      "version": "0.1.0",
+      "root": {
+        "digest": "sha256:9b8eb44da5386e72573cb29b1c6055648f1610b1bc1f82d37a4b415457395ff5",
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "size": 400
+      },
+      "executable": "sha256:67287fbd46826974c0a060fd1a1c8784f568688b5f338c686374e07d93230b98"
+    },
+    "gateway": {
+      "version": "0.2.0",
+      "root": {
+        "digest": "sha256:1b74f3240f704a2e20a7897a3b8faa02f5d90fb8dee9287730e049d53f277209",
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "size": 400
+      },
+      "executable": "sha256:7a22d5c0d3a948972cb690229005b2a3384b1f9be48610b9604af24b5bd4d3e4"
+    },
+    "input": {
+      "version": "0.1.0",
+      "root": {
+        "digest": "sha256:2baf5bc113b90d976a71d97227d8d1f2f61095f8b5d5bdce7defea019bcbce77",
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "size": 400
+      },
+      "executable": "sha256:46a50019727bf2ed65171bf0f094661be0c64ce455dc060e226d2b87d76e1c8d"
+    },
+    "operator": {
+      "version": "0.1.0",
+      "root": {
+        "digest": "sha256:a8073651a4c1a1b51e2022f1d958d7238fe3cfff4fbbb9e05a665c93fdad4109",
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "size": 401
+      },
+      "executable": "sha256:57b6502b1e557a60ae380be346a81aec88c650dcf6d4cfecc4eedca1f387f20c"
+    },
+    "proxy": {
+      "version": "0.2.0",
+      "root": {
+        "digest": "sha256:4021bc4b86d637114ff3f1677fd12ee89fbc2e2ae608c214f7f082d82080371a",
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "size": 400
+      },
+      "executable": "sha256:6337ed3a100acab79c01f4614b79cab0e97e27a2c94070283fef219aa03b1a8a"
+    },
+    "registry": {
+      "version": "3.1.2",
+      "root": {
+        "digest": "sha256:305c312c3d7d6ce439e01e6fdda89fbc17d06337e05c88ae4014d7402e132199",
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "size": 401
+      },
+      "executable": "sha256:7f9e0df42bd028efb1a11eb7f92ef494156bf308770303a256d3acdcadb378cd"
+    }
+  },
+  "nativeInstallers": [
+    "darwin-arm64",
+    "linux-amd64"
+  ],
+  "macosNativeBundleCheck": true,
+  "packagedLinuxNativeBundleCheck": true,
+  "macosWorkspaceTests": 47,
+  "linuxMuslWorkspaceTests": 47,
+  "strictClippyPlatforms": [
+    "darwin-arm64"
+  ],
+  "linuxClippyAvailable": false,
+  "linuxClippyNote": "The prepared offline Linux toolchain has no Clippy component; full Linux compile and tests passed. Strict workspace/all-target Clippy passed on macOS.",
+  "formatting": true,
+  "pythonSyntax": true,
+  "composition": "Preserves every binary-lifecycle-tested component artifact except the proxy; proxy HTTP metrics correction was tested with real HTTP and deployed through the native compatible serving updater.",
+  "binaryLifecycleReceipt": "binary-upgrade-results.json",
+  "proxyCorrectionReceipt": "serving-metrics-final-results.json",
+  "liveObservabilityReceipt": "observability-results.json",
+  "postUpgradeExportReceipt": "export-after-upgrade-results.json",
+  "finalHealthReceipt": "final-health-results.json",
+  "allFourMilestonesPassedForSupportedProfile": true
+}

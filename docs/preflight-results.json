@@ -1,0 +1,9 @@
+{
+  "namespaceAdmissionDeniedBeforeDataWrites": true,
+  "installerRbacDeniedBeforeDataWrites": true,
+  "incompatibleSchemaRefusedBeforeControlWrites": true,
+  "schemaSpecAndUidPreserved": true,
+  "temporaryRevisionRestored": true,
+  "shortLivedInstallerIdentityRemoved": true,
+  "namespaceRetained": "kimage-denied-dd7bf0d0"
+}

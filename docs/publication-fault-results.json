@@ -1,0 +1,27 @@
+{
+  "imageUid": "6c241066-2633-429e-8936-1f7dcc5a02fd",
+  "releaseUid": "09003192-583c-4119-9578-786001c5d753",
+  "generation": 2,
+  "publishedPinDeleteDenied": true,
+  "publishedUnpinDenied": true,
+  "noFalseReadinessDuringApiFailure": true,
+  "obsoleteUnverifiedMetadataRemoved": true,
+  "oldRegistryGraphRetained": true,
+  "sourcePvcAbsentOnRecovery": true,
+  "readerAbsentOnRecovery": true,
+  "operatorRestarted": true,
+  "durableBackoffAcrossWatchAndRestart": true,
+  "recoveredReleaseUidUnchanged": true,
+  "runtimePodReady": true,
+  "boundedMetrics": true,
+  "newRoot": {
+    "mediaType": "application/vnd.oci.image.manifest.v1+json",
+    "digest": "sha256:9b9da01f0e86d0752de6798c9e9ede1d9a1ef87fd84e53de090bfdb108d87e5e",
+    "size": 399
+  },
+  "oldRoot": {
+    "mediaType": "application/vnd.oci.image.manifest.v1+json",
+    "digest": "sha256:cea0c3c25c671effacb3e6d083f6f80a01075376366ef595f5c6bc3c1eed0540",
+    "size": 399
+  }
+}

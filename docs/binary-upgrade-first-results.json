@@ -1,0 +1,166 @@
+{
+  "transition": {
+    "previousInventory": "sha256:6b6c00c764fa15345f804928f514ef174e0dc5b0c59c4dbb0a7b62f9f525fb93",
+    "targetInventory": "sha256:1b6d8fdb3c3de0dcf09578905093181705db950597c727c7f4b48de38918fe1c",
+    "originalPods": {
+      "kimage-clean-n-8ca50531fce823d8-proxy": "d419ff01-3734-42a8-ac35-2da58322570e",
+      "kimage-clean-proxy": "be2c45a2-1628-41d5-87a7-042d7fa5d95b",
+      "kimage-clean-registry": "771426e6-72b4-4035-b46c-997bfc83afc8"
+    },
+    "replacementImagesAbsentBeforeWarmupOnBothNodes": true,
+    "interruptedAtWriterGap": true,
+    "readOnlyReadthroughObserved": true,
+    "nodeTargetedWarmupPods": [
+      {
+        "node": "kimage-clean-2",
+        "image": "127.0.0.1:17641/kimage-system/system-proxy@sha256:5c16f24c6398992db6eefb61b41e56aa851c85cdd609cf46fcd4739f074e8e6e",
+        "imagePullPolicy": "IfNotPresent"
+      },
+      {
+        "node": "kimage-clean-2",
+        "image": "127.0.0.1:17641/kimage-system/system-proxy@sha256:10897558fc2c89538402b3a144db7002a07249d7f697065ef6b12a597739584e",
+        "imagePullPolicy": "IfNotPresent"
+      },
+      {
+        "node": "kimage-clean",
+        "image": "127.0.0.1:17641/kimage-system/system-registry@sha256:a7318795f838d14796a6d1e10fcfacfd6c35cadb50408a3413f05efc90471439",
+        "imagePullPolicy": "IfNotPresent"
+      },
+      {
+        "node": "kimage-clean",
+        "image": "127.0.0.1:17641/kimage-system/system-gateway@sha256:8a473350f482a965e7bee6760810acb69cd445f4e736715909d9877918d62d27",
+        "imagePullPolicy": "IfNotPresent"
+      },
+      {
+        "node": "kimage-clean",
+        "image": "127.0.0.1:17641/kimage-system/system-gateway@sha256:cc6ba7f3ae0f684707a0eef472075df4dc79f250871a47ea93c38335a92e115e",
+        "imagePullPolicy": "IfNotPresent"
+      },
+      {
+        "node": "kimage-clean",
+        "image": "127.0.0.1:17641/kimage-system/system-proxy@sha256:10897558fc2c89538402b3a144db7002a07249d7f697065ef6b12a597739584e",
+        "imagePullPolicy": "IfNotPresent"
+      },
+      {
+        "node": "kimage-clean",
+        "image": "127.0.0.1:17641/kimage-system/system-proxy@sha256:5c16f24c6398992db6eefb61b41e56aa851c85cdd609cf46fcd4739f074e8e6e",
+        "imagePullPolicy": "IfNotPresent"
+      },
+      {
+        "node": "kimage-clean",
+        "image": "127.0.0.1:17641/kimage-system/system-registry@sha256:c3d8303e0b436a4e46679a128c9d1f80122798a55090d1a58af73b545d237713",
+        "imagePullPolicy": "IfNotPresent"
+      }
+    ],
+    "retainedNormalPullDuringWriterGap": true,
+    "resumedUpgrade": true,
+    "newVersionPublication": {
+      "name": "kimage-direct-kimage-binary-a1-after",
+      "releaseName": "release-0d98812d231c168b20772b55f73a475191d6e74c",
+      "releaseUid": "f3a63313-fa89-4f19-9bf7-240349f67587",
+      "spec": {
+        "imageName": "kimage-direct-kimage-binary-a1-after",
+        "imageUid": "c14da7d2-501e-4a8a-bdac-92f4d25d15d8",
+        "platform": {
+          "architecture": "amd64",
+          "os": "linux"
+        },
+        "provenance": {
+          "adapterVersion": "kimage.dev/containerfile-v1",
+          "execution": {
+            "adapterVersion": "kimage.dev/containerfile-v1",
+            "attemptId": "d88b9d95533106fa497d9aabd01df3b6350b5a4c8d4d80e5bb65ca0de60d4cfe",
+            "builder": "default",
+            "cacheMode": "Local",
+            "cachedExecutionSteps": 0,
+            "engine": "BuildKit",
+            "engineOperationId": "hw1l7ny3g9azba685tv6nat92",
+            "engineVersion": "0.33.0",
+            "engineWorkerId": "ewj5rdgxczzqzgd0xtzzi5pzk",
+            "executedSteps": 0,
+            "platform": {
+              "architecture": "amd64",
+              "os": "linux"
+            },
+            "strategy": "Direct",
+            "workerUid": "e0a28c1d-b64c-4903-9a8b-57f847445636"
+          },
+          "format": "Containerfile",
+          "inputs": [
+            {
+              "kind": "ConfigMap",
+              "name": "kimage-direct-kimage-binary-a1-after-input",
+              "resourceVersion": "36205",
+              "uid": "6e304022-2b45-4fcb-8f38-3cbd7a1746b5"
+            }
+          ]
+        },
+        "publisherVersion": "0.1.0",
+        "requestDigest": "sha256:ea78f5919860a4c9cad3be7651b94149bb39a98bb1fc7ce20b27c415e7fcf15c",
+        "root": {
+          "annotations": {},
+          "digest": "sha256:20dee19c39ba5203fcbb76f51b2d3bc324f20bc726bb4a7e376bbf0b07289485",
+          "mediaType": "application/vnd.oci.image.manifest.v1+json",
+          "platform": {
+            "architecture": "amd64",
+            "os": "linux"
+          },
+          "size": 667
+        },
+        "snapshot": "sha256:dd8c6fee651bc960ae06870d9f96fa0282938b0985c225d6ae0788f67f01d6c2",
+        "sourceGeneration": 1,
+        "version": "1.0.0"
+      }
+    },
+    "newVersionExecutables": {
+      "registry": "/registry github.com/distribution/distribution/v3 3.1.2",
+      "gateway": "kimage-control 0.2.0",
+      "proxy": "kimage-control 0.2.0"
+    },
+    "compatibleRollback": true,
+    "rollbackRegistryExecutableVersion": "/registry github.com/distribution/distribution/v3 3.1.1",
+    "newVersionWritesReadableAfterRollback": {
+      "root": "sha256:20dee19c39ba5203fcbb76f51b2d3bc324f20bc726bb4a7e376bbf0b07289485",
+      "node": "kimage-clean",
+      "workloadUid": "5d89a050-62ec-43ad-b0fa-12550ea673b4",
+      "absentFromTargetCache": true,
+      "normalIfNotPresentPull": true
+    },
+    "retainedPvcAndReleaseUidsSpecsPreserved": true,
+    "schemaUidsSpecsPreserved": true,
+    "executableTransitions": {
+      "registry": {
+        "previousVersion": "3.1.1",
+        "targetVersion": "3.1.2",
+        "previousExecutable": "sha256:3162d930aa134685fbbe53f85d28183d4d58f7f73487db8982b764464c07f31a",
+        "targetExecutable": "sha256:7f9e0df42bd028efb1a11eb7f92ef494156bf308770303a256d3acdcadb378cd"
+      },
+      "gateway": {
+        "previousVersion": "0.1.0",
+        "targetVersion": "0.2.0",
+        "previousExecutable": "sha256:75e5566bc2deecde0fd3ac33ee6faa535ca1d82a742cec93c021f106d4f553f1",
+        "targetExecutable": "sha256:7a22d5c0d3a948972cb690229005b2a3384b1f9be48610b9604af24b5bd4d3e4"
+      },
+      "proxy": {
+        "previousVersion": "0.1.0",
+        "targetVersion": "0.2.0",
+        "previousExecutable": "sha256:89d901f3864e5d7884eca5518ac66f0ffbea9bfca32284c299292fa1d2b83277",
+        "targetExecutable": "sha256:eb0c4f8f3d78509963a701e790191665dc2ca7285420988e7cc6e3b0d5e35fcf"
+      }
+    },
+    "transitionScope": "real Distribution 3.1.1 -> 3.1.2 and serving 0.1.0 -> 0.2.0 binaries, reverse rollback; filesystem backend without migration"
+  },
+  "recovery": {
+    "inventory": "sha256:6b6c00c764fa15345f804928f514ef174e0dc5b0c59c4dbb0a7b62f9f525fb93",
+    "sameRegistryPvc": true,
+    "retainedReleaseUidsAndSpecsPreserved": true,
+    "schemaUidsPreserved": true,
+    "deploymentMethod": "API-only maintenance uninstall/recover; not self-upgrade",
+    "bothNodeComponentCachesAbsentBeforeRecovery": true,
+    "additionalNodeRestoredThroughNativeJoin": "kimage-clean-2"
+  },
+  "newerWritesIndependentlyVerifiedAfterOlderBundleRecovery": true,
+  "newerWritesIndependentlyVerifiedAfterRollForward": true,
+  "finalInventory": "sha256:1b6d8fdb3c3de0dcf09578905093181705db950597c727c7f4b48de38918fe1c",
+  "linuxNativeRollForward": false
+}
