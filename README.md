@@ -133,31 +133,43 @@ the native commands directly from crates.io. No source checkout is needed:
 
 ```sh
 cargo install kimage-control --version 0.2.0 --locked
-kimage-install --help
-kimage-install --version
-kimage-install bundle-fetch
-kimage-install bundle-check --offline
+kimage install --help
 ```
 
-This installs `kimage-install`, `kimage-operator`, `kimage-admission`,
+This installs `kimage`, the compatible `kimage-install` alias, `kimage-operator`, `kimage-admission`,
 `kimage-gateway`, `kimage-proxy`, `kimage-input`, and `kimage-exporter`. To install
-only the native installer, add `--bin kimage-install`. Ensure Cargo's bin directory
+only the native installer, add `--bin kimage`. Ensure Cargo's bin directory
 is on your `PATH`.
 
 The crates.io package is **`kimage-control`**; the `kimage` crate belongs to a
 separate project. Cargo builds tools for your machine. The installer automatically
-downloads the
-official Linux/amd64 bundle for its exact package version, verifies GitHub asset
+downloads the official Linux/amd64 bundle for its exact package version, verifies GitHub asset
 digests, the inventory, executables, and OCI graphs, then caches it. No packaging
 script or checkout is needed. Prebuilt native installers are also available in
 [GitHub releases](https://github.com/inferal-oss/kimage/releases).
 
 ### Prepare a cluster
 
-Follow the [cluster setup guide](https://kimage.dev/docs/#cluster-setup) to supply
-TLS credentials and run the installer phases: `bootstrap`, `seed`, `handover`,
-`control-plane`, and `builder`. They fetch or reuse the verified bundle automatically.
-`bundle-fetch` can prepare it before you have a kubeconfig.
+Supply the cluster prerequisites and TLS credentials described in the
+[cluster setup guide](https://kimage.dev/docs/#cluster-setup), then run one command:
+
+```sh
+kimage install \
+  --runtime-profile k3s \
+  --namespace kimage-system --application-namespace apps \
+  --installation dev --node <approved-node> \
+  --carrier <cached-image@sha256:digest> \
+  --storage-class <class> --port <loopback-port> \
+  --credentials <registry-directory> \
+  --admission-credentials <admission-directory> \
+  --builder-credentials <builder-directory>
+```
+
+It downloads and verifies the matching bundle automatically, then runs bootstrap,
+seed, handover, control plane, and the default builder. No separate fetch or check
+command is needed. Rerun with identical arguments after an interruption; the
+installer checks retained checkpoints before continuing. Individual phase commands
+remain available for recovery and advanced workflows.
 
 You need a supported Linux/amd64 cluster, administrator access, persistent
 storage, an approved carrier image already cached on the selected node, and
@@ -334,7 +346,7 @@ python3 -m compileall -q scripts
 [GitHub Actions](https://github.com/inferal-oss/kimage/actions/workflows/ci.yml)
 runs formatting, Clippy, documentation/example checks, and the workspace tests
 on macOS/arm64 and Linux/amd64 musl. Seven Python release-tooling tests verify
-pinned inputs, deterministic packaging, and immutable asset checks. The current Rust suite has 57 tests, including
+pinned inputs, deterministic packaging, and immutable asset checks. The current Rust suite has 63 tests, including
 loopback HTTP and mocked Kubernetes API recovery regressions. Live cluster
 acceptance exercises installation, builds, two-node pulls, interruption/recovery,
 binary upgrades/rollback, and external export; those fixture tests are recorded

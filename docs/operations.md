@@ -9,19 +9,17 @@ gates. Consult the
 
 ## Official release bundles
 
-Install the native CLI and fetch the verified official bundle without a checkout
-or packaging script:
+Install the native CLI without a checkout or packaging script:
 
 ```sh
 cargo install kimage-control --version 0.2.0 --locked
-kimage-install bundle-fetch
-kimage-install bundle-check --offline
+kimage install --help
 ```
 
 Bundle-using phases default to the exact release matching the CLI's package
 version, never `latest`. They reuse a verified private cache on later runs.
 `--release 0.2.0` pins a different exact selection, `--bundle-cache <directory>`
-overrides the cache, and `--offline` refuses network access on a miss. Fetching
+overrides the cache, and `--offline` prevents bundle downloads and fails on a cache miss. Fetching
 requires no kubeconfig and performs no cluster writes. GitHub Actions publishes
 the complete Linux/amd64 bundle, inventory, native macOS/arm64 and Linux/amd64
 installers, license notices, and checksums as release assets.
@@ -42,6 +40,41 @@ through your approved channel. The original `--bundle <directory>` plus
 `--trusted-inventory sha256:<64-hex-digits>` path remains supported without a
 network request. A local bundle always requires that independent pin. Official
 bundles start at 0.2.0; the 0.1.0 release has no component bundle assets.
+
+## Standard installation
+
+Once the cluster and credentials described below are prepared, use:
+
+```sh
+kimage install \
+  --runtime-profile k3s \
+  --namespace kimage-system --application-namespace apps \
+  --installation dev --node <approved-node> \
+  --carrier <cached-image@sha256:digest> \
+  --storage-class <class> --port <loopback-port> \
+  --credentials <registry-directory> \
+  --admission-credentials <admission-directory> \
+  --builder-credentials <builder-directory>
+```
+
+Bundle download, verification, caching, bootstrap, seed, handover, control plane,
+and default builder setup run automatically. No separate fetch/check step is
+required. Credential directories for all phases are checked before bootstrap
+writes. Rerun with identical arguments to resume; existing ownership, configuration,
+and bundle checkpoints are checked before selecting a phase. Partial handovers
+resume from their replacement checkpoints, rather than restarting bootstrap.
+`kimage-install` remains a compatible alias for all commands. Individual phase
+commands below remain useful for recovery or advanced installation.
+
+For optional prefetch before kubeconfig is available or an air-gap transfer:
+
+```sh
+kimage bundle-fetch
+kimage bundle-check --offline
+```
+
+Here `--offline` prevents bundle downloads only. Cluster commands still require
+access to the Kubernetes API.
 
 ## Trusted bundle and credentials
 

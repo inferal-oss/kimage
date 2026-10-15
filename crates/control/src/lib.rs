@@ -38,3 +38,5 @@ pub mod exporter;
 pub mod node_install;
 mod operation_lease;
 pub mod upgrade;
+
+mod standard_install;

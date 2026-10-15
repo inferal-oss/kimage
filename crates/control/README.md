@@ -11,22 +11,21 @@ Requires Rust 1.99.0 or newer. No source checkout is needed:
 
 ```sh
 cargo install kimage-control --version 0.2.0 --locked
-kimage-install --help
-kimage-install bundle-fetch
-kimage-install bundle-check --offline
+kimage install --help
 ```
 
-The package installs `kimage-install`, `kimage-operator`, `kimage-admission`,
+The package installs `kimage`, the compatible `kimage-install` alias, `kimage-operator`, `kimage-admission`,
 `kimage-gateway`, `kimage-proxy`, `kimage-input`, and `kimage-exporter`. To install
-only the native installer, add `--bin kimage-install` to the Cargo command.
+only the native installer, add `--bin kimage` to the Cargo command.
 
 `cargo install` builds native tools for your machine. The installer fetches the
 exact official GitHub release matching its package version, verifies the asset
 digests and complete bundle, and caches it before cluster access. No source
 checkout or packaging script is needed. `--release`, `--bundle-cache`, and
 `--offline` control selection/reuse; independently pinned local bundles remain
-supported with `--bundle` and `--trusted-inventory`. Cluster installation still
-requires TLS credentials and a supported runtime profile. See the
+supported with `--bundle` and `--trusted-inventory`. `kimage install` runs bootstrap, seed, handover, control plane, and the default
+builder in one resumable command. No separate fetch/check step is needed.
+Cluster installation requires TLS credentials and a supported runtime profile. See the
 [installation guide](https://kimage.dev/docs/#cluster-setup)
 and the [hello tutorial](https://kimage.dev/docs/#quickstart).
 

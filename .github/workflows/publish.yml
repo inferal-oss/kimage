@@ -232,16 +232,16 @@ jobs:
           python3 scripts/publish-github-release.py --tag "$RELEASE_TAG" --assets dist/release --finalize
           VERSION=${RELEASE_TAG#v}
           mkdir -p .local
-          chmod +x "dist/release/kimage-install-v${VERSION}-linux-amd64"
-          "dist/release/kimage-install-v${VERSION}-linux-amd64" bundle-fetch \
+          chmod +x "dist/release/kimage-v${VERSION}-linux-amd64"
+          "dist/release/kimage-v${VERSION}-linux-amd64" bundle-fetch \
             --bundle-cache .local/published-bundles > .local/fetched-bundle.json &
           FIRST_FETCH=$!
-          "dist/release/kimage-install-v${VERSION}-linux-amd64" bundle-fetch \
+          "dist/release/kimage-v${VERSION}-linux-amd64" bundle-fetch \
             --bundle-cache .local/published-bundles > .local/concurrent-bundle.json &
           SECOND_FETCH=$!
           wait "$FIRST_FETCH"
           wait "$SECOND_FETCH"
-          "dist/release/kimage-install-v${VERSION}-linux-amd64" bundle-check \
+          "dist/release/kimage-v${VERSION}-linux-amd64" bundle-check \
             --bundle-cache .local/published-bundles --offline
           python3 - <<'PY'
           import json, hashlib, os

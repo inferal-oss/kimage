@@ -88,32 +88,7 @@ impl Installer {
             component.version == "0.33.0",
             "UnsupportedDefaultBuilderVersion"
         );
-        let mut material = BTreeMap::new();
-        for name in [
-            "ca.crt",
-            "server.crt",
-            "server.key",
-            "client.crt",
-            "client.key",
-        ] {
-            let path = credentials.join(name);
-            ensure!(
-                std::fs::symlink_metadata(&path)?.is_file(),
-                "InvalidBuilderCredentialFile"
-            );
-            let bytes = std::fs::read(path)?;
-            ensure!(
-                !bytes.is_empty() && bytes.len() <= 32768,
-                "InvalidBuilderCredentialSize"
-            );
-            material.insert(name, bytes);
-        }
-        reqwest::Certificate::from_pem(&material["ca.crt"])?;
-        for prefix in ["client", "server"] {
-            let mut pem = material[format!("{prefix}.crt").as_str()].clone();
-            pem.extend_from_slice(&material[format!("{prefix}.key").as_str()]);
-            reqwest::Identity::from_pem(&pem).context("InvalidBuilderCertificateIdentity")?;
-        }
+        let material = credential_material(credentials)?;
         self.preflight().await?;
         // The worker has its own journal: adding its offline component does not
         // rewrite the already completed registry/proxy handover checkpoint.
@@ -218,4 +193,34 @@ impl Installer {
         self.state_named(bundle, "DefaultBuilderReady", "builder-state")
             .await
     }
+}
+
+pub(crate) fn credential_material(credentials: &Path) -> Result<BTreeMap<&'static str, Vec<u8>>> {
+    let mut material = BTreeMap::new();
+    for name in [
+        "ca.crt",
+        "server.crt",
+        "server.key",
+        "client.crt",
+        "client.key",
+    ] {
+        let path = credentials.join(name);
+        ensure!(
+            std::fs::symlink_metadata(&path)?.is_file(),
+            "InvalidBuilderCredentialFile"
+        );
+        let bytes = std::fs::read(path)?;
+        ensure!(
+            !bytes.is_empty() && bytes.len() <= 32768,
+            "InvalidBuilderCredentialSize"
+        );
+        material.insert(name, bytes);
+    }
+    reqwest::Certificate::from_pem(&material["ca.crt"])?;
+    for prefix in ["client", "server"] {
+        let mut pem = material[format!("{prefix}.crt").as_str()].clone();
+        pem.extend_from_slice(&material[format!("{prefix}.key").as_str()]);
+        reqwest::Identity::from_pem(&pem).context("InvalidBuilderCertificateIdentity")?;
+    }
+    Ok(material)
 }

@@ -59,7 +59,7 @@ def package(bundle, output, version):
                     tar.addfile(info, source)
     shutil.copyfile(bundle / 'inventory.json', output / (base + '.inventory.json'))
     for platform, installer in inventory['installers'].items():
-        target = output / f'kimage-install-v{version}-{platform}'
+        target = output / f'kimage-v{version}-{platform}'
         shutil.copyfile(bundle / installer['file'], target)
         target.chmod(0o755)
     shutil.copyfile(ROOT / 'LICENSE', output / 'LICENSE')

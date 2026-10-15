@@ -1,7 +1,7 @@
 # Releasing kimage
 
 The public packages are `kimage-core` and `kimage-control`; the latter installs
-seven commands. `kimage-bootstrap` is an unpublished internal bundle helper.
+eight commands. `kimage-bootstrap` is an unpublished internal bundle helper.
 The unrelated `kimage` crate belongs to another project.
 
 ## Prepare the source
@@ -43,7 +43,7 @@ The assets are:
 
 - `kimage-bundle-v0.2.0-linux-amd64.tar.gz`, a complete flat offline bundle.
 - `kimage-bundle-v0.2.0-linux-amd64.inventory.json`, also inside the bundle.
-- `kimage-install-v0.2.0-linux-amd64` and `kimage-install-v0.2.0-darwin-arm64`.
+- `kimage-v0.2.0-linux-amd64` and `kimage-v0.2.0-darwin-arm64`.
 - `LICENSE`, `THIRD-PARTY-NOTICES.txt`, and `SHA256SUMS`.
 
 The input downloader checks pinned archive sizes/SHA-256 for Distribution 3.1.2
@@ -97,11 +97,11 @@ Verify the consumer path on macOS as well as the workflow's Linux check:
 
 ```sh
 cargo install kimage-control --version 0.2.0 --locked --root .local/release-install
-.local/release-install/bin/kimage-install bundle-fetch --bundle-cache .local/release-cache
-.local/release-install/bin/kimage-install bundle-check --bundle-cache .local/release-cache --offline
+.local/release-install/bin/kimage bundle-fetch --bundle-cache .local/release-cache
+.local/release-install/bin/kimage bundle-check --bundle-cache .local/release-cache --offline
 ```
 
-Check all seven installed commands with `--help` and `--version`, the release and
+Check all eight installed commands with `--help` and `--version`, the release and
 site workflows, the live handbook/llms.txt, and a clean pushed main. For air gaps,
 transfer the verified `bundle` directory and inventory digest through the chosen
 trusted channel, then use `--bundle` and `--trusted-inventory sha256:...`.

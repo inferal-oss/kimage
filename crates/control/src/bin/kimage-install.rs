@@ -1,9 +1,9 @@
 use anyhow::Result;
-use clap::{Args, Parser, Subcommand};
+use clap::{Args, CommandFactory, FromArgMatches, Parser, Subcommand};
 use std::path::PathBuf;
 #[derive(Parser)]
 #[command(
-    name = "kimage-install",
+    name = "kimage",
     version,
     about = "Install, verify, upgrade, and recover a kimage installation through Kubernetes APIs"
 )]
@@ -59,27 +59,36 @@ enum Command {
     BundleFetch(BundleSource),
     /// Verify a local bundle or the selected cached/official release.
     BundleCheck(BundleSource),
-    Bootstrap(Install),
-    Recover(Install),
-    Seed(Install),
-    Handover(Install),
-    Cleanup(Install),
+    /// Fetch the bundle and run bootstrap, seed, handover, control plane, and builder.
+    Install {
+        #[command(flatten)]
+        install: PhaseOptions,
+        #[arg(long)]
+        admission_credentials: PathBuf,
+        #[arg(long)]
+        builder_credentials: PathBuf,
+    },
+    Bootstrap(PhaseOptions),
+    Recover(PhaseOptions),
+    Seed(PhaseOptions),
+    Handover(PhaseOptions),
+    Cleanup(PhaseOptions),
     Uninstall(Cluster),
     ControlPlane {
         #[command(flatten)]
-        install: Install,
+        install: PhaseOptions,
         #[arg(long)]
         admission_credentials: PathBuf,
     },
     Builder {
         #[command(flatten)]
-        install: Install,
+        install: PhaseOptions,
         #[arg(long)]
         builder_credentials: PathBuf,
     },
     JoinNode {
         #[command(flatten)]
-        install: Install,
+        install: PhaseOptions,
         #[arg(long)]
         target_node: String,
         #[arg(long)]
@@ -87,7 +96,7 @@ enum Command {
     },
     UpgradeServing {
         #[command(flatten)]
-        install: Install,
+        install: PhaseOptions,
         #[arg(
             long,
             required_unless_present = "previous_release",
@@ -102,7 +111,7 @@ enum Command {
     },
     Exporter {
         #[command(flatten)]
-        install: Install,
+        install: PhaseOptions,
         #[arg(long, required = true)]
         approved_origin: Vec<String>,
     },
@@ -138,7 +147,7 @@ struct Cluster {
     credentials: PathBuf,
 }
 #[derive(Args)]
-struct Install {
+struct PhaseOptions {
     #[command(flatten)]
     cluster: Cluster,
     #[command(flatten)]
@@ -159,7 +168,7 @@ struct BundleSource {
     /// Override the private, verified release bundle cache directory.
     #[arg(long)]
     bundle_cache: Option<PathBuf>,
-    /// Refuse network access; require a verified cached release or local bundle.
+    /// Disable bundle downloads; require cached/local bytes. Cluster commands still use Kubernetes.
     #[arg(long)]
     offline: bool,
 }
@@ -209,7 +218,17 @@ async fn main() -> Result<()> {
         .json()
         .with_writer(std::io::stderr)
         .init();
-    match Cli::parse().command {
+    let program = std::env::args_os().next().unwrap_or_default();
+    let name = if std::path::Path::new(&program)
+        .file_name()
+        .is_some_and(|name| name.to_string_lossy().starts_with("kimage-install"))
+    {
+        "kimage-install"
+    } else {
+        "kimage"
+    };
+    let matches = Cli::command().name(name).get_matches();
+    match Cli::from_arg_matches(&matches)?.command {
         Command::Verify { archive, root } => {
             let image = verified(&archive, &root)?;
             println!("{}", serde_json::to_string(image.root())?);
@@ -293,6 +312,19 @@ async fn main() -> Result<()> {
                 );
             }
             println!("{}", serde_json::to_string(image.root())?);
+        }
+        Command::Install {
+            install,
+            admission_credentials,
+            builder_credentials,
+        } => {
+            let bundle = install.source.resolve().await?;
+            kimage_control::install::Installer::new(
+                kimage_control::kubernetes::client().await?,
+                install.cluster.options(),
+            )?
+            .install(&bundle, &admission_credentials, &builder_credentials)
+            .await?;
         }
         Command::Bootstrap(args) | Command::Recover(args) => {
             let bundle = args.source.resolve().await?;
@@ -428,6 +460,42 @@ async fn main() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn standard_install_defaults_to_automatic_bundle_selection() {
+        let args = [
+            "kimage",
+            "install",
+            "--namespace",
+            "system",
+            "--application-namespace",
+            "apps",
+            "--installation",
+            "test",
+            "--node",
+            "node",
+            "--carrier",
+            "image@sha256:digest",
+            "--storage-class",
+            "local",
+            "--port",
+            "5001",
+            "--credentials",
+            "registry",
+            "--admission-credentials",
+            "admission",
+            "--builder-credentials",
+            "builder",
+        ];
+        let cli = Cli::try_parse_from(args).unwrap();
+        let Command::Install { install, .. } = cli.command else {
+            panic!("expected install")
+        };
+        assert!(install.source.bundle.is_none());
+        assert!(install.source.release.is_none());
+        assert!(!install.source.offline);
+        assert!(Cli::try_parse_from(&args[..args.len() - 2]).is_err());
+    }
 
     #[test]
     fn bundle_cli_preserves_local_pins_and_allows_exact_cached_releases() {

@@ -126,6 +126,14 @@ pub(crate) async fn validate_registry_leaf(dns: String, directory: &Path) -> Res
     .validate()
     .await
 }
+pub(crate) async fn validate_admission_leaf(dns: String, directory: &Path) -> Result<()> {
+    let leaf = Leaf::load("admission", dns, directory, &["resolution-key"])?;
+    ensure!(
+        leaf.values["resolution-key"].len() >= 32,
+        "InvalidResolutionKey"
+    );
+    leaf.validate().await
+}
 impl Installer {
     pub async fn renew_tls(&self, admission_credentials: &Path) -> Result<Value> {
         self.preflight().await?;

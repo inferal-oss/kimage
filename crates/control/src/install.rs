@@ -272,7 +272,7 @@ impl Installer {
         }
         Ok(())
     }
-    fn configuration(&self, bundle: &str) -> Result<String> {
+    pub(crate) fn configuration(&self, bundle: &str) -> Result<String> {
         Ok(kimage_core::oci::digest(&serde_json::to_vec(
             &json!({"namespace":self.options.namespace,"installation":self.options.installation,"node":self.options.node,"carrier":self.options.carrier,"storageClass":self.options.storage_class,"pvc":self.options.pvc,"port":self.options.port,"bundle":bundle,"applicationNamespace":self.options.application_namespace,"runtimeProfile":self.options.runtime_profile}),
         )?))

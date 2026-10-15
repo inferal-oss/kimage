@@ -24,17 +24,14 @@ With Rust 1.99.0 or newer and Cargo's bin directory on your PATH:
 
 ```
 cargo install kimage-control --version 0.2.0 --locked
-kimage-install --version
-kimage-install --help
-kimage-install bundle-fetch
-kimage-install bundle-check --offline
+kimage install --help
 ```
 
-No source checkout is needed. The package is `kimage-control`; the unrelated `kimage` crate belongs to another project. Add `--bin kimage-install` if you only want the installer.
+No source checkout is needed. The package is `kimage-control`; the unrelated `kimage` crate belongs to another project. Add `--bin kimage` if you only want the installer.
 
 | Command | Purpose |
 | --- | --- |
-| `kimage-install` | Verify, install, maintain, upgrade, and recover through Kubernetes APIs. |
+| `kimage`, `kimage-install` | Verify, install, maintain, upgrade, and recover through Kubernetes APIs. |
 | `kimage-operator` | Reconcile Images, build attempts, publication, and release metadata. |
 | `kimage-admission` | Resolve workload selectors and enforce retained-release policy. |
 | `kimage-gateway` / `kimage-proxy` | Authenticate registry traffic and serve node-local digest reads. |
@@ -42,13 +39,13 @@ No source checkout is needed. The package is `kimage-control`; the unrelated `ki
 
 Cargo compiles native commands for your machine. Official GitHub releases also provide prebuilt macOS/arm64 and Linux/amd64 installers and a complete Linux/amd64 component bundle. The installer fetches and verifies its matching release automatically; it does not provision a cluster. Gateway/proxy carry serving compatibility version `0.2.0`, independently of the Cargo package version.
 
-## Get the bundle, without packaging it
+## Automatic bundle delivery
 
-Every bundle-using phase fetches the official release matching this CLI's exact package version, then reuses a verified local cache. It never selects `latest`. To prepare the bundle before you have a kubeconfig:
+Every bundle-using phase fetches the official release matching this CLI's exact package version, then reuses a verified local cache. `kimage install` handles this automatically, with no separate fetch/check step. It never selects `latest`. Optional: to prepare the bundle before you have a kubeconfig:
 
 ```
-kimage-install bundle-fetch
-kimage-install bundle-check --offline
+kimage bundle-fetch
+kimage bundle-check --offline
 ```
 
 The fetch command prints JSON containing `bundle` (the verified directory) and `trustedInventory` (its `sha256:` digest). It does not access Kubernetes. GitHub Actions builds and attaches the full bundle, separate inventory, both native installers, checksums, and license notices to each release.
@@ -57,7 +54,7 @@ The fetch command prints JSON containing `bundle` (the verified directory) and `
 | --- | --- |
 | `--release 0.2.0` | Select an exact official release. Default: the installed CLI package version. Keep the same selection when resuming a phase. |
 | `--bundle-cache <directory>` | Override the cache. Default: XDG_CACHE_HOME/kimage/bundles when set; otherwise ~/Library/Caches/kimage/bundles on macOS or ~/.cache/kimage/bundles on Linux. |
-| `--offline` | Refuse network access. A missing release fails with guidance; cached content is still reverified. |
+| `--offline` | Prevent bundle downloads. A cache miss fails with guidance; cached content is still reverified. Cluster commands still require access to Kubernetes. |
 | `--bundle <directory>` | Use local bytes with a required independently trusted `--trusted-inventory sha256:<64-hex-digits>`. Cannot be combined with `--release`. |
 | `--trusted-inventory sha256:...` | Optionally pin the inventory even for an official download/cache entry. |
 
@@ -270,14 +267,13 @@ One retained PVC/registry is authoritative, with RWO/topology/capacity limits. T
 
 This is an explicit administrator workflow. Keep a current and previous trusted bundle independently of the cluster, plus issuer material and a working administrator kubeconfig. Start on a disposable supported development cluster.
 
-- **Fetch the official bundle:** run `kimage-install bundle-fetch`, or let the first phase fetch it. Keep an independent recovery copy of the verified directory and inventory digest.
 - **Prepare credentials:** separate registry, admission, and builder identities. See [credential files and service names](https://kimage.dev/docs/#credentials).
 - **Confirm prerequisites:** exact runtime profile, selected node, approved digest-pinned carrier already cached there, storage class or existing claim, distinct system/application namespaces, and an available loopback port at least 1024.
-- **Run phases:** `bootstrap`, `seed`, `handover`, `control-plane`, then `builder`. Preserve identical installation arguments for resume.
+- **Run one command:** `kimage install` fetches and verifies the bundle, then runs all standard phases. Preserve identical installation arguments for resume. Keep an independent recovery copy of the bundle and inventory digest.
 
 **Optional: build a custom bundle from source**
 
-Normal administrators use the official release fetch above. Maintainers and custom-bundle authors can use the repository packaging script with a prepared Linux/musl toolchain and independently authenticated upstream executables:
+Normal administrators use automatic release delivery. Maintainers and custom-bundle authors can use the repository packaging script with a prepared Linux/musl toolchain and independently authenticated upstream executables:
 
 ```
 cargo build --locked --offline --release \
@@ -295,7 +291,25 @@ kimage-install bundle-check --bundle dist/complete-linux-amd64 \
 
 Pass trusted inventory digests as `sha256:` followed by 64 lowercase hexadecimal characters. An adjacent checksum alone does not authenticate origin. Verification checks inventory bytes, ELF architecture/static linkage, and complete component OCI graphs before cluster mutation. Native executable delivery uses bounded ConfigMap chunks; credentials never enter the OCI archives.
 
-**Run the installation phases**
+### Install into the cluster
+
+Replace each placeholder with your approved value. No separate bundle-fetch, bundle-check, or phase commands are required.
+
+```
+kimage install \
+  --runtime-profile k3s \
+  --namespace kimage-system --application-namespace apps \
+  --installation dev --node <approved-node> \
+  --carrier <cached-image@sha256:digest> \
+  --storage-class <class> --port <loopback-port> \
+  --credentials <registry-directory> \
+  --admission-credentials <admission-directory> \
+  --builder-credentials <builder-directory>
+```
+
+The command validates all credential directories before bootstrap writes, then runs bootstrap, seed, handover, control plane, and the default builder. Rerun with identical arguments after interruption. It verifies the retained bundle and configuration checkpoints, resumes an interrupted handover, and checks readiness before continuing. `kimage-install` is a compatible alias.
+
+**Advanced: run individual phases**
 
 The following Bash function keeps the common arguments consistent. Replace every placeholder with your approved values; retain this configuration privately for resume/recovery. The example explicitly chooses the full-acceptance k3s profile.
 
@@ -442,7 +456,7 @@ python3 scripts/check-docs.py
 python3 scripts/check-site.py
 ```
 
-CI runs 57 Rust tests on macOS/arm64 and Linux/amd64 musl, plus formatting, Clippy, documentation/example checks, and package verification. These include parser/admission compatibility for readable colon and literal/encoded query ranges.
+CI runs 63 Rust tests on macOS/arm64 and Linux/amd64 musl, plus formatting, Clippy, documentation/example checks, and package verification. These include parser/admission compatibility for readable colon and literal/encoded query ranges.
 
 The separate owned two-node fixture passed installation, build/input matrices, normal uncached pulls, interruption and cold recovery, actual binary upgrade/rollback, and retained-release export. Those cluster harnesses are not ordinary CI jobs. Historical receipts predate later selector/CLI changes; they remain unchanged evidence for their recorded bundle.
 

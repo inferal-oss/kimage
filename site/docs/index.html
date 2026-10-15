@@ -47,7 +47,7 @@
             <p class="docs-nav-label">START HERE</p>
             <a href="#overview">The idea</a
             ><a href="#install">Install the CLI</a
-            ><a href="#bundle-delivery">Get the bundle</a
+            ><a href="#bundle-delivery">Bundle delivery</a
             ><a href="#quickstart">Your first image</a>
             <p class="docs-nav-label">DEFINE AND DELIVER</p>
             <a href="#image-api">Image reference</a
@@ -125,15 +125,12 @@
               With Rust 1.99.0 or newer and Cargo's bin directory on your PATH:
             </p>
             <pre><code>cargo install kimage-control --version 0.2.0 --locked
-kimage-install --version
-kimage-install --help
-kimage-install bundle-fetch
-kimage-install bundle-check --offline</code></pre>
+kimage install --help</code></pre>
             <p>
               No source checkout is needed. The package is
               <code>kimage-control</code>; the unrelated
               <code>kimage</code> crate belongs to another project. Add
-              <code>--bin kimage-install</code> if you only want the installer.
+              <code>--bin kimage</code> if you only want the installer.
             </p>
             <table>
               <thead>
@@ -144,7 +141,7 @@ kimage-install bundle-check --offline</code></pre>
               </thead>
               <tbody>
                 <tr>
-                  <td><code>kimage-install</code></td>
+                  <td><code>kimage</code>, <code>kimage-install</code></td>
                   <td>
                     Verify, install, maintain, upgrade, and recover through
                     Kubernetes APIs.
@@ -196,15 +193,17 @@ kimage-install bundle-check --offline</code></pre>
           </section>
 
           <section id="bundle-delivery">
-            <h2>Get the bundle, without packaging it</h2>
+            <h2>Automatic bundle delivery</h2>
             <p>
               Every bundle-using phase fetches the official release matching
               this CLI's exact package version, then reuses a verified local
-              cache. It never selects <code>latest</code>. To prepare the bundle
-              before you have a kubeconfig:
+              cache. <code>kimage install</code> handles this automatically,
+              with no separate fetch/check step. It never selects
+              <code>latest</code>. Optional: to prepare the bundle before you
+              have a kubeconfig:
             </p>
-            <pre><code>kimage-install bundle-fetch
-kimage-install bundle-check --offline</code></pre>
+            <pre><code>kimage bundle-fetch
+kimage bundle-check --offline</code></pre>
             <p>
               The fetch command prints JSON containing <code>bundle</code> (the
               verified directory) and <code>trustedInventory</code> (its
@@ -240,8 +239,9 @@ kimage-install bundle-check --offline</code></pre>
                 <tr>
                   <td><code>--offline</code></td>
                   <td>
-                    Refuse network access. A missing release fails with
-                    guidance; cached content is still reverified.
+                    Prevent bundle downloads. A cache miss fails with guidance;
+                    cached content is still reverified. Cluster commands still
+                    require access to Kubernetes.
                   </td>
                 </tr>
                 <tr>
@@ -770,12 +770,6 @@ exports:
             </p>
             <ol>
               <li>
-                <strong>Fetch the official bundle:</strong> run
-                <code>kimage-install bundle-fetch</code>, or let the first phase
-                fetch it. Keep an independent recovery copy of the verified
-                directory and inventory digest.
-              </li>
-              <li>
                 <strong>Prepare credentials:</strong> separate registry,
                 admission, and builder identities. See
                 <a href="#credentials">credential files and service names</a>.
@@ -788,16 +782,16 @@ exports:
                 least 1024.
               </li>
               <li>
-                <strong>Run phases:</strong> <code>bootstrap</code>,
-                <code>seed</code>, <code>handover</code>,
-                <code>control-plane</code>, then <code>builder</code>. Preserve
-                identical installation arguments for resume.
+                <strong>Run one command:</strong> <code>kimage install</code>
+                fetches and verifies the bundle, then runs all standard phases.
+                Preserve identical installation arguments for resume. Keep an
+                independent recovery copy of the bundle and inventory digest.
               </li>
             </ol>
             <details>
               <summary>Optional: build a custom bundle from source</summary>
               <p>
-                Normal administrators use the official release fetch above.
+                Normal administrators use automatic release delivery.
                 Maintainers and custom-bundle authors can use the repository
                 packaging script with a prepared Linux/musl toolchain and
                 independently authenticated upstream executables:
@@ -823,8 +817,31 @@ kimage-install bundle-check --bundle dist/complete-linux-amd64 \
                 the OCI archives.
               </p>
             </details>
+            <h3 id="standard-install">Install into the cluster</h3>
+            <p>
+              Replace each placeholder with your approved value. No separate
+              bundle-fetch, bundle-check, or phase commands are required.
+            </p>
+            <pre><code>kimage install \
+  --runtime-profile k3s \
+  --namespace kimage-system --application-namespace apps \
+  --installation dev --node &lt;approved-node&gt; \
+  --carrier &lt;cached-image@sha256:digest&gt; \
+  --storage-class &lt;class&gt; --port &lt;loopback-port&gt; \
+  --credentials &lt;registry-directory&gt; \
+  --admission-credentials &lt;admission-directory&gt; \
+  --builder-credentials &lt;builder-directory&gt;</code></pre>
+            <p>
+              The command validates all credential directories before bootstrap
+              writes, then runs bootstrap, seed, handover, control plane, and
+              the default builder. Rerun with identical arguments after
+              interruption. It verifies the retained bundle and configuration
+              checkpoints, resumes an interrupted handover, and checks readiness
+              before continuing. <code>kimage-install</code> is a compatible
+              alias.
+            </p>
             <details>
-              <summary>Run the installation phases</summary>
+              <summary>Advanced: run individual phases</summary>
               <p>
                 The following Bash function keeps the common arguments
                 consistent. Replace every placeholder with your approved values;
@@ -1287,7 +1304,7 @@ cargo test --locked --workspace
 python3 scripts/check-docs.py
 python3 scripts/check-site.py</code></pre>
             <p>
-              CI runs 57 Rust tests on macOS/arm64 and Linux/amd64 musl, plus
+              CI runs 63 Rust tests on macOS/arm64 and Linux/amd64 musl, plus
               formatting, Clippy, documentation/example checks, and package
               verification. These include parser/admission compatibility for
               readable colon and literal/encoded query ranges.

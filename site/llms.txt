@@ -27,25 +27,27 @@ Administrator-managed builder isolation is not a hostile tenant security claim.
 
 ```sh
 cargo install kimage-control --version 0.2.0 --locked
-kimage-install --version
-kimage-install --help
+kimage install --help
 ```
 
-This installs kimage-install, kimage-operator, kimage-admission, kimage-gateway,
-kimage-proxy, kimage-input, and kimage-exporter. Add --bin kimage-install for only
+This installs kimage, its compatible kimage-install alias, kimage-operator, kimage-admission, kimage-gateway,
+kimage-proxy, kimage-input, and kimage-exporter. Add --bin kimage for only
 the installer. The unrelated crate named `kimage` belongs to another project.
 Gateway/proxy report serving compatibility version 0.2.0, separately from Cargo
 package version 0.2.0. kimage-bootstrap is an unpublished internal bundle helper.
 
 **Official bundles and offline use.** No source checkout or packaging script is
-needed. `kimage-install bundle-fetch` downloads and verifies the exact official
+needed. `kimage install` automatically fetches, verifies, and caches the bundle,
+then runs bootstrap, seed, handover, control plane, and default builder setup.
+No separate fetch, check, or phase commands are required.
+Optional `kimage bundle-fetch` downloads and verifies the exact official
 GitHub release matching this CLI package version (0.2.0), never latest, without
 kubeconfig or cluster writes. It prints JSON {bundle: <verified-directory>,
 trustedInventory: <sha256-digest>}. All bundle-using phases use the same automatic
 selection and reverify cached files before reuse. `--release 0.2.0` pins an exact
 release; `--bundle-cache <directory>` overrides the private cache. Default cache:
 XDG_CACHE_HOME/kimage/bundles if set, otherwise ~/Library/Caches/kimage/bundles on
-macOS or ~/.cache/kimage/bundles on Linux. `--offline` refuses network access and
+macOS or ~/.cache/kimage/bundles on Linux. `--offline` prevents bundle downloads only (cluster commands still need Kubernetes) and
 fails clearly on a cache miss. Keep an independent bundle copy for recovery.
 
 The fixed official inferal-oss/kimage GitHub repository over verified HTTPS is
@@ -65,8 +67,8 @@ installers, inventories, checksums, and license notices as release assets.
 Official bundles start at 0.2.0; 0.1.0 has no downloadable bundle assets.
 
 ```sh
-kimage-install bundle-fetch
-kimage-install bundle-check --offline
+kimage bundle-fetch
+kimage bundle-check --offline
 ```
 
 **Cluster setup is a separate administrator prerequisite.** Automatic bundle
@@ -85,9 +87,26 @@ Required installation arguments are --runtime-profile, --namespace (system),
 digest already cached on that node), --storage-class, --port (at least 1024),
 --credentials (registry directory). Bundle selection is automatic; optionally add
 --release 0.2.0, or the local bundle/pin pair described above. Use an
-administrator kubeconfig. Preserve identical arguments across resumable phases:
-bootstrap, seed, handover, control-plane with --admission-credentials, then builder
-with --builder-credentials. Run `kimage-install <phase> --help` for exact flags.
+administrator kubeconfig. The standard command is:
+
+```sh
+kimage install \
+  --runtime-profile k3s \
+  --namespace kimage-system --application-namespace apps \
+  --installation dev --node <approved-node> \
+  --carrier <cached-image@sha256:digest> \
+  --storage-class <class> --port <loopback-port> \
+  --credentials <registry-directory> \
+  --admission-credentials <admission-directory> \
+  --builder-credentials <builder-directory>
+```
+
+All credential directories are checked before bootstrap writes. Preserve identical
+arguments to resume after interruption. Existing ownership, bundle and configuration
+checkpoints are checked; partial handovers resume rather than restart bootstrap.
+Individual phase commands remain available for advanced/recovery use:
+bootstrap, seed, handover, control-plane, builder. `kimage-install` is an alias.
+Run `kimage install --help` for exact flags.
 No SSH, runtime socket, host filesystem mount, or node trust-store edit is used.
 Missing carrier or incompatible namespace policy fails rather than falling back.
 
@@ -267,7 +286,7 @@ Check catalog/node sample completeness and timestamps before using gauges.
 Admission is read-only; publishers and readers have distinct credentials.
 Eligible node administrators are trusted readers; namespace routing is not
 hostile-tenant image confidentiality. Native clients keep TLS verification on.
-57 Rust tests run on macOS/arm64 and Linux/amd64 musl. Separate two-node
+63 Rust tests run on macOS/arm64 and Linux/amd64 musl. Separate two-node
 acceptance harnesses cover lifecycle/recovery/binary rollback/export and are not
 ordinary CI; historical live bundles predate the latest selector/CLI metadata.
 

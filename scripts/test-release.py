@@ -94,6 +94,8 @@ class ReleaseTests(unittest.TestCase):
                     self.assertTrue(entry.isfile())
                     self.assertEqual(entry.mtime, 0)
                     self.assertEqual(archive.extractfile(entry).read(), (bundle / entry.name).read_bytes())
+            for platform, installer in json.loads((bundle / 'inventory.json').read_text())['installers'].items():
+                self.assertEqual((first / f'kimage-v0.2.0-{platform}').read_bytes(), (bundle / installer['file']).read_bytes())
             for line in (first / 'SHA256SUMS').read_text().splitlines():
                 checksum, name = line.split('  ')
                 self.assertEqual(checksum, hashlib.sha256((first / name).read_bytes()).hexdigest())

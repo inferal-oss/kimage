@@ -6,7 +6,11 @@
   bundle, its inventory and checksums, and native Linux/amd64 and macOS/arm64
   installers as GitHub release assets. Administrators no longer need to package
   their own bundle for the supported profile.
-- `kimage-install` automatically fetches the exact official release matching its
+- `kimage install` runs the standard setup phases in one resumable command. It
+  validates all credential directories before bootstrap writes and avoids
+  repeating bootstrap after a partial handover. `kimage-install` remains a
+  compatible alias with the same commands.
+- The installer automatically fetches the exact official release matching its
   package version, verifies GitHub asset digests, inventory, static executables,
   and complete OCI graphs, and caches it before Kubernetes access.
 - `bundle-fetch` prepares an installation or air-gap transfer without kubeconfig;
@@ -21,8 +25,7 @@
 
 ```sh
 cargo install kimage-control --version 0.2.0 --locked
-kimage-install bundle-fetch
-kimage-install bundle-check --offline
+kimage install --help
 ```
 
 The supported Kubernetes/runtime, persistent storage, cached carrier, issuer
