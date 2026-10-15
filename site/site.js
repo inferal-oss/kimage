@@ -36,11 +36,11 @@ const copy = document.getElementById("copy-command");
 copy.addEventListener("click", async () => {
   try {
     await navigator.clipboard.writeText(
-      "git clone https://github.com/inferal-oss/kimage.git",
+      "cargo install kimage-control --version 0.1.0 --locked",
     );
     copy.textContent = "Copied ✓";
     document.getElementById("copy-status").textContent =
-      "Git clone command copied.";
+      "Cargo install command copied.";
     setTimeout(() => {
       copy.textContent = "Copy ⧉";
     }, 2200);

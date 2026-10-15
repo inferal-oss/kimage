@@ -1,6 +1,11 @@
 use clap::Parser;
 use std::path::PathBuf;
 #[derive(Parser)]
+#[command(
+    name = "kimage-admission",
+    version,
+    about = "Resolve kimage image selectors to verified digest-pinned Pod images"
+)]
 struct Args {
     #[arg(long)]
     builder_image: Option<String>,

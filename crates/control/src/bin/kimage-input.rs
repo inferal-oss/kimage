@@ -3,6 +3,11 @@ use anyhow::{Context, Result, ensure};
 use clap::{Parser, Subcommand};
 use std::{fs::File, io::Write, path::PathBuf};
 #[derive(Parser)]
+#[command(
+    name = "kimage-input",
+    version,
+    about = "Capture bounded kimage build inputs and OCI archives"
+)]
 struct Args {
     #[command(subcommand)]
     command: Command,

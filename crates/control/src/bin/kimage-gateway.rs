@@ -1,7 +1,7 @@
 use clap::Parser;
 use std::{net::SocketAddr, path::PathBuf};
 #[derive(Parser)]
-#[command(version = kimage_control::serving::VERSION)]
+#[command(name = "kimage-gateway", version = kimage_control::serving::VERSION)]
 struct Args {
     #[arg(long, default_value = "[::]:5443")]
     listen: SocketAddr,

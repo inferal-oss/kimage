@@ -14,6 +14,11 @@ use std::{
     time::Duration,
 };
 #[derive(Parser)]
+#[command(
+    name = "kimage-operator",
+    version,
+    about = "Reconcile kimage images, builds, and retained releases"
+)]
 struct Args {
     #[arg(long, requires = "builder_image")]
     installation: Option<String>,

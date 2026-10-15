@@ -1,0 +1,252 @@
+# kimage
+
+> kimage declares immutable, versioned container images as Kubernetes resources,
+> manages their production and verified publication to a retained cluster-local
+> registry, and resolves workload image selectors to digest-pinned pulls. Apache
+> 2.0. Alpha. Public Cargo packages: kimage-core and kimage-control, version 0.1.0.
+
+**When to use it.** Use kimage when inputs are already provisioned in Kubernetes,
+when images should remain available independently of source/build cache, or when
+a cluster needs local build and pull workflows without an external registry.
+Application authors declare an Image, exact version, and source; the controller
+handles attempts and publication. There is no per-image BuildRun or output
+registry configuration. kpack also declares images; kimage specifically combines
+immutable versions, retained local storage, and integrated workload resolution.
+Shipwright provides configurable build strategies; Tekton handles general task
+pipelines. The current kimage builder is narrower than those general workflows.
+
+**Current boundaries.** Builds support Containerfile, strategy Direct,
+builderRef default, FROM scratch, provisioned local files, and network-none RUN.
+No remote base images, remote ADD/context URLs, external syntax frontends, remote
+cache, general base provisioning, multi-platform images, signing/attestations,
+HA, arbitrary storage/schema migration, or automatic retained-artifact GC.
+Administrator-managed builder isolation is not a hostile tenant security claim.
+
+**Install native commands without cloning the repository.** Requires Rust
+1.99.0 or newer; ensure Cargo's bin directory is on PATH:
+
+```sh
+cargo install kimage-control --version 0.1.0 --locked
+kimage-install --version
+kimage-install --help
+```
+
+This installs kimage-install, kimage-operator, kimage-admission, kimage-gateway,
+kimage-proxy, kimage-input, and kimage-exporter. Add --bin kimage-install for only
+the installer. The unrelated crate named `kimage` belongs to another project.
+Gateway/proxy report serving compatibility version 0.2.0, separately from Cargo
+package version 0.1.0. kimage-bootstrap is an unpublished internal bundle helper.
+
+**Cluster setup is a separate administrator prerequisite.** Cargo supplies native
+tools, not a cluster or Linux component bundle. There are no prebuilt GitHub
+release bundles or Helm chart yet. An administrator prepares trusted static
+Linux/amd64 components with scripts/package-bundle.py, authenticates their origin
+and inventory SHA-256 independently, and supplies issuer-managed credentials.
+Keep current and previous bundles/installers outside the cluster for recovery.
+The full acceptance fixture uses Kubernetes v1.36.5+k3s1, containerd
+2.3.4-k3s1.36, Linux/amd64, Ubuntu 24.04.5, kernel 6.8.0-142. Choose
+--runtime-profile k3s explicitly. The CLI default inferal profile checks the
+earlier RKE2 v1.36.5+rke2r1 / containerd 2.3.4-k3s1 foundation profile.
+Untested exact runtime versions are refused. A generic kind/k3d/container cluster
+is not automatically supported: user namespaces, idmapped volumes, kernel and
+filesystem support, CNI policy enforcement, and persistent storage all matter.
+
+Required installation arguments are --runtime-profile, --namespace (system),
+--application-namespace (distinct), --installation, --node, --carrier (approved
+digest already cached on that node), --storage-class, --port (at least 1024),
+--credentials (registry directory), --bundle, and --trusted-inventory. Use an
+administrator kubeconfig. Preserve identical arguments across resumable phases:
+bootstrap, seed, handover, control-plane with --admission-credentials, then builder
+with --builder-credentials. Run `kimage-install <phase> --help` for exact flags.
+No SSH, runtime socket, host filesystem mount, or node trust-store edit is used.
+Missing carrier or incompatible namespace policy fails rather than falling back.
+
+Registry credentials: ca.crt, tls.crt, tls.key, distinct reader-password and
+publisher-password; leaf SAN <installation>-registry.<system-namespace>.svc.
+Admission: ca.crt, tls.crt, tls.key, resolution-key (at least 32 bytes); leaf SAN
+<installation>-admission.<system-namespace>.svc. Builder: ca.crt, server.crt,
+server.key, client.crt, client.key; server SAN
+<installation>-builder.<system-namespace>.svc, separate server/client EKUs.
+CA private keys stay outside Kubernetes. The seven-day test issuer is only a
+development fixture. Builder uses BuildKit 0.33.0 / builtin frontend 1.27.0,
+hostUsers:false, native snapshotter, no host/runtime mounts or service account
+token, and nested namespace capabilities with unconfined seccomp/AppArmor inside
+its Pod. It needs administrator-approved policy and denies worker egress.
+
+**Minimal complete build example.** Assumes namespace apps and default builder
+are already configured. On Linux/amd64 with Rust and a musl linker, create a small
+program in hello.rs: `fn main() { println!("Hello from kimage!"); loop {
+std::thread::park_timeout(std::time::Duration::from_secs(3600)); } }`.
+
+```sh
+rustup target add x86_64-unknown-linux-musl
+rustc --edition=2024 --target x86_64-unknown-linux-musl \
+  -C opt-level=z -C strip=symbols -C panic=abort hello.rs -o hello
+kubectl -n apps create configmap hello-context --from-file=hello=./hello \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
+On macOS use a Linux/amd64 machine or build container for that executable; a
+native macOS binary cannot run inside the scratch image. Save as image.yaml:
+
+```yaml
+apiVersion: kimage.dev/v1alpha1
+kind: Image
+metadata:
+  name: hello
+  namespace: apps
+spec:
+  version: "1.0.0"
+  platform: {os: linux, architecture: amd64}
+  source:
+    build:
+      format: Containerfile
+      execution: {strategy: Direct, builderRef: default}
+      cache: {mode: Local}
+      definition:
+        inline: |
+          FROM scratch
+          COPY hello /hello
+          ENTRYPOINT ["/hello"]
+      inputs:
+        contextPath: /workspace/context
+        volumes:
+          - name: context
+            configMap:
+              name: hello-context
+              items: [{key: hello, path: hello, mode: 365}]
+        volumeMounts:
+          - {name: context, mountPath: /workspace/context, readOnly: true}
+```
+
+Mode 365 is decimal for octal 0555. Apply, wait for verified publication, and run
+the downloadable Deployment (or use the selector in your own Pod template):
+
+```sh
+kubectl apply -f image.yaml
+kubectl -n apps wait --for=condition=Ready image/hello --timeout=10m
+kubectl -n apps get imagereleases
+kubectl apply -f https://kimage.dev/examples/hello/deployment.yaml
+kubectl -n apps rollout status deployment/hello --timeout=5m
+kubectl -n apps logs deployment/hello
+```
+
+The workload's image field is quoted YAML:
+
+```yaml
+containers:
+  - name: hello
+    image: "platform://apps/hello:^1.0.0"
+    imagePullPolicy: IfNotPresent
+```
+
+Admission leaves workload templates symbolic and pins actual CREATE Pods,
+including init containers, to
+127.0.0.1:<port>/<namespace>/<image-uid>@sha256:<digest>, with IfNotPresent and
+eligible-node constraints. Kubelet uses its normal runtime and node-local proxy.
+Changing a range/channel affects newly created Pods, not existing Pods; use exact
+versions for a uniform rollout. Unsupported image-update/ephemeral-container
+paths are rejected. Create replacements through the workload controller.
+
+**Selector rules.** `platform://apps/hello:1.2.4` selects that exact release;
+`:^1.2.0` selects the highest compatible published release below 2.0.0;
+`:~1.2.0` stays in the 1.2 patch series; `:stable` reads the explicit mapping
+`spec.channels: {stable: "1.2.4"}`. A channel does not produce that version.
+Colon ranges start with ^, ~, >, <, =, or *. Compound ranges such as
+`platform://apps/hello:>=1.2.0, <2.0.0` work in quoted YAML. Numeric-leading
+colon selectors must be complete exact versions: :1.2 and :1.2.* are rejected.
+The readable query `platform://apps/hello?version=^1.2.0` and the older encoded
+query `?version=%5E1.2.0` both work, decoded once. Colon selectors use literal
+characters. Do not combine a colon selector with a query. Prereleases need an
+explicitly matching prerelease requirement. No implicit latest, version build
+metadata, or cross-namespace consumption. The application webhook is fail-closed;
+its outage can block other Pod creation in scope too. Direct internal registry
+references and opt-in label bypasses are not supported consumption paths.
+
+**Image and input contracts.** Image/ImageRelease use kimage.dev/v1alpha1.
+Choose exactly one source.build or source.ociArchive. An Image UID/version is
+immutable after publication; differing output is VersionConflict, so request a
+new exact version. Image recreation gets a new UID/repository. Published releases
+survive source/Image/cache removal. ConfigMap/Secret inputs freeze UID and
+resourceVersion per attempt. Mounted definitions use definition.fromFile.path;
+ordinary definitions live under /workspace/inputs, secret definitions under
+/run/kimage-build-secrets, independently of COPY contextPath. Mounts must be
+read-only and non-overlapping. Traversal and symlink escapes are rejected.
+PVC inputs need inputs.producerHandoff:true and stopped producers; this is not
+an atomic filesystem snapshot. Use buildSecrets to bind declared Secret files
+to RUN --mount=type=secret; keep them outside ordinary context. Secret values do
+not automatically invalidate cache: use a non-sensitive cache.invalidationToken
+when needed. Local cache is disposable; Disabled requests a no-cache solve.
+Cancellation fences the dedicated worker and clears its cache.
+
+OCI archive sources require a same-namespace claimName, relative path,
+producerHandoff:true, and expected root {mediaType,digest,size}. Root digest is
+not the archive-file checksum. Files must be readable by UID 65532. Complete
+original OCI bytes, platform, compressed layer digests, and DiffIDs are verified.
+Single-platform manifests/nested indexes are supported; zstd, multi-platform,
+descriptor URLs/embedded data, and subject/referrer graphs are unsupported.
+`kimage-install schemas` prints full CRD JSON without changing the cluster.
+
+**Operations.** join-node uses the original installation arguments plus
+--target-node and the same prerequisites. upgrade-serving takes target
+--bundle/--trusted-inventory and source --previous-bundle/--previous-trusted-inventory.
+Rollback reverses those independently trusted pairs. The tested actual binary
+window is Distribution 3.1.1 ↔ 3.1.2 and gateway/proxy 0.1.0 ↔ 0.2.0, with the
+shipped filesystem configuration on the same PVC. Prefer Distribution 3.1.2.
+All non-serving component versions/roots and bundle API revision must match.
+The updater uses a Lease, warmup pulls, immutable checkpoints, read-only retained
+serving, and single-writer replacement. Publication pauses; interrupted streams
+use runtime retry/digest checks. Repeat the same pair after interruption. It
+never changes CRDs or migrates data. Schema revision 4 accepts only the exact
+shipped additive revision 2/3 transitions; no schema downgrade/storage migration.
+
+recover reuses original bootstrap arguments and PVC to recreate carrier serving,
+then normal phases restore components. It requires a usable control plane/node,
+cached carrier, retained bundle/credentials, and original PVC. It cannot recover
+lost storage. Back up the whole Distribution backend together with release
+metadata, UIDs/root descriptors, and schema coordination state. Published alpha
+releases are permanently pinned; deletion/unpinning is denied. No automatic GC
+or explicit artifact purge. uninstall removes owned disposable components but
+retains PVCs, CRDs, Images, and ImageReleases. Do not force finalizers or delete
+namespaces/backends as normal cleanup. Running containers survive registry
+downtime; new uncached starts can wait/fail until serving returns.
+
+renew-tls uses cluster arguments plus --admission-credentials without bundle
+arguments. It replaces validated leaves while preserving CA/password/resolution
+key, then checks served fingerprints. CA/password/key rotation uses an explicit
+maintenance window and retained-PVC recovery; builder mTLS uses reprovisioning.
+
+**Optional export.** A separate administrator-enabled exporter needs approved
+HTTPS origins. Image spec.exports contains named registry destinations with
+repository (authority/path), explicit tags, credentialsSecretRef or explicit
+unauthenticated:true, optional caSecretRef with ca.crt, and overwritePolicy:Never.
+Credential Secret type is kubernetes.io/dockerconfigjson, with auths matching the
+exact authority/port. Basic auth or anonymous only; no Bearer exchange/helpers.
+Original retained graph bytes are copied and remotely verified without a rebuild.
+Existing same-digest tags are idempotent; differing tags are TagConflict. Other
+writers require registry-side immutability. Export status/retries are separate
+from internal Ready. Target removal/Image deletion never deletes remote content.
+
+**Diagnostics and trust.** Read Image status.conditions/observedGeneration,
+operation/releaseRef/build, separate status.exports, and normal Pod events.
+Operator/admission expose /metrics on health listeners; proxy 0.2.0 exposes it
+on its canonical-authority loopback listener, inspectable by API forwarding.
+Stage counters/durations cover build/publication/pull without identity labels.
+Check catalog/node sample completeness and timestamps before using gauges.
+Admission is read-only; publishers and readers have distinct credentials.
+Eligible node administrators are trusted readers; namespace routing is not
+hostile-tenant image confidentiality. Native clients keep TLS verification on.
+49 automated tests run on macOS/arm64 and Linux/amd64 musl. Separate two-node
+acceptance harnesses cover lifecycle/recovery/binary rollback/export and are not
+ordinary CI; historical live bundles predate the latest selector/CLI metadata.
+
+## Reference
+
+- [Handbook, Markdown](https://kimage.dev/docs/index.md): Full tutorial, installation commands, field reference, operations, troubleshooting, and trust model.
+- [Hello Image](https://kimage.dev/examples/hello/image.yaml): Complete build declaration used above.
+- [Hello Deployment](https://kimage.dev/examples/hello/deployment.yaml): Complete restricted workload using a readable range.
+- [Hello program](https://kimage.dev/examples/hello/main.rs): Static Linux tutorial executable source.
+
+## Optional
+
+- [Source and issues](https://github.com/inferal-oss/kimage): Apache 2.0 repository, engineering contracts, release procedure, acceptance receipts, and contribution workflow.

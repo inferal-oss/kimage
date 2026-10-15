@@ -1,0 +1,27 @@
+apiVersion: kimage.dev/v1alpha1
+kind: Image
+metadata:
+  name: hello
+  namespace: apps
+spec:
+  version: "1.0.0"
+  platform: {os: linux, architecture: amd64}
+  source:
+    build:
+      format: Containerfile
+      execution: {strategy: Direct, builderRef: default}
+      cache: {mode: Local}
+      definition:
+        inline: |
+          FROM scratch
+          COPY hello /hello
+          ENTRYPOINT ["/hello"]
+      inputs:
+        contextPath: /workspace/context
+        volumes:
+          - name: context
+            configMap:
+              name: hello-context
+              items: [{key: hello, path: hello, mode: 365}]
+        volumeMounts:
+          - {name: context, mountPath: /workspace/context, readOnly: true}

@@ -2,6 +2,11 @@ use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
 use std::path::PathBuf;
 #[derive(Parser)]
+#[command(
+    name = "kimage-install",
+    version,
+    about = "Install, verify, upgrade, and recover a kimage installation through Kubernetes APIs"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Command,

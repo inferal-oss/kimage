@@ -3,10 +3,11 @@
 **Declare the images your Kubernetes cluster needs.**
 
 [![CI](https://github.com/inferal-oss/kimage/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/inferal-oss/kimage/actions/workflows/ci.yml)
+[![crates.io](https://img.shields.io/crates/v/kimage-control.svg)](https://crates.io/crates/kimage-control)
 [![Rust](https://img.shields.io/badge/Rust-1.99.0-DEA584?logo=rust)](https://www.rust-lang.org/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-[Website](https://kimage.dev) · [Documentation](docs/operations.md) · [Tutorial](#tutorial-build-and-run-a-hello-image)
+[Website](https://kimage.dev) · [Documentation](https://kimage.dev/docs/) · [Tutorial](#tutorial-build-and-run-a-hello-image)
 
 kimage lets you define an image, its version, and how to produce it as a Kubernetes
 `Image` resource. The controller handles build attempts, verifies the resulting
@@ -123,20 +124,25 @@ component boundaries and trust assumptions.
 
 ## Getting started
 
-### Build the tools
+### Install the tools
 
-Install [Rust 1.99.0](https://www.rust-lang.org/tools/install), then:
+Install [Rust 1.99.0 or newer](https://www.rust-lang.org/tools/install), then install
+the native commands directly from crates.io. No source checkout is needed:
 
 ```sh
-git clone https://github.com/inferal-oss/kimage.git
-cd kimage
-cargo build --locked --release --workspace --bins
-./target/release/kimage-install --help
+cargo install kimage-control --version 0.1.0 --locked
+kimage-install --help
+kimage-install --version
 ```
 
-This builds binaries for your machine. Cluster components need static
-Linux/amd64 builds; building the native installer on a Mac does not build those
-components for Linux.
+This installs `kimage-install`, `kimage-operator`, `kimage-admission`,
+`kimage-gateway`, `kimage-proxy`, `kimage-input`, and `kimage-exporter`. To install
+only the native installer, add `--bin kimage-install`. Ensure Cargo's bin directory
+is on your `PATH`.
+
+The crates.io package is **`kimage-control`**; the `kimage` crate belongs to a
+separate project. Cargo builds tools for your machine. Cluster components still
+need a trusted Linux/amd64 bundle, independent of the native CLI installation.
 
 ### Prepare a cluster
 
@@ -154,10 +160,23 @@ The tutorial below assumes an application namespace named `apps` has been
 configured by the installer and `builderRef: default` is ready. Use a disposable
 development cluster for your first installation.
 
+The [hello example](examples/hello) can be downloaded separately from GitHub;
+a repository checkout is optional for the installed commands.
+
 ## Tutorial: build and run a hello image
 
 The [example](examples/hello) copies a small static program into a scratch image,
 publishes version `1.0.0`, and runs it through a readable range selector.
+
+If you installed the commands with Cargo, download just the tutorial files:
+
+```sh
+mkdir -p examples/hello
+for file in main.rs image.yaml deployment.yaml; do
+  curl --fail --location --output "examples/hello/$file" \
+    "https://kimage.dev/examples/hello/$file"
+done
+```
 
 ### 1. Compile the program
 
@@ -279,6 +298,17 @@ garbage collection are future work.
 
 ## Development and CI
 
+To build from source instead of installing from crates.io:
+
+```sh
+git clone https://github.com/inferal-oss/kimage.git
+cd kimage
+cargo build --locked --release --workspace --bins
+```
+
+The tutorial's relative paths assume these example files are in your current
+directory. Run the source checks from the repository root:
+
 ```sh
 cargo fmt --all --check
 cargo clippy --locked --workspace --all-targets -- -D warnings
@@ -308,6 +338,7 @@ changing supported behavior.
 - [Acceptance ledger](docs/status.md) and [requirements audit](docs/requirements-audit.md)
 - [Original implementation brief](docs/implementation-prompt.md)
 - [Website source and deployment](site/README.md)
+- [Release procedure](docs/releasing.md) and [changelog](CHANGELOG.md)
 
 ## License
 

@@ -3,6 +3,15 @@ name = "kimage-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+rust-version.workspace = true
+homepage.workspace = true
+repository.workspace = true
+description = "OCI verification, immutable image releases, and version selection for kimage"
+documentation = "https://docs.rs/kimage-core"
+readme = "README.md"
+keywords = ["kubernetes", "oci", "images", "registry", "build"]
+categories = ["development-tools::build-utils"]
+include = ["src/**", "Cargo.toml", "README.md", "LICENSE"]
 
 [dependencies]
 anyhow.workspace = true

@@ -3,9 +3,18 @@ name = "kimage-control"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+rust-version.workspace = true
+homepage.workspace = true
+repository.workspace = true
+description = "Kubernetes-native image production, verified delivery, and lifecycle management"
+documentation = "https://kimage.dev/docs/"
+readme = "README.md"
+keywords = ["kubernetes", "oci", "images", "registry", "build"]
+categories = ["command-line-utilities", "development-tools::build-utils"]
+include = ["src/**", "schemas/**", "examples/**", "tests/**", "Cargo.toml", "README.md", "LICENSE"]
 
 [dependencies]
-kimage-core = { path = "../core" }
+kimage-core = { version = "=0.1.0", path = "../core" }
 anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true

@@ -2,6 +2,16 @@
 
 Buildless HTML, CSS, JavaScript, and an original SVG mark. No package installation
 or build step is needed. Edit `index.html`, `style.css`, and `site.js` directly.
+The handbook lives in `docs/index.html` with its own `docs/docs.css`. It uses
+ordinary anchors and native details panels. A small progressive enhancement
+collapses the contents on mobile; the full page also works without JavaScript.
+After editing its content, run `python3 scripts/export-site-docs.py` to regenerate
+the clean Markdown download. The HTML is the source of truth; CI rejects drift.
+
+`llms.txt` contains the essential agent context and a complete build example,
+followed by a few optional references. Keep it useful without additional fetching.
+The downloadable `examples/hello/` files must stay byte-identical to the repository
+examples; static checks enforce this. Regenerate copies when editing the examples.
 
 Preview from the repository root:
 
@@ -14,6 +24,7 @@ Open `http://127.0.0.1:8876/`. Validate before publishing:
 ```sh
 python3 scripts/check-site.py
 node --check site/site.js
+node --check site/docs/docs.js
 ```
 
 The `Website` GitHub Actions workflow validates and uploads `site/`, then deploys
@@ -28,5 +39,7 @@ Only the apex domain is configured. Custom-domain settings live in
 GitHub Pages, not a CNAME file in this Actions artifact.
 
 The browser QA covers desktop/mobile layout, tab selection with mouse and
-keyboard, anchor navigation, and copying the clone command. Manifest snippets
+keyboard, anchor navigation, and copying the Cargo install command. It also covers
+the handbook's table of contents, details panels, Markdown download, and mobile
+overflow. Manifest snippets
 are labeled as excerpts; the complete hello example lives in `examples/hello/`.

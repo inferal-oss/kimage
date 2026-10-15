@@ -28,7 +28,11 @@ def anchors(path):
 
 
 errors = []
-documents = [ROOT / 'README.md', *sorted((ROOT / 'docs').rglob('*.md'))]
+documents = [
+    ROOT / 'README.md', ROOT / 'CHANGELOG.md', ROOT / 'site' / 'README.md',
+    *sorted((ROOT / 'docs').rglob('*.md')),
+    *sorted((ROOT / 'crates').glob('*/README.md')),
+]
 links = 0
 for document in documents:
     for match in re.finditer(r'!?\[[^\]\n]*\]\(([^\s)]+)\)', document.read_text()):

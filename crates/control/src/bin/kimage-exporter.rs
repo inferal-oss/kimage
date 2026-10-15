@@ -3,6 +3,11 @@ use clap::Parser;
 use futures::StreamExt;
 use std::{collections::BTreeSet, path::PathBuf, sync::Arc, time::Duration};
 #[derive(Parser)]
+#[command(
+    name = "kimage-exporter",
+    version,
+    about = "Export retained kimage releases to approved external registries"
+)]
 struct Args {
     #[arg(long)]
     namespace: String,

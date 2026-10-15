@@ -49,6 +49,9 @@ jobs:
           python3 scripts/check-docs.py
           python3 scripts/check-site.py
           node --check site/site.js
+          node --check site/docs/docs.js
+      - name: Verify publishable crates
+        run: cargo +1.99.0 package --locked --workspace --exclude kimage-bootstrap
 
   test:
     name: Tests (${{ matrix.platform }})
