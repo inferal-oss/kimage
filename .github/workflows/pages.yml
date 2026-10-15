@@ -7,8 +7,12 @@ on:
       - site/**
       - scripts/check-site.py
       - scripts/export-site-docs.py
+      - scripts/site-release-ready.py
+      - Cargo.toml
       - .github/workflows/pages.yml
   workflow_dispatch:
+  repository_dispatch:
+    types: [release-published]
 
 permissions:
   contents: read
@@ -23,6 +27,8 @@ jobs:
     name: Validate and package website
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    outputs:
+      release_ready: ${{ steps.release.outputs.ready }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -32,14 +38,22 @@ jobs:
           python3 scripts/check-site.py
           node --check site/site.js
           node --check site/docs/docs.js
+      - name: Wait for public install artifacts before changing the website
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/site-release-ready.py
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+        if: steps.release.outputs.ready == 'true'
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        if: steps.release.outputs.ready == 'true'
         with:
           path: site
 
   deploy:
     name: Deploy to GitHub Pages
     needs: build
+    if: needs.build.outputs.release_ready == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:

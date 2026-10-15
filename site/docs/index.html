@@ -47,6 +47,7 @@
             <p class="docs-nav-label">START HERE</p>
             <a href="#overview">The idea</a
             ><a href="#install">Install the CLI</a
+            ><a href="#bundle-delivery">Get the bundle</a
             ><a href="#quickstart">Your first image</a>
             <p class="docs-nav-label">DEFINE AND DELIVER</p>
             <a href="#image-api">Image reference</a
@@ -84,10 +85,9 @@
           </p>
           <div class="docs-callout">
             <strong>Alpha, with a specific supported profile.</strong> The CLI
-            can be installed independently. Setting up a cluster still needs an
-            administrator, a trusted component bundle, and the runtime
-            prerequisites below. There is no one-command cluster installer or
-            prebuilt release bundle yet.
+            automatically fetches verified official release bundles. Cluster
+            setup still needs an administrator, issuer credentials, persistent
+            storage, a cached carrier, and the runtime prerequisites below.
           </div>
 
           <section id="overview">
@@ -124,9 +124,11 @@
             <p>
               With Rust 1.99.0 or newer and Cargo's bin directory on your PATH:
             </p>
-            <pre><code>cargo install kimage-control --version 0.1.0 --locked
+            <pre><code>cargo install kimage-control --version 0.2.0 --locked
 kimage-install --version
-kimage-install --help</code></pre>
+kimage-install --help
+kimage-install bundle-fetch
+kimage-install bundle-check --offline</code></pre>
             <p>
               No source checkout is needed. The package is
               <code>kimage-control</code>; the unrelated
@@ -183,12 +185,108 @@ kimage-install --help</code></pre>
               </tbody>
             </table>
             <p>
-              Cargo compiles native commands for your machine. It does not
-              supply the Linux component bundle or provision a cluster.
-              macOS/arm64 and Linux/amd64 musl are the tested native client
-              platforms. Gateway/proxy report serving compatibility version
-              <code>0.2.0</code>, independently of Cargo package version
-              <code>0.1.0</code>.
+              Cargo compiles native commands for your machine. Official GitHub
+              releases also provide prebuilt macOS/arm64 and Linux/amd64
+              installers and a complete Linux/amd64 component bundle. The
+              installer fetches and verifies its matching release automatically;
+              it does not provision a cluster. Gateway/proxy carry serving
+              compatibility version <code>0.2.0</code>, independently of the
+              Cargo package version.
+            </p>
+          </section>
+
+          <section id="bundle-delivery">
+            <h2>Get the bundle, without packaging it</h2>
+            <p>
+              Every bundle-using phase fetches the official release matching
+              this CLI's exact package version, then reuses a verified local
+              cache. It never selects <code>latest</code>. To prepare the bundle
+              before you have a kubeconfig:
+            </p>
+            <pre><code>kimage-install bundle-fetch
+kimage-install bundle-check --offline</code></pre>
+            <p>
+              The fetch command prints JSON containing <code>bundle</code> (the
+              verified directory) and <code>trustedInventory</code> (its
+              <code>sha256:</code> digest). It does not access Kubernetes.
+              GitHub Actions builds and attaches the full bundle, separate
+              inventory, both native installers, checksums, and license notices
+              to each release.
+            </p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Option</th>
+                  <th>Behavior</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>--release 0.2.0</code></td>
+                  <td>
+                    Select an exact official release. Default: the installed CLI
+                    package version. Keep the same selection when resuming a
+                    phase.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>--bundle-cache &lt;directory&gt;</code></td>
+                  <td>
+                    Override the cache. Default: XDG_CACHE_HOME/kimage/bundles
+                    when set; otherwise ~/Library/Caches/kimage/bundles on macOS
+                    or ~/.cache/kimage/bundles on Linux.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>--offline</code></td>
+                  <td>
+                    Refuse network access. A missing release fails with
+                    guidance; cached content is still reverified.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>--bundle &lt;directory&gt;</code></td>
+                  <td>
+                    Use local bytes with a required independently trusted
+                    <code>--trusted-inventory sha256:&lt;64-hex-digits&gt;</code
+                    >. Cannot be combined with <code>--release</code>.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>--trusted-inventory sha256:...</code></td>
+                  <td>
+                    Optionally pin the inventory even for an official
+                    download/cache entry.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p>
+              Online trust comes from the fixed official
+              <code>inferal-oss/kimage</code> repository over verified HTTPS:
+              GitHub's API supplies each asset's SHA-256 and size. The client
+              restricts download origins, verifies the compressed archive,
+              rejects path traversal/links/duplicates and oversized entries, and
+              checks the inventory, static executables, and complete OCI graphs
+              before cluster mutation. Only a fully verified directory enters
+              the cache atomically. Public downloads need no token. If API rate
+              limits require authentication,
+              <code>KIMAGE_GITHUB_TOKEN</code> applies only to the fixed
+              metadata endpoint; it is never sent to asset downloads or
+              redirects.
+            </p>
+            <p>
+              For an air gap, transfer the fetched <code>bundle</code> directory
+              and its inventory digest through your approved channel, then
+              supply both local arguments to the installation phases. Keep an
+              independent copy for recovery when GitHub is unavailable. Cache
+              corruption fails closed; preserve your trusted recovery copy
+              before explicitly removing an invalid cache entry and refetching.
+            </p>
+            <p>
+              Official bundle assets start at <code>0.2.0</code>. Fetching
+              <code>0.1.0</code> cannot supply assets that were never released;
+              use its independently retained local bundle and installer instead.
             </p>
           </section>
 
@@ -672,9 +770,10 @@ exports:
             </p>
             <ol>
               <li>
-                <strong>Prepare the bundle:</strong> Linux/amd64 static
-                components, pinned Distribution and BuildKit, OCI archives,
-                inventory, and independently delivered inventory SHA-256.
+                <strong>Fetch the official bundle:</strong> run
+                <code>kimage-install bundle-fetch</code>, or let the first phase
+                fetch it. Keep an independent recovery copy of the verified
+                directory and inventory digest.
               </li>
               <li>
                 <strong>Prepare credentials:</strong> separate registry,
@@ -696,12 +795,12 @@ exports:
               </li>
             </ol>
             <details>
-              <summary>Build and verify a component bundle</summary>
+              <summary>Optional: build a custom bundle from source</summary>
               <p>
-                Cargo installation supplies the native CLI. Bundle preparation
-                currently needs the repository's packaging script and a prepared
-                Linux/musl toolchain, plus independently authenticated upstream
-                executables. No prebuilt GitHub release bundles are supplied.
+                Normal administrators use the official release fetch above.
+                Maintainers and custom-bundle authors can use the repository
+                packaging script with a prepared Linux/musl toolchain and
+                independently authenticated upstream executables:
               </p>
               <pre><code>cargo build --locked --offline --release \
   --target x86_64-unknown-linux-musl --workspace --bins
@@ -713,7 +812,7 @@ python3 scripts/package-bundle.py \
   --include-installers --macos-installer &lt;macos-arm64-installer&gt; \
   --out dist/complete-linux-amd64
 kimage-install bundle-check --bundle dist/complete-linux-amd64 \
-  --trusted-inventory &lt;independently-trusted-sha256&gt;</code></pre>
+  --trusted-inventory sha256:&lt;independently-trusted-64-hex-digits&gt;</code></pre>
               <p>
                 Pass trusted inventory digests as <code>sha256:</code> followed
                 by 64 lowercase hexadecimal characters. An adjacent checksum
@@ -740,8 +839,7 @@ kimage-install bundle-check --bundle dist/complete-linux-amd64 \
     --carrier &lt;cached-image@sha256:digest&gt; \
     --storage-class &lt;class&gt; --port &lt;loopback-port&gt; \
     --credentials &lt;registry-credential-directory&gt; \
-    --bundle &lt;trusted-bundle&gt; \
-    --trusted-inventory &lt;trusted-inventory-sha256&gt;
+    --release 0.2.0
 }
 ki bootstrap
 ki seed
@@ -828,6 +926,13 @@ kimage-install upgrade-serving &lt;installation-arguments&gt; \
             </p>
           </section>
 
+          <p class="docs-callout">
+            The serving-only updater requires identical non-serving component
+            versions and roots. Whole 0.1.0 and 0.2.0 release bundles differ
+            there; automatic fetching does not turn them into a general
+            operator/schema upgrade or downgrade path. Use matching
+            independently retained bundles for recovery.
+          </p>
           <section id="recovery">
             <h2>Recovery, backups, and retention</h2>
             <p>
@@ -1182,8 +1287,8 @@ cargo test --locked --workspace
 python3 scripts/check-docs.py
 python3 scripts/check-site.py</code></pre>
             <p>
-              CI runs 49 automated tests on macOS/arm64 and Linux/amd64 musl,
-              plus formatting, Clippy, documentation/example checks, and package
+              CI runs 57 Rust tests on macOS/arm64 and Linux/amd64 musl, plus
+              formatting, Clippy, documentation/example checks, and package
               verification. These include parser/admission compatibility for
               readable colon and literal/encoded query ranges.
             </p>
@@ -1217,7 +1322,7 @@ python3 scripts/check-site.py</code></pre>
           </section>
         </article>
         <div class="docs-end">
-          <span>kimage 0.1.0 handbook</span><a href="#main">Back to top ↑</a>
+          <span>kimage 0.2.0 handbook</span><a href="#main">Back to top ↑</a>
         </div>
       </main>
     </div>

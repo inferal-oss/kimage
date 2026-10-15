@@ -9,6 +9,7 @@ pub mod preflight;
 pub mod proxy;
 pub mod reconcile;
 pub mod registry;
+pub mod release_bundle;
 pub mod retention;
 pub mod schema;
 pub mod serving;

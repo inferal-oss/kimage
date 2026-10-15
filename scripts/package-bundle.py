@@ -5,6 +5,7 @@ import hashlib
 import io
 import json
 import pathlib
+import re
 import shutil
 import struct
 import tarfile
@@ -84,6 +85,10 @@ def main():
     p.add_argument('--registry', type=pathlib.Path, required=True)
     p.add_argument('--registry-version', choices=['3.1.1', '3.1.2'], default='3.1.2')
     p.add_argument('--serving-version', choices=['0.1.0', '0.2.0'], default='0.2.0')
+    workspace = (pathlib.Path(__file__).resolve().parents[1] / 'Cargo.toml').read_text()
+    component_version = re.search(r'(?ms)^\[workspace\.package\]\s*\n.*?^version\s*=\s*"([^"]+)"', workspace)[1]
+    p.add_argument('--component-version', default=component_version,
+                   help='version of operator/admission/input/exporter; defaults to workspace version')
     p.add_argument('--gateway', type=pathlib.Path, help='override serving executable, leaving control-plane components unchanged')
     p.add_argument('--proxy', type=pathlib.Path, help='override serving executable, leaving control-plane components unchanged')
     p.add_argument('--out', type=pathlib.Path, required=True)
@@ -93,6 +98,7 @@ def main():
     p.add_argument('--include-installers', action='store_true')
     p.add_argument('--buildkit-dir', type=pathlib.Path)
     a = p.parse_args()
+    assert re.fullmatch(r'\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?', a.component_version)
     if a.serving_revision:
         assert 1 <= len(a.serving_revision) <= 128 and all(c.isalnum() or c in '.-_' for c in a.serving_revision)
     a.out.mkdir(parents=True, exist_ok=True)
@@ -112,7 +118,7 @@ def main():
         executable.chmod(0o755)
         archive = a.out / (name + '.oci.tar')
         root = image(executable, archive, executable.name, revision=a.serving_revision if name in ['registry', 'gateway', 'proxy'] else None)
-        version = a.registry_version if name == 'registry' else a.serving_version if name in ['gateway', 'proxy'] else '0.1.0'
+        version = a.registry_version if name == 'registry' else a.serving_version if name in ['gateway', 'proxy'] else a.component_version
         components[name] = dict(version=version,
                                 executable=entry(executable), archive=entry(archive), root=root)
     if a.buildkit_dir:

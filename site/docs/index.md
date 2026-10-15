@@ -2,7 +2,7 @@
 
 A practical guide to producing, retaining, and delivering images inside Kubernetes. Start with the CLI and a small example; use the reference sections when you need them.
 
-**Alpha, with a specific supported profile.** The CLI can be installed independently. Setting up a cluster still needs an administrator, a trusted component bundle, and the runtime prerequisites below. There is no one-command cluster installer or prebuilt release bundle yet.
+**Alpha, with a specific supported profile.** The CLI automatically fetches verified official release bundles. Cluster setup still needs an administrator, issuer credentials, persistent storage, a cached carrier, and the runtime prerequisites below.
 
 ## The idea
 
@@ -23,9 +23,11 @@ A release belongs to an Image UID and exact version. Once published, different c
 With Rust 1.99.0 or newer and Cargo's bin directory on your PATH:
 
 ```
-cargo install kimage-control --version 0.1.0 --locked
+cargo install kimage-control --version 0.2.0 --locked
 kimage-install --version
 kimage-install --help
+kimage-install bundle-fetch
+kimage-install bundle-check --offline
 ```
 
 No source checkout is needed. The package is `kimage-control`; the unrelated `kimage` crate belongs to another project. Add `--bin kimage-install` if you only want the installer.
@@ -38,7 +40,32 @@ No source checkout is needed. The package is `kimage-control`; the unrelated `ki
 | `kimage-gateway` / `kimage-proxy` | Authenticate registry traffic and serve node-local digest reads. |
 | `kimage-input` / `kimage-exporter` | Capture inputs and optionally copy retained releases to another registry. |
 
-Cargo compiles native commands for your machine. It does not supply the Linux component bundle or provision a cluster. macOS/arm64 and Linux/amd64 musl are the tested native client platforms. Gateway/proxy report serving compatibility version `0.2.0`, independently of Cargo package version `0.1.0`.
+Cargo compiles native commands for your machine. Official GitHub releases also provide prebuilt macOS/arm64 and Linux/amd64 installers and a complete Linux/amd64 component bundle. The installer fetches and verifies its matching release automatically; it does not provision a cluster. Gateway/proxy carry serving compatibility version `0.2.0`, independently of the Cargo package version.
+
+## Get the bundle, without packaging it
+
+Every bundle-using phase fetches the official release matching this CLI's exact package version, then reuses a verified local cache. It never selects `latest`. To prepare the bundle before you have a kubeconfig:
+
+```
+kimage-install bundle-fetch
+kimage-install bundle-check --offline
+```
+
+The fetch command prints JSON containing `bundle` (the verified directory) and `trustedInventory` (its `sha256:` digest). It does not access Kubernetes. GitHub Actions builds and attaches the full bundle, separate inventory, both native installers, checksums, and license notices to each release.
+
+| Option | Behavior |
+| --- | --- |
+| `--release 0.2.0` | Select an exact official release. Default: the installed CLI package version. Keep the same selection when resuming a phase. |
+| `--bundle-cache <directory>` | Override the cache. Default: XDG_CACHE_HOME/kimage/bundles when set; otherwise ~/Library/Caches/kimage/bundles on macOS or ~/.cache/kimage/bundles on Linux. |
+| `--offline` | Refuse network access. A missing release fails with guidance; cached content is still reverified. |
+| `--bundle <directory>` | Use local bytes with a required independently trusted `--trusted-inventory sha256:<64-hex-digits>`. Cannot be combined with `--release`. |
+| `--trusted-inventory sha256:...` | Optionally pin the inventory even for an official download/cache entry. |
+
+Online trust comes from the fixed official `inferal-oss/kimage` repository over verified HTTPS: GitHub's API supplies each asset's SHA-256 and size. The client restricts download origins, verifies the compressed archive, rejects path traversal/links/duplicates and oversized entries, and checks the inventory, static executables, and complete OCI graphs before cluster mutation. Only a fully verified directory enters the cache atomically. Public downloads need no token. If API rate limits require authentication, `KIMAGE_GITHUB_TOKEN` applies only to the fixed metadata endpoint; it is never sent to asset downloads or redirects.
+
+For an air gap, transfer the fetched `bundle` directory and its inventory digest through your approved channel, then supply both local arguments to the installation phases. Keep an independent copy for recovery when GitHub is unavailable. Cache corruption fails closed; preserve your trusted recovery copy before explicitly removing an invalid cache entry and refetching.
+
+Official bundle assets start at `0.2.0`. Fetching `0.1.0` cannot supply assets that were never released; use its independently retained local bundle and installer instead.
 
 ## Your first image
 
@@ -168,9 +195,9 @@ For the complete generated CRD schemas, run `kimage-install schemas`. This print
 
 Declare read-only ConfigMap, Secret, or PVC volumes and mounts. ConfigMap/Secret selections are frozen at their UID/resourceVersion into attempt-owned immutable objects. Context files and the Containerfile have separate roots: moving a mounted definition does not change what `COPY` can read.
 
-- **Ordinary context:** map text/binary keys and modes beneath the declared `contextPath`. Overlap, traversal, writable inputs, unsupported volume sources, and symlink escapes are rejected. 
-- **Mounted definitions:** ConfigMap paths live below `/workspace/inputs`; Secret paths below `/run/kimage-build-secrets`. Select the file using `definition.fromFile.path`. 
-- **PVC capture:** set `inputs.producerHandoff: true`, stop producers, use a read-only claim/mount, and optionally select `subPath`. Known writers and binding/placement changes are checked. This is a handoff contract, not an atomic filesystem snapshot. 
+- **Ordinary context:** map text/binary keys and modes beneath the declared `contextPath`. Overlap, traversal, writable inputs, unsupported volume sources, and symlink escapes are rejected.
+- **Mounted definitions:** ConfigMap paths live below `/workspace/inputs`; Secret paths below `/run/kimage-build-secrets`. Select the file using `definition.fromFile.path`.
+- **PVC capture:** set `inputs.producerHandoff: true`, stop producers, use a read-only claim/mount, and optionally select `subPath`. Known writers and binding/placement changes are checked. This is a handoff contract, not an atomic filesystem snapshot.
 - **Secret bindings:** `buildSecrets: [{id: token, sourceFile: /run/kimage-build-secrets/auth/token}]` binds a declared Secret file to `RUN --mount=type=secret,id=token ...`.
 
 Secret files stay outside the ordinary context; secret definition bytes and sensitive fingerprints stay out of normal logs, status, and release provenance. A recipe can still deliberately write a secret to its output. Avoid credentials in recipe literals, image history, or ordinary context files.
@@ -243,14 +270,14 @@ One retained PVC/registry is authoritative, with RWO/topology/capacity limits. T
 
 This is an explicit administrator workflow. Keep a current and previous trusted bundle independently of the cluster, plus issuer material and a working administrator kubeconfig. Start on a disposable supported development cluster.
 
-- **Prepare the bundle:** Linux/amd64 static components, pinned Distribution and BuildKit, OCI archives, inventory, and independently delivered inventory SHA-256. 
-- **Prepare credentials:** separate registry, admission, and builder identities. See [credential files and service names](https://kimage.dev/docs/#credentials). 
-- **Confirm prerequisites:** exact runtime profile, selected node, approved digest-pinned carrier already cached there, storage class or existing claim, distinct system/application namespaces, and an available loopback port at least 1024. 
+- **Fetch the official bundle:** run `kimage-install bundle-fetch`, or let the first phase fetch it. Keep an independent recovery copy of the verified directory and inventory digest.
+- **Prepare credentials:** separate registry, admission, and builder identities. See [credential files and service names](https://kimage.dev/docs/#credentials).
+- **Confirm prerequisites:** exact runtime profile, selected node, approved digest-pinned carrier already cached there, storage class or existing claim, distinct system/application namespaces, and an available loopback port at least 1024.
 - **Run phases:** `bootstrap`, `seed`, `handover`, `control-plane`, then `builder`. Preserve identical installation arguments for resume.
 
-**Build and verify a component bundle**
+**Optional: build a custom bundle from source**
 
-Cargo installation supplies the native CLI. Bundle preparation currently needs the repository's packaging script and a prepared Linux/musl toolchain, plus independently authenticated upstream executables. No prebuilt GitHub release bundles are supplied.
+Normal administrators use the official release fetch above. Maintainers and custom-bundle authors can use the repository packaging script with a prepared Linux/musl toolchain and independently authenticated upstream executables:
 
 ```
 cargo build --locked --offline --release \
@@ -263,7 +290,7 @@ python3 scripts/package-bundle.py \
   --include-installers --macos-installer <macos-arm64-installer> \
   --out dist/complete-linux-amd64
 kimage-install bundle-check --bundle dist/complete-linux-amd64 \
-  --trusted-inventory <independently-trusted-sha256>
+  --trusted-inventory sha256:<independently-trusted-64-hex-digits>
 ```
 
 Pass trusted inventory digests as `sha256:` followed by 64 lowercase hexadecimal characters. An adjacent checksum alone does not authenticate origin. Verification checks inventory bytes, ELF architecture/static linkage, and complete component OCI graphs before cluster mutation. Native executable delivery uses bounded ConfigMap chunks; credentials never enter the OCI archives.
@@ -281,8 +308,7 @@ ki() {
     --carrier <cached-image@sha256:digest> \
     --storage-class <class> --port <loopback-port> \
     --credentials <registry-credential-directory> \
-    --bundle <trusted-bundle> \
-    --trusted-inventory <trusted-inventory-sha256>
+    --release 0.2.0
 }
 ki bootstrap
 ki seed
@@ -317,13 +343,15 @@ A renewable Lease and immutable checkpoints serialize the transition. Replacemen
 
 Repeat the same transition after an interrupted installer's Lease expires. A checkpoint can restore a missing writer while read-only serving remains. If both serving paths are lost, use retained-bundle recovery first. The command never downgrades CRDs or migrates persisted data; other binary/storage transitions are refused.
 
+The serving-only updater requires identical non-serving component versions and roots. Whole 0.1.0 and 0.2.0 release bundles differ there; automatic fetching does not turn them into a general operator/schema upgrade or downgrade path. Use matching independently retained bundles for recovery.
+
 ## Recovery, backups, and retention
 
 `recover` with the original bootstrap arguments recreates carrier serving on the same PVC when ordinary serving is absent. Continue with seed/handover and the configured control-plane, builder, and joined-node phases. Independent bundles, cached carrier, usable nodes/control plane, and the original PVC remain prerequisites.
 
-- **Back up together:** the entire Distribution backend, ImageRelease metadata and UIDs/root descriptors, and schema coordination state. Cache directories and source archives do not replace this backup. 
-- **Verify retained bytes:** `verify-remote` downloads and validates a complete graph without its source archive. Use `kimage-install verify-remote --help` for descriptor, repository, TLS, and authenticated API-forwarding arguments. 
-- **Retain releases:** published releases have permanent alpha pins. The retention webhook denies deletion/unpinning; no automatic release/blob GC or explicit artifact purge is implemented. 
+- **Back up together:** the entire Distribution backend, ImageRelease metadata and UIDs/root descriptors, and schema coordination state. Cache directories and source archives do not replace this backup.
+- **Verify retained bytes:** `verify-remote` downloads and validates a complete graph without its source archive. Use `kimage-install verify-remote --help` for descriptor, repository, TLS, and authenticated API-forwarding arguments.
+- **Retain releases:** published releases have permanent alpha pins. The retention webhook denies deletion/unpinning; no automatic release/blob GC or explicit artifact purge is implemented.
 - **Uninstall:** removes owned disposable serving/configuration with UID/resourceVersion guards and keeps PVCs, CRDs, Images, and ImageReleases. It never deletes remote content.
 
 Do not force-remove finalizers or delete the namespace/backend as ordinary cleanup. Administrator bypass, forced deletion, namespace deletion, and storage-provider loss are outside the retention guarantee. Recovery cannot repair a lost PVC or unavailable Kubernetes control plane.
@@ -414,7 +442,7 @@ python3 scripts/check-docs.py
 python3 scripts/check-site.py
 ```
 
-CI runs 49 automated tests on macOS/arm64 and Linux/amd64 musl, plus formatting, Clippy, documentation/example checks, and package verification. These include parser/admission compatibility for readable colon and literal/encoded query ranges.
+CI runs 57 Rust tests on macOS/arm64 and Linux/amd64 musl, plus formatting, Clippy, documentation/example checks, and package verification. These include parser/admission compatibility for readable colon and literal/encoded query ranges.
 
 The separate owned two-node fixture passed installation, build/input matrices, normal uncached pulls, interruption and cold recovery, actual binary upgrade/rollback, and retained-release export. Those cluster harnesses are not ordinary CI jobs. Historical receipts predate later selector/CLI changes; they remain unchanged evidence for their recorded bundle.
 

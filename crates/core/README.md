@@ -11,7 +11,7 @@ for supported formats, runtime profiles, and limits.
 For the native installer and operational commands, install `kimage-control`:
 
 ```sh
-cargo install kimage-control --version 0.1.0 --locked
+cargo install kimage-control --version 0.2.0 --locked
 ```
 
 Licensed under Apache License 2.0.

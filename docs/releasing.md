@@ -1,80 +1,113 @@
 # Releasing kimage
 
-The public packages are `kimage-core` and `kimage-control`. The latter installs
-the seven native commands, including `kimage-install`. `kimage-bootstrap` is an
-internal component-bundle helper and has publishing disabled. The unrelated
-`kimage` package name on crates.io belongs to another project.
+The public packages are `kimage-core` and `kimage-control`; the latter installs
+seven commands. `kimage-bootstrap` is an unpublished internal bundle helper.
+The unrelated `kimage` crate belongs to another project.
 
-## Prepare
+## Prepare the source
 
-Update the workspace version and the exact `kimage-core` dependency in the control
-manifest together. Update the install commands, crate READMEs, changelog, and site
-for the intended version. Keep both crate copies of `LICENSE` identical to the
-root Apache 2.0 license.
+Update the workspace version and exact core dependency together, then update
+Cargo.lock, crate READMEs, README, changelog, handbook, website commands, and
+llms.txt. Keep the two crate licenses identical to the root Apache 2.0 license.
+Gateway/proxy retain a separate serving compatibility version, currently 0.2.0;
+a Cargo release does not implicitly change that binary compatibility contract.
 
 ```sh
 cargo fmt --all --check
 cargo clippy --locked --workspace --all-targets -- -D warnings
 cargo test --locked --workspace
+python3 scripts/test-release.py
+python3 scripts/check-docs.py
+python3 scripts/check-site.py
 cargo publish --dry-run --locked --workspace --exclude kimage-bootstrap
 ```
 
-Also run Linux/musl tests using the prepared toolchain. Inspect `target/package/`
-and confirm the archives contain sources, schemas, crate READMEs, and licenses,
-with no local fixture state or credentials. The normal CI workflow verifies both
-publishable packages by extracting and compiling them.
+Run the supported Linux/musl tests too. Commit and push the reviewed source to
+main. The website validates the new documentation immediately but holds its
+deployment until both crates and the complete GitHub release bundle are public.
+This prevents the live quickstart from advertising an unavailable installation.
 
-Gateway and proxy binaries carry a serving compatibility version, currently
-`0.2.0`, independent of the initial `0.1.0` Cargo package release. Preserve that
-version contract when changing command metadata.
+## Build and review release assets
 
-## Publish and verify
-
-Use an authenticated crates.io account authorized to publish these names. Keep
-tokens out of source files, shell arguments, logs, and chat. Configure Cargo with
-`cargo login` interactively or a suitable credential provider, then publish from
-the clean release commit:
+The pinned `publish.yml` workflow can preview a build from main without
+publication or a publishing credential:
 
 ```sh
-cargo publish --locked --workspace --exclude kimage-bootstrap
+gh workflow run publish.yml --ref main -f dry_run=true
 ```
 
-Cargo publishes the dependency before the control package. If publication is
-interrupted, check which exact versions are already present before resuming with
-only the remaining package.
+It validates source and docs, builds Linux/amd64 musl components and the native
+Linux/amd64 and macOS/arm64 installers, downloads pinned upstream inputs, verifies
+the full inventory/OCI graphs, and uploads `release-assets` to the Actions run.
+The assets are:
 
-Verify installation from crates.io into an isolated prefix, then check all seven
-commands with `--help` and `--version`:
+- `kimage-bundle-v0.2.0-linux-amd64.tar.gz`, a complete flat offline bundle.
+- `kimage-bundle-v0.2.0-linux-amd64.inventory.json`, also inside the bundle.
+- `kimage-install-v0.2.0-linux-amd64` and `kimage-install-v0.2.0-darwin-arm64`.
+- `LICENSE`, `THIRD-PARTY-NOTICES.txt`, and `SHA256SUMS`.
+
+The input downloader checks pinned archive sizes/SHA-256 for Distribution 3.1.2
+and BuildKit 0.33.0 before extracting only the named regular executables. Update
+those pins deliberately with upstream verification, not by accepting a newly
+adjacent checksum. The packer records the actual Cargo component version,
+separately from registry/serving/builder versions. The release job checks real
+binary version output and natively verifies the complete bundle before upload.
+
+## Tag, verify OIDC, and publish
+
+Create the version tag on the reviewed main commit, then dispatch a dry run:
 
 ```sh
-cargo install kimage-control --version 0.1.0 --locked \
-  --root .local/release-install
-.local/release-install/bin/kimage-install --version
+git tag -a v0.2.0 -m 'kimage 0.2.0'
+git push origin v0.2.0
+gh workflow run publish.yml --ref v0.2.0 -f dry_run=true
 ```
 
-Push the release commit and tag `v0.1.0`, publish the release notes, and confirm
-the site deployment. Installing the CLI does not provision a cluster or supply
-an offline component bundle. Those remain explicit installation prerequisites.
+Both crates trust only `inferal-oss/kimage`, workflow filename `publish.yml`, and
+environment `crates-io`. That environment permits only tags matching `v*`. The
+workflow additionally requires the tag to match the workspace version and its
+commit to be on main. Only the tagged publishing job receives OIDC and release
+write permissions. The official Rust authentication action exchanges GitHub's
+identity for a temporary crates.io token and revokes it afterward. No long-lived
+crates.io token is stored in GitHub secrets.
 
-## Trusted publishing
-
-Both crates trust only GitHub repository `inferal-oss/kimage`, workflow filename
-`publish.yml`, and environment `crates-io`. The GitHub environment permits only
-tags matching `v*`. No crates.io API token is stored in GitHub secrets.
-
-The workflow is manually dispatched on the intended release tag. It verifies
-that the tag matches the workspace version and its commit is on `main`, runs the
-source checks, then exchanges GitHub's OIDC identity for a short-lived publishing
-token using the pinned official Rust action. The action revokes it after the job.
-Use the default dry run first:
+After inspecting the dry run, publish the same tag:
 
 ```sh
-gh workflow run publish.yml --ref v0.1.0 -f dry_run=true
+gh workflow run publish.yml --ref v0.2.0 -f dry_run=false
 ```
 
-For a new, unpublished version, dispatch the matching tag with `dry_run=false`
-after review. This publishes both packages in dependency order. An already
-published version is immutable; do not attempt to republish it. Initial 0.1.0
-publication uses the local maintainer credential because the crates must exist
-before their trusted publisher can be registered. Inspect the first tagged OIDC
-dry run to verify federation without uploading the same release again.
+The job stages and hashes assets in a draft GitHub release, publishes core then
+control through OIDC, and finalizes the GitHub release only after Cargo succeeds.
+It runs the released Linux installer against the actual public GitHub download,
+checks offline reuse and the independently generated inventory digest, then
+dispatches the website deployment. Administrators can now fetch that exact bundle
+without a checkout, Python script, kubeconfig, or GitHub token.
+
+## Resume and verify
+
+A repeated run preserves exact existing assets and never clobbers different
+bytes. Crates are packaged and verified before checking publication state. An
+already uploaded version is accepted only if its checksum matches the exact
+candidate archive; a conflict stops the release. Partial publication can therefore
+resume without replacing a crate or exposing an incomplete draft asset set.
+Published release assets are treated as immutable. Do not move a published tag.
+
+Verify the consumer path on macOS as well as the workflow's Linux check:
+
+```sh
+cargo install kimage-control --version 0.2.0 --locked --root .local/release-install
+.local/release-install/bin/kimage-install bundle-fetch --bundle-cache .local/release-cache
+.local/release-install/bin/kimage-install bundle-check --bundle-cache .local/release-cache --offline
+```
+
+Check all seven installed commands with `--help` and `--version`, the release and
+site workflows, the live handbook/llms.txt, and a clean pushed main. For air gaps,
+transfer the verified `bundle` directory and inventory digest through the chosen
+trusted channel, then use `--bundle` and `--trusted-inventory sha256:...`.
+Cluster/runtime/TLS/carrier prerequisites still apply. Automatic bundle delivery
+does not create a general operator/schema upgrade or downgrade path.
+
+Initial 0.1.0 publication used a local maintainer credential to create the two
+crates before trusted publishers could be registered. That tag has no bundle
+assets; retain its independently trusted local bundles/installers for recovery.

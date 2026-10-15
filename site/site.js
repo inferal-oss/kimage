@@ -36,7 +36,7 @@ const copy = document.getElementById("copy-command");
 copy.addEventListener("click", async () => {
   try {
     await navigator.clipboard.writeText(
-      "cargo install kimage-control --version 0.1.0 --locked",
+      "cargo install kimage-control --version 0.2.0 --locked",
     );
     copy.textContent = "Copied ✓";
     document.getElementById("copy-status").textContent =

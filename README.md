@@ -132,9 +132,11 @@ Install [Rust 1.99.0 or newer](https://www.rust-lang.org/tools/install), then in
 the native commands directly from crates.io. No source checkout is needed:
 
 ```sh
-cargo install kimage-control --version 0.1.0 --locked
+cargo install kimage-control --version 0.2.0 --locked
 kimage-install --help
 kimage-install --version
+kimage-install bundle-fetch
+kimage-install bundle-check --offline
 ```
 
 This installs `kimage-install`, `kimage-operator`, `kimage-admission`,
@@ -143,20 +145,31 @@ only the native installer, add `--bin kimage-install`. Ensure Cargo's bin direct
 is on your `PATH`.
 
 The crates.io package is **`kimage-control`**; the `kimage` crate belongs to a
-separate project. Cargo builds tools for your machine. Cluster components still
-need a trusted Linux/amd64 bundle, independent of the native CLI installation.
+separate project. Cargo builds tools for your machine. The installer automatically
+downloads the
+official Linux/amd64 bundle for its exact package version, verifies GitHub asset
+digests, the inventory, executables, and OCI graphs, then caches it. No packaging
+script or checkout is needed. Prebuilt native installers are also available in
+[GitHub releases](https://github.com/inferal-oss/kimage/releases).
 
 ### Prepare a cluster
 
-Follow the [installation and operations guide](docs/operations.md) to package a
-trusted offline bundle, supply TLS credentials, and run the installer phases:
-`bootstrap`, `seed`, `handover`, `control-plane`, and `builder`.
+Follow the [cluster setup guide](https://kimage.dev/docs/#cluster-setup) to supply
+TLS credentials and run the installer phases: `bootstrap`, `seed`, `handover`,
+`control-plane`, and `builder`. They fetch or reuse the verified bundle automatically.
+`bundle-fetch` can prepare it before you have a kubeconfig.
 
 You need a supported Linux/amd64 cluster, administrator access, persistent
 storage, an approved carrier image already cached on the selected node, and
 kernel/runtime support for the builder's Kubernetes user namespace. The default
-builder uses BuildKit 0.33.0. Setup is currently an explicit administrator workflow;
-there are no prebuilt GitHub release bundles or Helm chart yet.
+builder uses BuildKit 0.33.0. Setup remains an explicit administrator workflow;
+there is no Helm chart yet.
+The release workflow builds and publishes the component bundle and both native
+installers. Select `--release 0.2.0` to pin a release explicitly, `--bundle-cache`
+to choose a cache directory, and `--offline` to require cached/local bytes. For
+air-gapped delivery, transfer the fetched bundle directory and use `--bundle` with
+its independently trusted `--trusted-inventory sha256:...`. See the
+[bundle delivery reference](https://kimage.dev/docs/#bundle-delivery).
 
 The tutorial below assumes an application namespace named `apps` has been
 configured by the installer and `builderRef: default` is ready. Use a disposable
@@ -320,7 +333,8 @@ python3 -m compileall -q scripts
 
 [GitHub Actions](https://github.com/inferal-oss/kimage/actions/workflows/ci.yml)
 runs formatting, Clippy, documentation/example checks, and the workspace tests
-on macOS/arm64 and Linux/amd64 musl. The current suite has 49 tests, including
+on macOS/arm64 and Linux/amd64 musl. Seven Python release-tooling tests verify
+pinned inputs, deterministic packaging, and immutable asset checks. The current Rust suite has 57 tests, including
 loopback HTTP and mocked Kubernetes API recovery regressions. Live cluster
 acceptance exercises installation, builds, two-node pulls, interruption/recovery,
 binary upgrades/rollback, and external export; those fixture tests are recorded

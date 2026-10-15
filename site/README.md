@@ -29,7 +29,9 @@ node --check site/docs/docs.js
 
 The `Website` GitHub Actions workflow validates and uploads `site/`, then deploys
 it to GitHub Pages. Pushes to `main` that change website files or its workflow
-trigger deployment; manual dispatch is also available. Pull requests get the
+trigger validation; deployment waits until the workspace version has public crates
+and official bundle assets. A successful release dispatches the website workflow
+automatically. Manual dispatch is also available. Pull requests get the
 static checks through the regular CI workflow without deploying.
 
 GitHub Pages is configured for Actions deployment and the canonical domain

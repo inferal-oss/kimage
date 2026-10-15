@@ -1,0 +1,158 @@
+#!/usr/bin/env python3
+"""Regression tests for release packaging, pinned inputs, and immutable assets."""
+import contextlib
+import hashlib
+import importlib.util
+import io
+import json
+from pathlib import Path
+import struct
+import sys
+import tarfile
+import tempfile
+import unittest
+from unittest.mock import patch
+
+SCRIPTS = Path(__file__).resolve().parent
+
+
+def module(name):
+    spec = importlib.util.spec_from_file_location(name, SCRIPTS / (name + '.py'))
+    result = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(result)
+    return result
+
+
+bundle_pack = module('package-bundle')
+release_pack = module('package-release')
+inputs = module('fetch-release-inputs')
+github = module('publish-github-release')
+site_ready = module('site-release-ready')
+
+
+def fixture(root):
+    linux, buildkit = root / 'linux', root / 'buildkit'
+    linux.mkdir()
+    buildkit.mkdir()
+    elf = bytearray(120)
+    elf[:6] = b'\x7fELF\x02\x01'
+    struct.pack_into('<H', elf, 18, 62)
+    struct.pack_into('<Q', elf, 32, 64)
+    struct.pack_into('<HH', elf, 54, 56, 1)
+    for name in ('bootstrap', 'install', 'gateway', 'proxy', 'operator', 'admission', 'input', 'exporter'):
+        (linux / ('kimage-' + name)).write_bytes(elf)
+    for name in ('buildkitd', 'buildctl', 'buildkit-runc'):
+        (buildkit / name).write_bytes(elf)
+    (root / 'registry').write_bytes(elf)
+    (root / 'macos').write_bytes(bytes([207, 250, 237, 254, 12, 0, 0, 1]) + b'\0' * 4 + bytes([2, 0, 0, 0]))
+    target = root / 'bundle'
+    arguments = ['package-bundle.py', '--linux-dir', str(linux), '--registry', str(root / 'registry'), '--buildkit-dir', str(buildkit), '--include-installers', '--macos-installer', str(root / 'macos'), '--component-version', '0.2.0', '--out', str(target)]
+    with patch.object(sys, 'argv', arguments), contextlib.redirect_stdout(io.StringIO()):
+        bundle_pack.main()
+    return target
+
+
+class ReleaseTests(unittest.TestCase):
+    def test_site_waits_for_both_crates_and_complete_public_bundle(self):
+        version = {'version': {'yanked': False}}
+        assets = [{'name': f'kimage-bundle-v0.2.0-linux-amd64{suffix}', 'state': 'uploaded', 'digest': 'sha256:fixture'} for suffix in ('.tar.gz', '.inventory.json')]
+        release = {'draft': False, 'assets': assets}
+        with patch.object(site_ready, 'get', side_effect=[version, None]):
+            self.assertFalse(site_ready.ready('0.2.0'))
+        with patch.object(site_ready, 'get', side_effect=[version, version, release]):
+            self.assertTrue(site_ready.ready('0.2.0'))
+        for incomplete in ({'draft': True, 'assets': assets}, {'draft': False, 'assets': assets[:1]}):
+            with patch.object(site_ready, 'get', side_effect=[version, version, incomplete]):
+                self.assertFalse(site_ready.ready('0.2.0'))
+
+    def test_bundle_components_carry_real_release_and_separate_serving_versions(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            target = fixture(Path(temporary))
+            inventory = json.loads((target / 'inventory.json').read_text())
+            self.assertEqual(inventory['components']['operator']['version'], '0.2.0')
+            self.assertEqual(inventory['components']['gateway']['version'], '0.2.0')
+            self.assertEqual(inventory['components']['registry']['version'], '3.1.2')
+            self.assertEqual(inventory['components']['builder']['version'], '0.33.0')
+            self.assertEqual(set(inventory['installers']), {'linux-amd64', 'darwin-arm64'})
+
+    def test_release_assets_are_deterministic_and_preserve_inventory_and_payloads(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            bundle = fixture(root)
+            (root / 'LICENSE').write_text('fixture license\n')
+            (root / 'CHANGELOG.md').write_text('# Changelog\n\n## 0.2.0\n\nRelease notes.\n')
+            with patch.object(release_pack, 'ROOT', root), contextlib.redirect_stdout(io.StringIO()):
+                release_pack.package(bundle, root / 'first', '0.2.0')
+                release_pack.package(bundle, root / 'second', '0.2.0')
+            first, second = root / 'first', root / 'second'
+            for file in first.iterdir():
+                self.assertEqual(file.read_bytes(), (second / file.name).read_bytes())
+            self.assertEqual((first / 'kimage-bundle-v0.2.0-linux-amd64.inventory.json').read_bytes(), (bundle / 'inventory.json').read_bytes())
+            with tarfile.open(first / 'kimage-bundle-v0.2.0-linux-amd64.tar.gz') as archive:
+                self.assertEqual(set(archive.getnames()), {file.name for file in bundle.iterdir()})
+                for entry in archive.getmembers():
+                    self.assertTrue(entry.isfile())
+                    self.assertEqual(entry.mtime, 0)
+                    self.assertEqual(archive.extractfile(entry).read(), (bundle / entry.name).read_bytes())
+            for line in (first / 'SHA256SUMS').read_text().splitlines():
+                checksum, name = line.split('  ')
+                self.assertEqual(checksum, hashlib.sha256((first / name).read_bytes()).hexdigest())
+
+    def test_packaging_refuses_wrong_versions_unlisted_files_and_corrupt_components(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = fixture(root)
+            with self.assertRaises(AssertionError):
+                release_pack.files_for(target, '9.0.0')
+            (target / 'unexpected').write_bytes(b'extra')
+            with self.assertRaises(AssertionError):
+                release_pack.files_for(target, '0.2.0')
+            (target / 'unexpected').unlink()
+            (target / 'kimage-input').write_bytes(b'corrupt')
+            with self.assertRaises(AssertionError):
+                release_pack.files_for(target, '0.2.0')
+
+    def test_upstream_extracts_only_named_regular_files(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            archive = root / 'upstream.tar.gz'
+            with tarfile.open(archive, 'w:gz') as tar:
+                header = tarfile.TarInfo('../outside')
+                header.size = 4
+                tar.addfile(header, io.BytesIO(b'evil'))
+                header = tarfile.TarInfo('bin/tool')
+                header.size = 4
+                tar.addfile(header, io.BytesIO(b'safe'))
+            inputs.extract(archive, {'bin/tool': 'tool'}, root / 'out')
+            self.assertEqual((root / 'out/tool').read_bytes(), b'safe')
+            self.assertFalse((root / 'outside').exists())
+            with tarfile.open(archive, 'w:gz') as tar:
+                header = tarfile.TarInfo('bin/tool')
+                header.type, header.linkname = tarfile.SYMTYPE, '../outside'
+                tar.addfile(header)
+            with self.assertRaises(AssertionError):
+                inputs.extract(archive, {'bin/tool': 'tool'}, root / 'out')
+
+    def test_upstream_cache_rechecks_size_and_content(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'archive'
+            path.write_bytes(b'content')
+            checksum = hashlib.sha256(b'content').hexdigest()
+            self.assertTrue(inputs.verified(path, 7, checksum))
+            path.write_bytes(b'changed')
+            self.assertFalse(inputs.verified(path, 7, checksum))
+            self.assertFalse(inputs.verified(path, 8, checksum))
+
+    def test_github_asset_resume_refuses_conflicting_bytes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'asset'
+            path.write_bytes(b'expected')
+            value = {'assets': [{'name': 'asset', 'size': 8, 'digest': github.sha256(path), 'state': 'uploaded'}]}
+            github.verify_assets(value, [path])
+            path.write_bytes(b'differen')
+            with self.assertRaises(AssertionError):
+                github.verify_assets(value, [path])
+
+
+if __name__ == '__main__':
+    unittest.main()

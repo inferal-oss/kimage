@@ -330,9 +330,10 @@
             <h2>Start small.<br />See the whole path.</h2>
           </div>
           <p>
-            Install the native commands with Cargo, without a source checkout.
-            The hello tutorial takes a static executable through a scratch
-            build, a retained release, and a running Deployment.
+            Install the native commands with Cargo and fetch the official
+            bundle, without a source checkout or packaging script. The hello
+            tutorial takes a static executable through a scratch build, a
+            retained release, and a running Deployment.
           </p>
         </div>
         <div class="quickstart">
@@ -342,8 +343,8 @@
               <div>
                 <h3>Prepare a development cluster</h3>
                 <p>
-                  Install the trusted bundle, control plane, and default builder
-                  using the operations guide.
+                  Fetch the official verified bundle, then install the control
+                  plane and default builder using the handbook.
                 </p>
               </div>
             </div>
@@ -384,8 +385,8 @@
             </div>
             <pre><code><span class="comment"># Rust 1.99.0</span>
 <span class="prompt">$</span> cargo install kimage-control \
-    --version 0.1.0 --locked
-<span class="prompt">$</span> kimage-install --help
+    --version 0.2.0 --locked
+<span class="prompt">$</span> kimage-install bundle-fetch
 
 <span class="comment"># After cluster setup and input preparation</span>
 <span class="prompt">$</span> kubectl apply -f examples/hello/image.yaml
@@ -423,7 +424,7 @@
         </div>
         <div class="alpha-facts">
           <span>Native macOS + Linux installers</span
-          ><span>49 tests on macOS + Linux/musl</span
+          ><span>57 tests on macOS + Linux/musl</span
           ><span>Two-node live acceptance evidence</span>
         </div>
       </section>

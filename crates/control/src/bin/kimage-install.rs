@@ -55,12 +55,10 @@ enum Command {
         #[arg(long)]
         password_file: PathBuf,
     },
-    BundleCheck {
-        #[arg(long)]
-        bundle: PathBuf,
-        #[arg(long)]
-        trusted_inventory: String,
-    },
+    /// Download and verify an official release without accessing Kubernetes.
+    BundleFetch(BundleSource),
+    /// Verify a local bundle or the selected cached/official release.
+    BundleCheck(BundleSource),
     Bootstrap(Install),
     Recover(Install),
     Seed(Install),
@@ -90,10 +88,17 @@ enum Command {
     UpgradeServing {
         #[command(flatten)]
         install: Install,
+        #[arg(
+            long,
+            required_unless_present = "previous_release",
+            conflicts_with = "previous_release",
+            requires = "previous_trusted_inventory"
+        )]
+        previous_bundle: Option<PathBuf>,
         #[arg(long)]
-        previous_bundle: PathBuf,
-        #[arg(long)]
-        previous_trusted_inventory: String,
+        previous_trusted_inventory: Option<String>,
+        #[arg(long, required_unless_present = "previous_bundle")]
+        previous_release: Option<String>,
     },
     Exporter {
         #[command(flatten)]
@@ -136,10 +141,39 @@ struct Cluster {
 struct Install {
     #[command(flatten)]
     cluster: Cluster,
+    #[command(flatten)]
+    source: BundleSource,
+}
+
+#[derive(Args)]
+struct BundleSource {
+    /// Use an independently trusted local bundle instead of fetching a release.
+    #[arg(long, conflicts_with = "release", requires = "trusted_inventory")]
+    bundle: Option<PathBuf>,
+    /// Pin the inventory as sha256:<64 lowercase hex digits>; required for local bundles.
     #[arg(long)]
-    bundle: PathBuf,
+    trusted_inventory: Option<String>,
+    /// Exact official release; defaults to this CLI package version, never latest.
+    #[arg(long, value_name = "VERSION")]
+    release: Option<String>,
+    /// Override the private, verified release bundle cache directory.
     #[arg(long)]
-    trusted_inventory: String,
+    bundle_cache: Option<PathBuf>,
+    /// Refuse network access; require a verified cached release or local bundle.
+    #[arg(long)]
+    offline: bool,
+}
+impl BundleSource {
+    async fn resolve(&self) -> Result<kimage_control::bundle::Bundle> {
+        kimage_control::release_bundle::resolve(
+            self.bundle.as_deref(),
+            self.trusted_inventory.as_deref(),
+            self.release.as_deref(),
+            self.bundle_cache.as_deref(),
+            self.offline,
+        )
+        .await
+    }
 }
 impl Cluster {
     fn options(self) -> kimage_control::install::Options {
@@ -171,7 +205,10 @@ fn verified(
 }
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt().json().init();
+    tracing_subscriber::fmt()
+        .json()
+        .with_writer(std::io::stderr)
+        .init();
     match Cli::parse().command {
         Command::Verify { archive, root } => {
             let image = verified(&archive, &root)?;
@@ -204,11 +241,15 @@ async fn main() -> Result<()> {
                 .await?;
             println!("{}", serde_json::to_string(receipt.root())?);
         }
-        Command::BundleCheck {
-            bundle,
-            trusted_inventory,
-        } => {
-            kimage_control::bundle::Bundle::open(&bundle, &trusted_inventory)?;
+        Command::BundleFetch(source) => {
+            let bundle = source.resolve().await?;
+            println!(
+                "{}",
+                serde_json::json!({"bundle": bundle.root, "trustedInventory": bundle.digest})
+            );
+        }
+        Command::BundleCheck(source) => {
+            source.resolve().await?;
             println!("bundle verified");
         }
         Command::VerifyRemote {
@@ -254,8 +295,7 @@ async fn main() -> Result<()> {
             println!("{}", serde_json::to_string(image.root())?);
         }
         Command::Bootstrap(args) | Command::Recover(args) => {
-            let bundle =
-                kimage_control::bundle::Bundle::open(&args.bundle, &args.trusted_inventory)?;
+            let bundle = args.source.resolve().await?;
             let installer = kimage_control::install::Installer::new(
                 kimage_control::kubernetes::client().await?,
                 args.cluster.options(),
@@ -263,8 +303,7 @@ async fn main() -> Result<()> {
             installer.bootstrap(&bundle).await?;
         }
         Command::Seed(args) => {
-            let bundle =
-                kimage_control::bundle::Bundle::open(&args.bundle, &args.trusted_inventory)?;
+            let bundle = args.source.resolve().await?;
             let installer = kimage_control::install::Installer::new(
                 kimage_control::kubernetes::client().await?,
                 args.cluster.options(),
@@ -280,8 +319,7 @@ async fn main() -> Result<()> {
             .await?;
         }
         Command::Cleanup(args) => {
-            let bundle =
-                kimage_control::bundle::Bundle::open(&args.bundle, &args.trusted_inventory)?;
+            let bundle = args.source.resolve().await?;
             kimage_control::install::Installer::new(
                 kimage_control::kubernetes::client().await?,
                 args.cluster.options(),
@@ -290,8 +328,7 @@ async fn main() -> Result<()> {
             .await?;
         }
         Command::Handover(args) => {
-            let bundle =
-                kimage_control::bundle::Bundle::open(&args.bundle, &args.trusted_inventory)?;
+            let bundle = args.source.resolve().await?;
             let installer = kimage_control::install::Installer::new(
                 kimage_control::kubernetes::client().await?,
                 args.cluster.options(),
@@ -302,8 +339,7 @@ async fn main() -> Result<()> {
             install,
             admission_credentials,
         } => {
-            let bundle =
-                kimage_control::bundle::Bundle::open(&install.bundle, &install.trusted_inventory)?;
+            let bundle = install.source.resolve().await?;
             let installer = kimage_control::install::Installer::new(
                 kimage_control::kubernetes::client().await?,
                 install.cluster.options(),
@@ -316,8 +352,7 @@ async fn main() -> Result<()> {
             install,
             builder_credentials,
         } => {
-            let bundle =
-                kimage_control::bundle::Bundle::open(&install.bundle, &install.trusted_inventory)?;
+            let bundle = install.source.resolve().await?;
             kimage_control::install::Installer::new(
                 kimage_control::kubernetes::client().await?,
                 install.cluster.options(),
@@ -330,8 +365,7 @@ async fn main() -> Result<()> {
             target_node,
             recover,
         } => {
-            let bundle =
-                kimage_control::bundle::Bundle::open(&install.bundle, &install.trusted_inventory)?;
+            let bundle = install.source.resolve().await?;
             kimage_control::install::Installer::new(
                 kimage_control::kubernetes::client().await?,
                 install.cluster.options(),
@@ -343,13 +377,17 @@ async fn main() -> Result<()> {
             install,
             previous_bundle,
             previous_trusted_inventory,
+            previous_release,
         } => {
-            let next =
-                kimage_control::bundle::Bundle::open(&install.bundle, &install.trusted_inventory)?;
-            let previous = kimage_control::bundle::Bundle::open(
-                &previous_bundle,
-                &previous_trusted_inventory,
-            )?;
+            let next = install.source.resolve().await?;
+            let previous = kimage_control::release_bundle::resolve(
+                previous_bundle.as_deref(),
+                previous_trusted_inventory.as_deref(),
+                previous_release.as_deref(),
+                install.source.bundle_cache.as_deref(),
+                install.source.offline,
+            )
+            .await?;
             kimage_control::install::Installer::new(
                 kimage_control::kubernetes::client().await?,
                 install.cluster.options(),
@@ -361,8 +399,7 @@ async fn main() -> Result<()> {
             install,
             approved_origin,
         } => {
-            let bundle =
-                kimage_control::bundle::Bundle::open(&install.bundle, &install.trusted_inventory)?;
+            let bundle = install.source.resolve().await?;
             kimage_control::install::Installer::new(
                 kimage_control::kubernetes::client().await?,
                 install.cluster.options(),
@@ -386,4 +423,50 @@ async fn main() -> Result<()> {
         ),
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bundle_cli_preserves_local_pins_and_allows_exact_cached_releases() {
+        for args in [
+            vec!["ki", "bundle-fetch"],
+            vec![
+                "ki",
+                "bundle-fetch",
+                "--release",
+                "0.2.0",
+                "--offline",
+                "--bundle-cache",
+                "cache",
+            ],
+            vec![
+                "ki",
+                "bundle-check",
+                "--bundle",
+                "local",
+                "--trusted-inventory",
+                "sha256:pin",
+            ],
+        ] {
+            assert!(Cli::try_parse_from(args).is_ok());
+        }
+        for args in [
+            vec!["ki", "bundle-check", "--bundle", "local"],
+            vec![
+                "ki",
+                "bundle-check",
+                "--bundle",
+                "local",
+                "--trusted-inventory",
+                "pin",
+                "--release",
+                "0.2.0",
+            ],
+        ] {
+            assert!(Cli::try_parse_from(args).is_err());
+        }
+    }
 }

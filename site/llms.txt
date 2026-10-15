@@ -3,7 +3,7 @@
 > kimage declares immutable, versioned container images as Kubernetes resources,
 > manages their production and verified publication to a retained cluster-local
 > registry, and resolves workload image selectors to digest-pinned pulls. Apache
-> 2.0. Alpha. Public Cargo packages: kimage-core and kimage-control, version 0.1.0.
+> 2.0. Alpha. Public Cargo packages: kimage-core and kimage-control, version 0.2.0.
 
 **When to use it.** Use kimage when inputs are already provisioned in Kubernetes,
 when images should remain available independently of source/build cache, or when
@@ -26,7 +26,7 @@ Administrator-managed builder isolation is not a hostile tenant security claim.
 1.99.0 or newer; ensure Cargo's bin directory is on PATH:
 
 ```sh
-cargo install kimage-control --version 0.1.0 --locked
+cargo install kimage-control --version 0.2.0 --locked
 kimage-install --version
 kimage-install --help
 ```
@@ -35,15 +35,43 @@ This installs kimage-install, kimage-operator, kimage-admission, kimage-gateway,
 kimage-proxy, kimage-input, and kimage-exporter. Add --bin kimage-install for only
 the installer. The unrelated crate named `kimage` belongs to another project.
 Gateway/proxy report serving compatibility version 0.2.0, separately from Cargo
-package version 0.1.0. kimage-bootstrap is an unpublished internal bundle helper.
+package version 0.2.0. kimage-bootstrap is an unpublished internal bundle helper.
 
-**Cluster setup is a separate administrator prerequisite.** Cargo supplies native
-tools, not a cluster or Linux component bundle. There are no prebuilt GitHub
-release bundles or Helm chart yet. An administrator prepares trusted static
-Linux/amd64 components with scripts/package-bundle.py, authenticates their origin
-and inventory SHA-256 independently, and supplies issuer-managed credentials.
-Trusted inventory values use sha256: followed by 64 lowercase hexadecimal digits.
-Keep current and previous bundles/installers outside the cluster for recovery.
+**Official bundles and offline use.** No source checkout or packaging script is
+needed. `kimage-install bundle-fetch` downloads and verifies the exact official
+GitHub release matching this CLI package version (0.2.0), never latest, without
+kubeconfig or cluster writes. It prints JSON {bundle: <verified-directory>,
+trustedInventory: <sha256-digest>}. All bundle-using phases use the same automatic
+selection and reverify cached files before reuse. `--release 0.2.0` pins an exact
+release; `--bundle-cache <directory>` overrides the private cache. Default cache:
+XDG_CACHE_HOME/kimage/bundles if set, otherwise ~/Library/Caches/kimage/bundles on
+macOS or ~/.cache/kimage/bundles on Linux. `--offline` refuses network access and
+fails clearly on a cache miss. Keep an independent bundle copy for recovery.
+
+The fixed official inferal-oss/kimage GitHub repository over verified HTTPS is
+the online trust origin. GitHub's API provides asset size/SHA-256; the client
+restricts HTTPS download origins, verifies archive/inventory/static executables
+and complete OCI graphs, rejects unsafe/oversized tar entries, and atomically
+caches only complete verified content. Public downloads need no token. Optional
+KIMAGE_GITHUB_TOKEN authenticates only the fixed metadata endpoint for API rate
+limits; it is never sent to asset downloads or redirects.
+For air gaps, transfer the fetched bundle directory and inventory digest through
+your approved channel. Supply `--bundle <directory> --trusted-inventory
+sha256:<64-lowercase-hex-digits>` instead of --release. Local bundles always need
+that independent pin. The pin is also optional for official downloads. Cache
+corruption fails closed and requires explicit removal/refetch. GitHub Actions
+builds complete Linux/amd64 bundles and native Linux/amd64 and macOS/arm64
+installers, inventories, checksums, and license notices as release assets.
+Official bundles start at 0.2.0; 0.1.0 has no downloadable bundle assets.
+
+```sh
+kimage-install bundle-fetch
+kimage-install bundle-check --offline
+```
+
+**Cluster setup is a separate administrator prerequisite.** Automatic bundle
+delivery does not provision Kubernetes. Supply administrator kubeconfig, issuer
+credentials, persistent storage, cached carrier, and the supported runtime.
 The full acceptance fixture uses Kubernetes v1.36.5+k3s1, containerd
 2.3.4-k3s1.36, Linux/amd64, Ubuntu 24.04.5, kernel 6.8.0-142. Choose
 --runtime-profile k3s explicitly. The CLI default inferal profile checks the
@@ -55,7 +83,8 @@ filesystem support, CNI policy enforcement, and persistent storage all matter.
 Required installation arguments are --runtime-profile, --namespace (system),
 --application-namespace (distinct), --installation, --node, --carrier (approved
 digest already cached on that node), --storage-class, --port (at least 1024),
---credentials (registry directory), --bundle, and --trusted-inventory. Use an
+--credentials (registry directory). Bundle selection is automatic; optionally add
+--release 0.2.0, or the local bundle/pin pair described above. Use an
 administrator kubeconfig. Preserve identical arguments across resumable phases:
 bootstrap, seed, handover, control-plane with --admission-credentials, then builder
 with --builder-credentials. Run `kimage-install <phase> --help` for exact flags.
@@ -198,7 +227,8 @@ All non-serving component versions/roots and bundle API revision must match.
 The updater uses a Lease, warmup pulls, immutable checkpoints, read-only retained
 serving, and single-writer replacement. Publication pauses; interrupted streams
 use runtime retry/digest checks. Repeat the same pair after interruption. It
-never changes CRDs or migrates data. Schema revision 4 accepts only the exact
+never changes CRDs or migrates data. Whole 0.1.0/0.2.0 release bundles differ in
+non-serving component roots, so this is not a general whole-release downgrade. Schema revision 4 accepts only the exact
 shipped additive revision 2/3 transitions; no schema downgrade/storage migration.
 
 recover reuses original bootstrap arguments and PVC to recreate carrier serving,
@@ -237,7 +267,7 @@ Check catalog/node sample completeness and timestamps before using gauges.
 Admission is read-only; publishers and readers have distinct credentials.
 Eligible node administrators are trusted readers; namespace routing is not
 hostile-tenant image confidentiality. Native clients keep TLS verification on.
-49 automated tests run on macOS/arm64 and Linux/amd64 musl. Separate two-node
+57 Rust tests run on macOS/arm64 and Linux/amd64 musl. Separate two-node
 acceptance harnesses cover lifecycle/recovery/binary rollback/export and are not
 ordinary CI; historical live bundles predate the latest selector/CLI metadata.
 

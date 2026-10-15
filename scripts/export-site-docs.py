@@ -100,6 +100,7 @@ def export():
     # Remove indentation-only HTML whitespace without changing code indentation.
     markdown = re.sub(r'\n[ \t]+\n', '\n\n', markdown)
     markdown = re.sub(r'\n{3,}', '\n\n', markdown)
+    markdown = '\n'.join(line.rstrip() for line in markdown.splitlines())
     return markdown + '\n'
 
 

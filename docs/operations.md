@@ -7,9 +7,47 @@ configuration and their separate RBAC identities. Dedicated `builder`, `join-nod
 gates. Consult the
 [acceptance ledger](status.md) before treating a command as a milestone gate.
 
+## Official release bundles
+
+Install the native CLI and fetch the verified official bundle without a checkout
+or packaging script:
+
+```sh
+cargo install kimage-control --version 0.2.0 --locked
+kimage-install bundle-fetch
+kimage-install bundle-check --offline
+```
+
+Bundle-using phases default to the exact release matching the CLI's package
+version, never `latest`. They reuse a verified private cache on later runs.
+`--release 0.2.0` pins a different exact selection, `--bundle-cache <directory>`
+overrides the cache, and `--offline` refuses network access on a miss. Fetching
+requires no kubeconfig and performs no cluster writes. GitHub Actions publishes
+the complete Linux/amd64 bundle, inventory, native macOS/arm64 and Linux/amd64
+installers, license notices, and checksums as release assets.
+
+The HTTPS GitHub API at the fixed official `inferal-oss/kimage` repository
+provides the expected asset digest/size. The client restricts HTTPS download
+origins, verifies the archive and inventory, rejects unsafe archive entries,
+checks static executable headers and full OCI graphs, and atomically installs
+only a complete cache entry. Cached files are reverified before reuse; partial
+or invalid cache entries never become installation inputs. GitHub authentication
+tokens are not needed for public downloads. Optional `KIMAGE_GITHUB_TOKEN` applies
+only to the fixed metadata endpoint for API rate limits, never asset downloads or
+redirects. Keep an independently retained copy for
+recovery if GitHub is unavailable.
+
+For an air gap, transfer the fetched `bundle` directory and its inventory digest
+through your approved channel. The original `--bundle <directory>` plus
+`--trusted-inventory sha256:<64-hex-digits>` path remains supported without a
+network request. A local bundle always requires that independent pin. Official
+bundles start at 0.2.0; the 0.1.0 release has no component bundle assets.
+
 ## Trusted bundle and credentials
 
-Build native binaries with Cargo. Build Linux/amd64 static binaries in a prepared
+Normal administrators use the official fetch path above. The following packaging
+commands are optional source-build tooling for maintainers and custom bundles.
+Build Linux/amd64 static binaries in a prepared
 Rust 1.99.0/musl toolchain, with dependency cache available offline:
 
 ```sh
@@ -41,13 +79,14 @@ certificate lifecycle automation.
 
 ## API-only bootstrap and delivery
 
-Use an administrator kubeconfig and explicitly selected Linux/amd64 node, cached
+Supply either the automatic release selection or explicit local bundle/pin to
+each phase. Use an administrator kubeconfig and explicitly selected Linux/amd64 node, cached
 approved carrier digest, StorageClass (or `--pvc` for an existing claim), installation
 namespace/name and nonprivileged loopback port. Preserve the same arguments for
 resume. Config changes or foreign resource collisions are refused.
 
 ```sh
-kimage-install bootstrap --bundle <bundle> --trusted-inventory <trusted-sha256> \
+kimage-install bootstrap --release 0.2.0 \
   --namespace <system-namespace> --application-namespace <application-namespace> \
   --installation <unique-name> \
   --node <approved-node> --carrier <cached-image@sha256:digest> \
@@ -81,7 +120,8 @@ service TLS identity and resolution key. It waits for operator-owned schemas,
 ordinary operator/admission Pods and independently verified TLS before registering
 the application webhook. An incompatible existing schema is refused before writes.
 
-The default builder bundle adds `--buildkit-dir` containing the official pinned
+The official release bundle already includes the builder. Custom bundle packaging
+uses `--buildkit-dir` containing the official pinned
 BuildKit v0.33.0 static `buildkitd`, `buildctl` and `buildkit-runc` executables. Native
 installers can be inventoried with `--include-installers --macos-installer <path>`.
 After seeding, `builder` uses the same installation arguments plus
