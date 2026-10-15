@@ -1,14 +1,16 @@
 # kimage
 
-**Build, publish, and run container images inside Kubernetes.**
+**Declare the images your Kubernetes cluster needs.**
 
 [![CI](https://github.com/inferal-oss/kimage/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/inferal-oss/kimage/actions/workflows/ci.yml)
 [![Rust](https://img.shields.io/badge/Rust-1.99.0-DEA584?logo=rust)](https://www.rust-lang.org/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-kimage makes image production and delivery part of your Kubernetes API. Declare
-an `Image`, let the cluster build and retain a verified `ImageRelease`, and refer
-to it from a workload:
+kimage lets you define an image, its version, and how to produce it as a Kubernetes
+`Image` resource. The controller handles build attempts, verifies the resulting
+OCI content, publishes it to the installation's managed cluster-local registry,
+and records an immutable `ImageRelease` in Kubernetes. Workloads can then select
+that image directly:
 
 ```yaml
 containers:
@@ -20,6 +22,11 @@ Admission resolves the selector to a published release and pins each new Pod to
 its image digest. Kubelet pulls it through the node's local proxy using the normal
 container runtime.
 
+Application authors apply the desired `Image`; build execution and publication
+are handled by the controller. They do not need to create a separate build-run
+resource or choose an output registry URL and push credentials for each image.
+Export to another registry is an explicit, optional step.
+
 > **Status: alpha.** The current implementation has passed its four acceptance
 > milestones on a specific Linux/amd64 Kubernetes profile. Installation checks
 > exact runtime versions. Read [compatibility and limits](#compatibility-and-limits)
@@ -27,21 +34,54 @@ container runtime.
 
 ## Why kimage?
 
-An image build often lives outside the cluster that needs its result: a CI worker
-builds it, a registry stores it, and a deployment pipeline connects the two.
-kimage brings those steps under Kubernetes resources, with a retained image store
-that continues serving releases after build inputs and worker caches disappear.
+Image production usually involves a build definition, an execution trigger,
+registry configuration, publication credentials, and a way to pass the resulting
+reference to workloads. kimage provides one Kubernetes resource for the desired
+image and manages the path from production to local consumption.
 
-This is useful when build inputs already live in Kubernetes, when a cluster needs
-to operate without an external registry, or when image publication and version
-selection should be visible through the same API as workloads. External export
-is optional; local builds and pulls can operate disconnected once dependencies
-and inputs are provisioned.
+The installation includes a PVC-backed OCI registry and node-local read proxies.
+The registry retains published releases independently of build inputs, build
+attempts, and worker caches. "Local" means managed within the cluster, with
+retained storage; node runtime caches are disposable.
+
+This is useful when inputs already live in Kubernetes, when a cluster needs to
+operate without an external registry, or when image availability and version
+selection should be part of the application's declared state. Local builds and
+pulls can operate disconnected once dependencies and inputs are provisioned.
+
+A published Image UID/version is immutable. The controller can retry failed
+attempts, but different output for an existing version is a conflict. Request a
+new version when changing the image's content.
+
+## How it compares
+
+These projects operate at different levels. The table summarizes their documented
+core workflows; platform integrations can add registries, triggers, and deployment
+automation. A separately configured registry can be local or remote.
+
+| Approach | What you declare | What starts execution | Registry and publication | Workload consumption |
+| --- | --- | --- | --- | --- |
+| **kimage** | Desired `Image` and exact version; retained `ImageRelease` records the result | Controller reconciles the Image and manages attempts | Installation includes a retained cluster-local registry; external export is optional | `platform://` versions, ranges, or channels resolve to digest-pinned Pod images |
+| **[Shipwright](https://shipwright.io/docs/build/)** | `Build` definition and a `BuildRun` referencing it or embedding its specification | Create or trigger a [BuildRun](https://shipwright.io/docs/build/buildrun/), executed through a build strategy | Configure `spec.output.image` and publication credentials for the selected registry | Consume the published registry reference through your deployment workflow |
+| **[Tekton](https://tekton.dev/docs/pipelines/taskruns/)** | Tasks/Pipelines and their TaskRuns/PipelineRuns | A run executes the configured steps | Build/push tasks target a configured registry; see the [build-and-push example](https://tekton.dev/docs/how-to-guides/kaniko-build-push/) | Connect task results and registry references to your deployment workflow |
+| **[kpack](https://github.com/buildpacks-community/kpack)** | An `Image` and Cloud Native Buildpacks builder configuration | Controller schedules builds on source, buildpack, or stack changes | Configure the image's registry tag and credentials; see the [tutorial](https://github.com/buildpacks-community/kpack/blob/main/docs/tutorial.md) | Image status exposes the resolved registry image for workloads to use |
+
+kpack also provides declarative images. kimage's particular focus is the combination
+of **immutable versioned releases, a managed local registry, and integrated
+workload resolution**. Shipwright offers configurable build strategies; Tekton
+orchestrates general task pipelines; kpack provides Cloud Native Buildpacks
+automation. kimage's current build adapter is narrower: Containerfiles with
+scratch images and provisioned local inputs. See [compatibility and limits](#compatibility-and-limits).
 
 ## Features
 
-- **Declarative builds:** `Image` resources describe Containerfiles, local inputs,
-  the selected builder, and cache policy. The initial adapter uses pinned BuildKit.
+- **Declare images:** an `Image` describes the version and how to produce it;
+  the controller manages attempts, verification, and publication.
+- **Managed local registry:** retained OCI storage and read proxies are included
+  in the installation. Application images need no separate output registry setup.
+- **Configurable production:** Containerfiles, local input mounts, builder selection,
+  and cache policy are part of the Image specification. The initial adapter uses
+  pinned BuildKit.
 - **Immutable releases:** verified OCI content is published by digest and recorded
   in retained `ImageRelease` resources. Conflicting content cannot replace a version.
 - **Readable version selection:** exact versions, semantic version ranges, and
@@ -72,10 +112,12 @@ flowchart LR
     N --> R
 ```
 
-The operator manages builds and publication. Admission reads the release catalog;
-it does not build or publish images. The registry retains artifacts on a PVC,
-separately from disposable builder cache. See the [architecture](docs/architecture.md)
-for component boundaries and trust assumptions.
+The `Image` is the desired state; build attempts are controller-managed execution
+details, and an `ImageRelease` records a verified immutable result. The operator
+manages production and publication. Admission reads the release catalog; it does
+not build or publish images. The registry retains artifacts on a PVC, separately
+from disposable builder cache. See the [architecture](docs/architecture.md) for
+component boundaries and trust assumptions.
 
 ## Getting started
 
@@ -154,6 +196,10 @@ FROM scratch
 COPY hello /hello
 ENTRYPOINT ["/hello"]
 ```
+
+Applying the Image requests that version's availability. The controller handles
+the build and publication to the managed registry; no separate build-run manifest
+or output registry reference is needed:
 
 ```sh
 kubectl apply -f examples/hello/image.yaml
