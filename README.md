@@ -6,6 +6,8 @@
 [![Rust](https://img.shields.io/badge/Rust-1.99.0-DEA584?logo=rust)](https://www.rust-lang.org/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
+[Website](https://kimage.dev) · [Documentation](docs/operations.md) · [Tutorial](#tutorial-build-and-run-a-hello-image)
+
 kimage lets you define an image, its version, and how to produce it as a Kubernetes
 `Image` resource. The controller handles build attempts, verifies the resulting
 OCI content, publishes it to the installation's managed cluster-local registry,
@@ -305,6 +307,7 @@ changing supported behavior.
 - [Registry export](docs/export-design.md)
 - [Acceptance ledger](docs/status.md) and [requirements audit](docs/requirements-audit.md)
 - [Original implementation brief](docs/implementation-prompt.md)
+- [Website source and deployment](site/README.md)
 
 ## License
 

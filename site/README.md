@@ -1,0 +1,32 @@
+# kimage.dev website
+
+Buildless HTML, CSS, JavaScript, and an original SVG mark. No package installation
+or build step is needed. Edit `index.html`, `style.css`, and `site.js` directly.
+
+Preview from the repository root:
+
+```sh
+python3 -m http.server 8876 --bind 127.0.0.1 --directory site
+```
+
+Open `http://127.0.0.1:8876/`. Validate before publishing:
+
+```sh
+python3 scripts/check-site.py
+node --check site/site.js
+```
+
+The `Website` GitHub Actions workflow validates and uploads `site/`, then deploys
+it to GitHub Pages. Pushes to `main` that change website files or its workflow
+trigger deployment; manual dispatch is also available. Pull requests get the
+static checks through the regular CI workflow without deploying.
+
+GitHub Pages is configured for Actions deployment and the canonical domain
+`kimage.dev`. Cloudflare DNS uses a DNS-only CNAME record for `@` pointing
+to `inferal-oss.github.io`; Cloudflare flattens the apex CNAME. GitHub handles TLS.
+Only the apex domain is configured. Custom-domain settings live in
+GitHub Pages, not a CNAME file in this Actions artifact.
+
+The browser QA covers desktop/mobile layout, tab selection with mouse and
+keyboard, anchor navigation, and copying the clone command. Manifest snippets
+are labeled as excerpts; the complete hello example lives in `examples/hello/`.

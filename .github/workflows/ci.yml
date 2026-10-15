@@ -45,7 +45,10 @@ jobs:
       - name: Check Python syntax
         run: python3 -m compileall -q scripts
       - name: Check documentation and examples
-        run: python3 scripts/check-docs.py
+        run: |
+          python3 scripts/check-docs.py
+          python3 scripts/check-site.py
+          node --check site/site.js
 
   test:
     name: Tests (${{ matrix.platform }})
