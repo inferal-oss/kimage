@@ -635,6 +635,10 @@ troubleshooting storage, not a durable logging service. If a worker or API is lo
 before collection, diagnostics report `Unavailable`; cleanup and fencing still
 proceed. Old attempts created by 0.4.1 have no captured build output.
 
+During worker recovery, demand waits for worker Pod and service endpoint readiness
+before capturing inputs. Normal replacement startup does not create an empty
+interrupted attempt.
+
 Raw output can contain secrets printed by a recipe. There is no promise of
 redacting arbitrary user output. Reading retained logs requires namespace Secret
 get/list permission; live output also requires Pod list/get and exec access.

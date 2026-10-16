@@ -459,6 +459,8 @@ kimage logs hello --namespace apps --attempt <full-attempt-id>
 
 Each attempt keeps a 64 KiB text tail with an explicit truncation marker. Cleanup archives output in a namespace Secret before removing the client Pod. The latest five attempts per Image and platform survive retries and operator restarts. Deleting the Image removes its logs. Collection can be unavailable after worker or API loss; 0.4.1 attempts have no captured output.
 
+During worker recovery, demand waits for worker Pod and service endpoint readiness before capturing inputs. Normal replacement startup does not create an empty interrupted attempt.
+
 The adapter also limits raw progress to 16 MiB per solve and 1 MiB per progress record. Exceeding either fails the attempt with `BuildProgressLimit` or `BuildProgressLineLimit`; its retained tail stays bounded to 64 KiB. BuildKit may clip step output upstream.
 
 Recipes can print secrets. Retained logs require Secret get/list permission; live output also requires Pod get/list and exec. Raw output stays separate from status, release metadata, operator logs and metrics. Arbitrary user output is not automatically redacted.

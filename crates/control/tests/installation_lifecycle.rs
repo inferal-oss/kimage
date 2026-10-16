@@ -143,7 +143,7 @@ async fn fixture() -> (kube::Client, Arc<Mutex<Store>>, tokio::task::JoinHandle<
     let records = store.clone();
     let router=Router::new().fallback(move |request:axum::extract::Request| {
         let records=records.clone();async move {
-            let method=request.method().to_string();let path=request.uri().path().to_owned();let query=request.uri().query().unwrap_or("").to_owned();
+            let method=request.method().to_string();let path=request.uri().path().to_owned();let path=if method=="PATCH" {path.strip_suffix("/status").unwrap_or(&path).to_owned()}else{path};let query=request.uri().query().unwrap_or("").to_owned();
             let body=axum::body::to_bytes(request.into_body(),1024*1024).await.unwrap();
             let mut store=records.lock().unwrap();
             let status=|code:u16,reason:&str|(StatusCode::from_u16(code).unwrap(),Json(json!({"apiVersion":"v1","kind":"Status","status":"Failure","reason":reason,"code":code}))).into_response();
@@ -152,7 +152,7 @@ async fn fixture() -> (kube::Client, Arc<Mutex<Store>>, tokio::task::JoinHandle<
                     store.missing_worker_during_verification=false;return status(404,"NotFound");
                 }
                 if let Some(value)=store.objects.get(&path){return Json(value.clone()).into_response()}
-                let collection=path.ends_with("/nodes")||path.ends_with("/pods")||path.ends_with("/jobs")||path.ends_with("/configmaps")||path.ends_with("/imagereleases");
+                let collection=path.ends_with("/nodes")||path.ends_with("/pods")||path.ends_with("/jobs")||path.ends_with("/configmaps")||path.ends_with("/imagereleases")||path.ends_with("/secrets")||path.ends_with("/endpointslices");
                 if collection {
                     let url=reqwest::Url::parse(&format!("http://fixture{path}?{query}")).unwrap();
                     let selector=url.query_pairs().find(|(k,_)|k=="labelSelector").map(|(_,v)|v.into_owned()).unwrap_or_default();
@@ -168,7 +168,7 @@ async fn fixture() -> (kube::Client, Arc<Mutex<Store>>, tokio::task::JoinHandle<
             if value["metadata"]["namespace"].is_null() {let parts:Vec<_>=path.split('/').collect();if let Some(index)=parts.iter().position(|p|*p=="namespaces"){value["metadata"]["namespace"]=json!(parts[index+1]);}}
             if method=="PATCH" {
                 let Some(mut current)=store.objects.get(&path).cloned()else{return status(404,"NotFound")};
-                if value["metadata"]["uid"]!=current["metadata"]["uid"]||value["metadata"]["resourceVersion"]!=current["metadata"]["resourceVersion"]{return status(409,"Conflict")}
+                if (!value["metadata"]["uid"].is_null()&&value["metadata"]["uid"]!=current["metadata"]["uid"])||value["metadata"]["resourceVersion"]!=current["metadata"]["resourceVersion"]{return status(409,"Conflict")}
                 json_patch::merge(&mut current,&value);value=current;
             }else if method=="POST" && store.objects.contains_key(&format!("{path}/{}",value["metadata"]["name"].as_str().unwrap())) {return status(409,"AlreadyExists")}
             store.put(value.clone());let key=format!("{}/{}",collection(&value),value["metadata"]["name"].as_str().unwrap());
@@ -194,6 +194,89 @@ async fn fixture() -> (kube::Client, Arc<Mutex<Store>>, tokio::task::JoinHandle<
     .unwrap();
     (client, store, server)
 }
+#[tokio::test]
+async fn recovering_workers_defer_capture_until_pod_and_service_endpoints_are_ready() {
+    for ready in [false, true] {
+        let (client, records, server) = fixture().await;
+        lifecycle::transition(
+            client.clone(),
+            "system",
+            "dev",
+            &catalog("0.5.0"),
+            false,
+            false,
+            None,
+        )
+        .await
+        .unwrap();
+        let image: kimage_control::api::Image = serde_json::from_value(json!({
+            "apiVersion":"kimage.dev/v1alpha1","kind":"Image",
+            "metadata":{"name":"fresh","namespace":"apps","uid":"fresh-uid","generation":1},
+            "spec":{"version":"1.0.0","platform":{"os":"linux","architecture":"amd64"},
+                "source":{"build":{"format":"Containerfile","definition":{"inline":"FROM scratch\nCOPY message /message\n"},
+                    "execution":{"strategy":"Direct","builderRef":"default"},
+                    "inputs":{"contextPath":"/workspace/context","volumes":[{"name":"source","configMap":{"name":"source"}}],
+                        "volumeMounts":[{"name":"source","mountPath":"/workspace/context","readOnly":true}]}}}}})).unwrap();
+        {
+            let mut store = records.lock().unwrap();
+            store.put(serde_json::to_value(&image).unwrap());
+            store.put(json!({"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"source","namespace":"apps"},"immutable":true,"data":{"message":"hello"}}));
+            store
+                .objects
+                .get_mut("/api/v1/namespaces/system/pods/dev-builder-amd64")
+                .unwrap()["status"]["conditions"][0]["status"] =
+                json!(if ready { "True" } else { "False" });
+        }
+        let image: kimage_control::api::Image = serde_json::from_value(records.lock().unwrap().objects["/apis/kimage.dev/v1alpha1/namespaces/apps/images/fresh"].clone()).unwrap();
+        let config = Arc::new(kimage_control::reconcile::Config {
+            scope: None,
+            direct: Some(kimage_control::direct::Settings {
+                architecture: Some("amd64".into()),
+                system_namespace: "system".into(),
+                installation: "dev".into(),
+                builder_image: catalog("0.5.0").reference("builder").unwrap(),
+            }),
+            client,
+            namespace: "apps".into(),
+            node: "node".into(),
+            input_image: catalog("0.5.0").reference("input").unwrap(),
+            registry_origin: "https://dev-registry.system.svc:5443/".parse().unwrap(),
+            registry_ca: "unused".into(),
+            publisher_password: "unused".into(),
+            registry_pod: None,
+            cancel: tokio_util::sync::CancellationToken::new(),
+            concurrency: Arc::new(tokio::sync::Semaphore::new(1)),
+        });
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            kimage_control::build_reconcile::reconcile(Arc::new(image), config),
+        )
+        .await;
+        let store = records.lock().unwrap();
+        assert!(
+            !store
+                .objects
+                .iter()
+                .any(|(path, value)| path.contains("/namespaces/apps/")
+                    && value["metadata"]["name"]
+                        .as_str()
+                        .is_some_and(|n| n.starts_with("build-"))),
+            "A recovering worker must not start a capture that readiness will immediately discard"
+        );
+        result.unwrap().unwrap();
+        assert_eq!(
+            store.objects["/apis/kimage.dev/v1alpha1/namespaces/apps/images/fresh"]["status"]["conditions"]
+                [0]["reason"],
+            if ready {
+                "BuilderEndpointPending"
+            } else {
+                "BuilderUnavailable"
+            }
+        );
+        server.abort();
+    }
+}
+
 #[tokio::test]
 async fn uninstall_rechecks_interruption_and_installation_identity_after_lock_acquisition() {
     for (change, reason) in [

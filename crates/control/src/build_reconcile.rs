@@ -563,7 +563,15 @@ async fn run(
     release: Option<&ImageRelease>,
     cancel: &CancellationToken,
 ) -> Result<()> {
-    let approved = match direct::approved(config, settings, false).await {
+    // A normal worker restart must defer demand before creating a capture Pod.
+    // Otherwise the later readiness check discards that fresh attempt as interrupted.
+    // Completed exports retain their existing recovery path without requiring
+    // a healthy engine; no further solve will be submitted for them.
+    let require_ready = attempt
+        .state
+        .as_ref()
+        .is_none_or(|s| s.phase != Phase::Completed);
+    let approved = match direct::approved(config, settings, require_ready).await {
         Ok(approved) => approved,
         Err(error) => {
             if let (Some(previous), Some(release)) = (&previous, release)

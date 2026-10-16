@@ -29,6 +29,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 - Resource checks compare JSON values across Helm and Rust serialization, preserving manager identity inside worker recovery templates while rejecting unexpected fields and genuine drift.
 - Native readiness Jobs track node identity, placement and input images, and fit Kubernetes label limits for every supported installation name. Readiness checks wait through normal worker replacement without accepting ownership or specification drift.
 - Build-log snapshots pair terminal phases with final output. Following an attempt waits through startup and bounded transient connection failures, reports gaps, and retains full attempt identities in valid diagnostic Secret names.
+- Builds wait for a replacement worker's Pod and service endpoints before capturing inputs, avoiding empty interrupted attempts during normal worker recovery.
 - The BuildKit progress adapter accepts batched records up to 1 MiB, preventing valid output bursts from failing at the old 256 KiB record limit. Total progress stays bounded to 16 MiB and retained text to 64 KiB.
 - Candidate acceptance repeats failed-build diagnostics with fresh native Images to catch progress batching and recovery races before image publication.
 - Upgrade direction follows semantic version ordering, and native node lifecycle features remain enabled in later releases.

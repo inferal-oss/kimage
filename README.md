@@ -341,6 +341,7 @@ kimage logs hello --namespace apps --platform linux/arm64 --follow
 ```
 
 Select the platform you need, or use `--attempt` with an ID from `builds`.
+During worker recovery, builds wait for native worker and service readiness before capturing inputs.
 The last five attempts per platform keep a private 64 KiB output tail after
 build Pod cleanup. See [build diagnostics and failure handling](docs/operations.md#build-diagnostics-in-050)
 for permissions, retries and retention limits.
