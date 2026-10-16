@@ -118,7 +118,22 @@ pub struct Snapshot {
     pub log: Buffer,
 }
 pub fn snapshot() -> Result<Snapshot> {
-    let log = match std::fs::read(PATH) {
+    read_snapshot(std::path::Path::new(PATH), || {
+        Ok(crate::build_session::inspect()?["phase"]
+            .as_str()
+            .context("InvalidBuildPhase")?
+            .into())
+    })
+}
+fn read_snapshot(
+    path: &std::path::Path,
+    read_phase: impl FnOnce() -> Result<String>,
+) -> Result<Snapshot> {
+    // Writers persist the final log before publishing a terminal phase. Read
+    // that phase first so a final snapshot cannot contain an older log tail.
+    // A nonterminal phase with newer output is safe: follow polls again.
+    let phase = read_phase()?;
+    let log = match std::fs::read(path) {
         Ok(bytes) => {
             ensure!(bytes.len() <= 512 * 1024, "BuildLogTooLarge");
             serde_json::from_slice(&bytes)?
@@ -127,13 +142,7 @@ pub fn snapshot() -> Result<Snapshot> {
         Err(e) => return Err(e.into()),
     };
     log.validate()?;
-    Ok(Snapshot {
-        phase: crate::build_session::inspect()?["phase"]
-            .as_str()
-            .context("InvalidBuildPhase")?
-            .into(),
-        log,
-    })
+    Ok(Snapshot { phase, log })
 }
 async fn live(client: Client, namespace: &str, pod: &str) -> Result<Snapshot> {
     tokio::time::timeout(Duration::from_secs(10), async {
@@ -613,6 +622,29 @@ fn delta(buffer: &Buffer, offset: u64) -> Result<(bool, &str)> {
 }
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn terminal_phase_cannot_be_paired_with_a_log_read_before_completion() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("build-log.json");
+        std::fs::write(
+            &path,
+            serde_json::to_vec(&super::Buffer::default()).unwrap(),
+        )
+        .unwrap();
+        // Model completion publishing the final log immediately before the
+        // reader observes its terminal phase. The terminal snapshot must
+        // contain that output even when the previously visible buffer was empty.
+        let snapshot = super::read_snapshot(&path, || {
+            let mut final_log = super::Buffer::default();
+            final_log.append("kimage-diagnostic-failure-end\n");
+            std::fs::write(&path, serde_json::to_vec(&final_log).unwrap()).unwrap();
+            Ok("Failed:ContainerfileSolveFailed".into())
+        })
+        .unwrap();
+        assert_eq!(snapshot.phase, "Failed:ContainerfileSolveFailed");
+        assert!(snapshot.log.text.contains("kimage-diagnostic-failure-end"));
+    }
+
     use super::*;
     #[test]
     fn archive_names_preserve_the_full_attempt_identity_and_pass_input_name_validation() {

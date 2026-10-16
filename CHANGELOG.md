@@ -18,6 +18,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ### Fixed
 
+- Guarded Helm transitions prepare target workers before restarting the predecessor operator, avoiding concurrent worker creation or fencing during rollback. Helm errors retain safe resource and configuration reason codes.
+- Terminal build-log snapshots read the completion phase before output, preventing follow and archival from ending with a stale tail during a fast failure.
 - Status and doctor preserve Helm ownership inside worker recovery templates, avoiding false drift reports after a guarded chart upgrade.
 - Worker recovery preserves installation and Helm ownership. Automatically registered node resources can be adopted by subsequent chart revisions and removed with their installation.
 - Native readiness Jobs have distinct identities when placement or input images change, avoiding immutable Job update failures during Helm upgrades.

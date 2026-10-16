@@ -608,6 +608,11 @@ pub async fn transition(
     if check {
         return Ok(summary);
     }
+    let recovery_resources = if record.manager == "helm" && record.source.release == "0.4.1" {
+        Plan::with_manager(&options, &record.source, &all_nodes, &credentials, "helm")?.resources
+    } else {
+        Vec::new()
+    };
     let lease = OperationLease::acquire_wait(
         client.clone(),
         ns,
@@ -634,7 +639,7 @@ pub async fn transition(
             record.phase=Phase::Applying;save(client.clone(),&record).await?;
         }
         if record.phase==Phase::Applying {
-            if record.manager=="helm" { helm_transition(&context,&record,chart_path.as_deref(),&lease).await?; }
+            if record.manager=="helm" { helm_transition(&context,&record,chart_path.as_deref(),&plan.resources,&recovery_resources,&lease).await?; }
             else {
                 for resource in &plan.resources {lease.check().await?;replace_owned(&context,resource,"cli").await?;}
                 for resource in &plan.webhooks {lease.check().await?;replace_owned(&context,resource,"cli").await?;}
@@ -980,24 +985,52 @@ async fn helm_output(args: &[String]) -> Result<Vec<u8>> {
         // Helm can include rendered credential objects in stderr. Return a
         // stable reason, never arbitrary chart output or Secret material.
         let stderr = String::from_utf8_lossy(&output.stderr);
-        let reason = if stderr.contains("conflict with") || stderr.contains("Apply failed with") {
-            "HelmFieldOwnershipConflict"
-        } else if stderr.contains("ExplicitUpgradeRequired") {
-            "HelmTransitionGuardRefused"
-        } else if stderr.contains("immutable")
-            && (stderr.contains("Job") || stderr.contains("jobs"))
-        {
-            "HelmImmutableJobConflict"
-        } else if stderr.contains("cannot patch") || stderr.contains("immutable") {
-            "HelmResourceUpdateFailed"
-        } else {
-            "HelmCommandFailed"
-        };
+        let reason = helm_failure_reason(&stderr);
         let action = args.first().map(String::as_str).unwrap_or("command");
         anyhow::bail!("{reason}: helm {action}; inspect status and history for this installation");
     }
     ensure!(output.stdout.len() <= 4 * 1024 * 1024, "HelmOutputTooLarge");
     Ok(output.stdout)
+}
+fn helm_failure_reason(stderr: &str) -> &'static str {
+    for reason in [
+        "InstallationConfigurationChanged",
+        "InstallationManagerConflict",
+        "RegistryNodeNotEligible",
+        "RegistryNodeIdentityChanged",
+        "WorkerNodeNotEligible",
+        "WorkerNodePlatformMismatch",
+        "ForeignCredentialSecret",
+        "InvalidInstallationCredentialKeys",
+        "UnsupportedInstallationConfiguration",
+        "InstallationScopeOverlap",
+    ] {
+        if stderr.contains(reason) {
+            return reason;
+        }
+    }
+    if stderr.contains("conflict with") || stderr.contains("Apply failed with") {
+        "HelmFieldOwnershipConflict"
+    } else if stderr.contains("ExplicitUpgradeRequired") {
+        "HelmTransitionGuardRefused"
+    } else if stderr.contains("immutable") && (stderr.contains("Job") || stderr.contains("jobs")) {
+        "HelmImmutableJobConflict"
+    } else if stderr.contains("invalid ownership metadata") || stderr.contains("cannot be imported")
+    {
+        "HelmResourceOwnershipConflict"
+    } else if stderr.contains("already exists") {
+        "HelmResourceAlreadyExists"
+    } else if stderr.contains("not found") || stderr.contains("NotFound") {
+        "HelmResourceNotFound"
+    } else if stderr.contains("cannot patch") || stderr.contains("immutable") {
+        "HelmResourceUpdateFailed"
+    } else if stderr.contains("another operation") {
+        "HelmOperationPending"
+    } else if stderr.contains("timed out") || stderr.contains("deadline exceeded") {
+        "HelmReadinessDeadline"
+    } else {
+        "HelmCommandFailed"
+    }
 }
 async fn helm_update_mode() -> Result<Vec<String>> {
     let version = helm_output(&["version".into(), "--short".into()]).await?;
@@ -1112,6 +1145,8 @@ async fn helm_transition(
     context: &Installer,
     record: &Journal,
     chart: Option<&Path>,
+    resources: &[Value],
+    recovery_resources: &[Value],
     lease: &OperationLease,
 ) -> Result<()> {
     let ns = &record.options.namespace;
@@ -1169,6 +1204,7 @@ async fn helm_transition(
         // avoids patching historical Jobs absent from the partial manifest.
         quiesce(context, &record.options, lease).await?;
         cleanup_worker_checks(context, &[], &record.manager, lease).await?;
+        prepare_helm_workers(context, recovery_resources, &state, lease).await?;
         let mut args = vec![
             "rollback".into(),
             release_name.clone(),
@@ -1184,6 +1220,11 @@ async fn helm_transition(
         helm_output(&args).await?;
         quiesce(context, &record.options, lease).await?;
     }
+    // The predecessor operator does not understand lifecycle journals. Its
+    // Deployment can restart before Helm reaches the worker Pods and create or
+    // fence those Pods concurrently. Prepare the exact target workers while the
+    // operator is stopped, with Helm adoption metadata, before applying the chart.
+    prepare_helm_workers(context, resources, &state, lease).await?;
     let path = chart.context("VerifiedTargetChartRequired")?;
     // Render the target chart against current placement. Replaying an old
     // manifest would resurrect departed Nodes and discard reconciled workers.
@@ -1213,6 +1254,24 @@ async fn helm_transition(
     Ok(())
 }
 
+async fn prepare_helm_workers(
+    context: &Installer,
+    resources: &[Value],
+    state: &ConfigMap,
+    lease: &OperationLease,
+) -> Result<()> {
+    for resource in resources
+        .iter()
+        .filter(|r| r["kind"] == "Pod" && r["metadata"]["labels"]["kimage.dev/role"] == "builder")
+    {
+        let mut worker = [resource.clone()];
+        crate::node_reconcile::decorate(&mut worker, state)?;
+        lease.check().await?;
+        replace_owned(context, &worker[0], "helm").await?;
+    }
+    Ok(())
+}
+
 async fn restore_helm_policy(
     context: &Installer,
     record: &Journal,
@@ -1233,6 +1292,30 @@ async fn restore_helm_policy(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn helm_errors_classify_safe_reasons_without_returning_rendered_credentials() {
+        for (message, reason) in [
+            (
+                "failed to create resource: pods builder already exists; Secret data: PRIVATE",
+                "HelmResourceAlreadyExists",
+            ),
+            (
+                "pods builder not found; Secret data: PRIVATE",
+                "HelmResourceNotFound",
+            ),
+            (
+                "invalid ownership metadata; Secret data: PRIVATE",
+                "HelmResourceOwnershipConflict",
+            ),
+            (
+                "render: InstallationConfigurationChanged: PRIVATE",
+                "InstallationConfigurationChanged",
+            ),
+            ("PRIVATE unrecognized chart output", "HelmCommandFailed"),
+        ] {
+            assert_eq!(super::helm_failure_reason(message), reason);
+        }
+    }
     #[test]
     fn direction_uses_semantic_ordering_across_minor_digits_and_prereleases() {
         assert!(!super::is_rollback("0.9.0", "0.10.0").unwrap());
