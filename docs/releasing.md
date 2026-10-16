@@ -161,6 +161,6 @@ Helm failure output or the recipient private key as acceptance evidence.
 The manual `Focused Helm lifecycle diagnostics` workflow can reuse a prior native
 component build run when `Cargo.toml`, `Cargo.lock` and `crates/` are unchanged.
 Supply its exact run ID and source commit plus the public recipient certificate.
-It checks source identity and ancestry, recreates disposable amd64 fixtures for
-both scopes, and runs the same fresh-install and lifecycle sequence without
+It checks source identity and ancestry, recreates disposable native amd64 and
+arm64 fixtures for both scopes, and runs the same fresh-install and lifecycle sequence without
 rebuilding components. It has no publication permissions.
