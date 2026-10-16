@@ -45,7 +45,7 @@ pub fn plan(
     });
     requested.intersection(available).cloned().collect()
 }
-fn parse(map: &ConfigMap, installation: &str) -> Result<Configuration> {
+pub(crate) fn parse(map: &ConfigMap, installation: &str) -> Result<Configuration> {
     ensure!(
         map.labels().get(LABEL).is_some_and(|v| v == installation),
         "ConfigurationOwnershipConflict"

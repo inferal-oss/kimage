@@ -170,6 +170,7 @@
         }
       }
     },
-    "hostUsers": false
+    "hostUsers": false,
+    "serviceAccountName": "${installation}-serving"
   }
 }

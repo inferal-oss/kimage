@@ -88,7 +88,8 @@
                 "defaultMode": 292
               }
             }
-          ]
+          ],
+          "serviceAccountName": "${installation}-serving"
         }
       }
     }

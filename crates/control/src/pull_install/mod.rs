@@ -679,6 +679,12 @@ mod tests {
                 "installation resources must remain small"
             );
             assert!(!String::from_utf8(bytes).unwrap().contains("binaryData"));
+            let accounts = plan
+                .resources
+                .iter()
+                .filter(|v| v["kind"] == "ServiceAccount")
+                .map(|v| v["metadata"]["name"].as_str().unwrap())
+                .collect::<BTreeSet<_>>();
             let mut proxies = 0;
             for resource in &plan.resources {
                 if resource["kind"] == "ConfigMap" {
@@ -689,7 +695,7 @@ mod tests {
                             .contains("launcher")
                     );
                 }
-                let spec = if resource["kind"] == "Deployment" {
+                let spec = if resource["kind"] == "Deployment" || resource["kind"] == "Job" {
                     Some(&resource["spec"]["template"]["spec"])
                 } else if resource["kind"] == "Pod" {
                     Some(&resource["spec"])
@@ -697,6 +703,12 @@ mod tests {
                     None
                 };
                 if let Some(spec) = spec {
+                    if spec["automountServiceAccountToken"] == false {
+                        assert!(
+                            accounts.contains(spec["serviceAccountName"].as_str().unwrap()),
+                            "tokenless workloads must reference a synchronously created installation account"
+                        );
+                    }
                     for container in spec["containers"].as_array().unwrap() {
                         assert!(
                             container["image"]

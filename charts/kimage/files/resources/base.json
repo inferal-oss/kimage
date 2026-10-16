@@ -1,6 +1,21 @@
 [
   {
     "apiVersion": "v1",
+    "kind": "ServiceAccount",
+    "metadata": {
+      "name": "${installation}-serving",
+      "namespace": "${namespace}",
+      "labels": {
+        "kimage.dev/installation": "${installation}"
+      },
+      "annotations": {
+        "kimage.dev/manager": "${manager}"
+      }
+    },
+    "automountServiceAccountToken": false
+  },
+  {
+    "apiVersion": "v1",
     "kind": "Secret",
     "metadata": {
       "name": "${installation}-registry-credentials",
@@ -361,7 +376,8 @@
                 ]
               }
             }
-          }
+          },
+          "serviceAccountName": "${installation}-serving"
         }
       }
     }

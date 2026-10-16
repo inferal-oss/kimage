@@ -112,7 +112,8 @@
           }
         }
       ],
-      "nodeName": "${node}"
+      "nodeName": "${node}",
+      "serviceAccountName": "${installation}-serving"
     }
   }
 ]

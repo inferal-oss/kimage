@@ -5,7 +5,7 @@ use crate::{
     install::{Installer, LABEL},
 };
 use anyhow::{Context, Result, ensure};
-use k8s_openapi::api::core::v1::Node;
+use k8s_openapi::api::core::v1::{ConfigMap, Node};
 use kube::{Api, Client, ResourceExt, api::ListParams};
 use serde_json::{Value, json};
 use std::{path::PathBuf, time::Duration};
@@ -98,6 +98,20 @@ fn resume_options(
     }
     Ok(resolved)
 }
+fn build_configuration(map: Option<&ConfigMap>, installation: &str) -> Result<String> {
+    if let Some(map) = map {
+        crate::configuration::parse(map, installation)?;
+        return Ok(map
+            .data
+            .as_ref()
+            .and_then(|data| data.get("configuration.json"))
+            .context("MissingInstallationConfiguration")?
+            .clone());
+    }
+    Ok(serde_json::to_string(
+        &crate::configuration::Configuration::default(),
+    )?)
+}
 async fn apply_one(context: &Installer, resource: &Value) -> Result<()> {
     let kind = resource["kind"]
         .as_str()
@@ -174,14 +188,17 @@ pub async fn install(client: Client, options: &Options, catalog: &ImageCatalog) 
         }
     }
     // Reapplying an installation must preserve an administrator's build policy.
+    let configuration_maps: Api<ConfigMap> = Api::namespaced(client.clone(), &options.namespace);
+    let previous_configuration = configuration_maps
+        .get_opt(&format!("{}-config", options.installation))
+        .await?;
     let configuration =
-        crate::configuration::load(client.clone(), &options.namespace, &options.installation)
-            .await?;
+        build_configuration(previous_configuration.as_ref(), &options.installation)?;
     for resource in &mut plan.resources {
         if resource["kind"] == "ConfigMap"
             && resource["metadata"]["name"] == format!("{}-config", options.installation)
         {
-            resource["data"]["configuration.json"] = json!(serde_json::to_string(&configuration)?);
+            resource["data"]["configuration.json"] = json!(configuration);
         }
     }
     context.ensure_namespaces().await?;
@@ -349,12 +366,27 @@ pub async fn uninstall_installed(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use k8s_openapi::api::core::v1::ConfigMap;
     fn options() -> Options {
         serde_json::from_value(json!({"namespace":"kimage-system","installation":"kimage","scope":"namespace","applicationNamespace":"apps","excludedNamespaces":[],"runtimeProfile":"inferal","registryNode":null,"storageClass":null,"storageSize":"1Gi","existingClaim":null,"port":17701})).unwrap()
     }
     fn node(name: &str, uid: &str) -> Node {
         serde_json::from_value(json!({"metadata":{"name":name,"uid":uid}})).unwrap()
+    }
+    #[test]
+    fn reapply_preserves_valid_administrator_configuration_bytes() {
+        let raw = r#"{
+  "buildPolicy": "Eager", "schema": 1
+}"#;
+        let mut map: ConfigMap = serde_json::from_value(
+            json!({"metadata":{"labels":{LABEL:"kimage"}},"data":{"configuration.json":raw}}),
+        )
+        .unwrap();
+        assert_eq!(build_configuration(Some(&map), "kimage").unwrap(), raw);
+        map.data
+            .as_mut()
+            .unwrap()
+            .insert("configuration.json".into(), r#"{"schema":99}"#.into());
+        assert!(build_configuration(Some(&map), "kimage").is_err());
     }
     #[test]
     fn reapply_retains_storage_and_worker_placement_and_refuses_identity_or_config_changes() {
