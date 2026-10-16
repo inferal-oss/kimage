@@ -89,6 +89,13 @@ pub const ROLES: [&str; 8] = [
 pub const OFFICIAL_REPOSITORY: &str = "ghcr.io/inferal-oss/kimage";
 pub const ASSET: &str = "component-images.json";
 
+/// Features introduced in 0.5 remain enabled in subsequent releases. Exact
+/// predecessor templates and transition edges are separately version-pinned.
+pub fn native_lifecycle(release: &str) -> Result<bool> {
+    let version = kimage_core::selector::exact(release)?;
+    Ok(version.major > 0 || version.minor >= 5)
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Component {
@@ -225,6 +232,16 @@ fn valid_repository(value: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn native_lifecycle_remains_enabled_in_later_minor_and_major_releases() {
+        for release in ["0.4.0", "0.4.1", "0.4.9"] {
+            assert!(!native_lifecycle(release).unwrap());
+        }
+        for release in ["0.5.0-rc.1", "0.5.0", "0.6.0", "0.10.0", "1.0.0"] {
+            assert!(native_lifecycle(release).unwrap());
+        }
+        assert!(native_lifecycle("latest").is_err());
+    }
     fn catalog() -> ImageCatalog {
         ImageCatalog {
             schema: 1,

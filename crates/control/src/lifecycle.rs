@@ -202,6 +202,9 @@ pub async fn active(client: Client, ns: &str, id: &str) -> Result<bool> {
 fn identity(source: &ImageCatalog, target: &ImageCatalog, uid: &str) -> Result<String> {
     Ok(kimage_core::oci::digest(&serde_json::to_vec(&(source, target, uid))?)[7..].into())
 }
+pub(crate) fn is_rollback(source: &str, target: &str) -> Result<bool> {
+    Ok(kimage_core::selector::exact(target)? < kimage_core::selector::exact(source)?)
+}
 async fn save(client: Client, j: &Journal) -> Result<()> {
     let maps: Api<ConfigMap> = Api::namespaced(client, &j.options.namespace);
     let name = format!("{}-operation", j.options.installation);
@@ -358,11 +361,7 @@ pub async fn transition(
     }
     compatible(&source, target)?;
     ensure!(
-        if rollback {
-            source.release > target.release
-        } else {
-            source.release < target.release
-        },
+        is_rollback(&source.release, &target.release)? == rollback,
         "TransitionDirectionConflict"
     );
     let all_nodes = nodes(client.clone()).await?;
@@ -477,7 +476,8 @@ pub async fn transition(
     let node_policy = if current_policy.is_none()
         && record.manager == "helm"
         && (record.target.release == "0.4.1" && record.phase == Phase::Applying
-            || record.source.release == "0.4.1" && record.target.release == "0.5.0")
+            || record.source.release == "0.4.1"
+                && crate::component_images::native_lifecycle(&record.target.release)?)
     {
         expected_policy.clone()
     } else {
@@ -488,7 +488,7 @@ pub async fn transition(
         "NodePolicyChangedDuringOperation"
     );
     ensure!(
-        !rollback || node_policy.node_selector.is_empty(),
+        !rollback || target.release != "0.4.1" || node_policy.node_selector.is_empty(),
         "TargetCannotHonorNodeSelectionPolicy: restore the default node selection before rolling back to 0.4.1"
     );
     let (selected, workers) = crate::node_reconcile::select(&options, &node_policy, &all_nodes)?;
@@ -523,7 +523,7 @@ pub async fn transition(
             resource["data"]["configuration.json"] = json!(record.configuration);
         }
     }
-    if target.release == "0.5.0" {
+    if crate::component_images::native_lifecycle(&target.release)? {
         crate::node_reconcile::decorate(&mut plan.resources, &installed)?;
     }
     let mut chart_file = None;
@@ -978,12 +978,17 @@ async fn helm_output(args: &[String]) -> Result<Vec<u8>> {
             "HelmFieldOwnershipConflict"
         } else if stderr.contains("ExplicitUpgradeRequired") {
             "HelmTransitionGuardRefused"
+        } else if stderr.contains("immutable")
+            && (stderr.contains("Job") || stderr.contains("jobs"))
+        {
+            "HelmImmutableJobConflict"
         } else if stderr.contains("cannot patch") || stderr.contains("immutable") {
             "HelmResourceUpdateFailed"
         } else {
             "HelmCommandFailed"
         };
-        anyhow::bail!("{reason}: inspect helm status and history for this installation");
+        let action = args.first().map(String::as_str).unwrap_or("command");
+        anyhow::bail!("{reason}: helm {action}; inspect status and history for this installation");
     }
     ensure!(output.stdout.len() <= 4 * 1024 * 1024, "HelmOutputTooLarge");
     Ok(output.stdout)
@@ -1152,6 +1157,12 @@ async fn helm_transition(
     {
         let revision = recovery_revision(&history)?;
         verify_helm_recovery(context, record, release_name, revision).await?;
+        // A partial chart may already have restarted a predecessor operator.
+        // Fence it again before replaying history. Readiness Jobs carry API-
+        // generated immutable selectors; recreating these disposable checks
+        // avoids patching historical Jobs absent from the partial manifest.
+        quiesce(context, &record.options, lease).await?;
+        cleanup_worker_checks(context, &[], &record.manager, lease).await?;
         let mut args = vec![
             "rollback".into(),
             release_name.clone(),
@@ -1212,4 +1223,17 @@ async fn restore_helm_policy(
         replace_owned(context, &desired, "helm").await?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn direction_uses_semantic_ordering_across_minor_digits_and_prereleases() {
+        assert!(!super::is_rollback("0.9.0", "0.10.0").unwrap());
+        assert!(super::is_rollback("0.10.0", "0.9.0").unwrap());
+        assert!(!super::is_rollback("0.5.0-rc.1", "0.5.0").unwrap());
+        assert!(super::is_rollback("0.5.0", "0.5.0-rc.1").unwrap());
+        assert!(!super::is_rollback("0.5.0", "1.0.0").unwrap());
+        assert!(super::is_rollback("1.0.0", "0.5.0").unwrap());
+    }
 }

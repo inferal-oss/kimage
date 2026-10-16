@@ -24,7 +24,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 - Following build output waits through client initialization instead of failing when an attempt's Pod has just been created.
 - Live log following retries transient exec connection failures within a bounded window, while authentication and invalid-output errors fail immediately.
 - Lifecycle journals are owned by the installation record so Helm uninstall also removes completed operation metadata.
+- Pending Helm recovery fences partial components and recreates disposable readiness Jobs before replaying history, avoiding immutable Job-template conflicts.
 - Guarded Helm 4 transitions use ordinary three-way updates so operator quiescing and native node reconciliation do not conflict with Helm's field ownership. Helm errors expose stable reasons without echoing rendered credentials.
+- Upgrade direction uses semantic version ordering, and node lifecycle features remain enabled for later releases instead of matching only 0.5.0.
 
 ### Security
 

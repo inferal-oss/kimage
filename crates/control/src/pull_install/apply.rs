@@ -231,7 +231,7 @@ pub async fn install(client: Client, options: &Options, catalog: &ImageCatalog) 
             }
         }
     }
-    if catalog.release == "0.5.0"
+    if crate::component_images::native_lifecycle(&catalog.release)?
         && let Some(state) = &previous
     {
         crate::node_reconcile::decorate(&mut plan.resources, state)?;

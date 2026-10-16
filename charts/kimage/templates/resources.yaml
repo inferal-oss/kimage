@@ -2,7 +2,7 @@
 {{- $b := $environment.bindings -}}
 {{- if not .Values.persistence.existingClaim -}}{{ include "kimage.resourceFile" (dict "root" . "name" "storage.json" "bindings" $b) }}{{- end -}}
 {{ include "kimage.resourceFile" (dict "root" . "name" "base.json" "bindings" $b) }}
-{{- if eq .Chart.AppVersion "0.5.0" -}}{{ include "kimage.resourceFile" (dict "root" . "name" "node-policy.json" "bindings" $b) }}{{- end -}}
+{{- if semverCompare ">=0.5.0-0" .Chart.AppVersion -}}{{ include "kimage.resourceFile" (dict "root" . "name" "node-policy.json" "bindings" $b) }}{{- end -}}
 {{ include "kimage.resourceFile" (dict "root" . "name" (printf "scope-%s.json" .Values.scope) "bindings" $b) }}
 {{ include "kimage.resourceFile" (dict "root" . "name" "control.json" "bindings" $b) }}
 {{- if .Values.exporter.approvedOrigins -}}{{ include "kimage.resourceFile" (dict "root" . "name" "exporter.json" "bindings" $b) }}{{- end -}}
@@ -32,7 +32,7 @@
 ---
 {{ $pod | toJson }}
   {{- $checkKey := (get $environment.catalog.components "builder").digest | trimPrefix "sha256:" | trunc 8 -}}
-  {{- if eq $.Chart.AppVersion "0.5.0" -}}{{- $checkKey = printf "%s:%s:%s:%s" $name $b.nodeUid (get $environment.catalog.components "builder").digest (get $environment.catalog.components "input").digest | sha256sum | trunc 12 -}}{{- end -}}
+  {{- if semverCompare ">=0.5.0-0" $.Chart.AppVersion -}}{{- $checkKey = printf "%s:%s:%s:%s" $name $b.nodeUid (get $environment.catalog.components "builder").digest (get $environment.catalog.components "input").digest | sha256sum | trunc 12 -}}{{- end -}}
   {{- $_ := set $b "workerCheckName" (printf "%s-builder-check-%s-%s" $b.installation $arch $checkKey) -}}
   {{ include "kimage.resourceFile" (dict "root" $ "name" "builder-check.json" "bindings" $b) }}
 {{- end -}}

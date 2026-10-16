@@ -59,7 +59,7 @@ pub async fn inspect(
     if let Some(operation) = &operation
         && operation.phase != crate::lifecycle::Phase::Complete
     {
-        issues.push(json!({"reason":"InstallationOperationPending","action":format!("Resume the {} operation with the same exact target {}",if operation.target.release<operation.source.release {"rollback"}else{"upgrade"},operation.target.release)}));
+        issues.push(json!({"reason":"InstallationOperationPending","action":format!("Resume the {} operation with the same exact target {}",if crate::lifecycle::is_rollback(&operation.source.release,&operation.target.release)? {"rollback"}else{"upgrade"},operation.target.release)}));
     }
     let maps: Api<ConfigMap> = Api::namespaced(client.clone(), namespace);
     let policy = maps
@@ -113,7 +113,7 @@ pub async fn inspect(
     }
     let node_status = maps.get_opt(&format!("{installation}-node-status")).await?;
     if let Some(node_status) = node_status
-        && release == "0.5.0"
+        && crate::component_images::native_lifecycle(&release)?
     {
         crate::lifecycle::owned(&node_status, installation)?;
         let status: Value = serde_json::from_str(
@@ -196,7 +196,7 @@ pub async fn inspect(
         );
         match planned {
             Ok(mut plan) => {
-                if release=="0.5.0" {crate::node_reconcile::decorate(&mut plan.resources,&state)?;}
+                if crate::component_images::native_lifecycle(&release)? {crate::node_reconcile::decorate(&mut plan.resources,&state)?;}
                 for desired in plan.resources.iter().chain(&plan.webhooks) {
                     let kind=desired["kind"].as_str().unwrap();
                     let name=desired["metadata"]["name"].as_str().unwrap();

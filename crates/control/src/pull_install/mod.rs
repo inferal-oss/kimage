@@ -487,7 +487,7 @@ impl Plan {
             append(&mut resources, "storage.json", &b)?;
         }
         append(&mut resources, "base.json", &b)?;
-        if catalog.release == "0.5.0" {
+        if crate::component_images::native_lifecycle(&catalog.release)? {
             b.insert(
                 "nodePolicy".into(),
                 json!(serde_json::to_string(
@@ -654,7 +654,7 @@ fn append_native(
             json!(format!(
                 "{}-builder-check-{arch}-{}",
                 options.installation,
-                if catalog.release == "0.5.0" {
+                if crate::component_images::native_lifecycle(&catalog.release)? {
                     kimage_core::oci::digest(
                         format!(
                             "{node}:{}:{}:{}",

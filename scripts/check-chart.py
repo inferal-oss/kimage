@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import shutil
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -55,6 +56,8 @@ def main():
     subprocess.run(['cargo','build','--locked','--quiet','-p','kimage-control','--example','pull-plan'],cwd=ROOT,check=True)
     metadata=json.loads(subprocess.check_output(['cargo','metadata','--locked','--no-deps','--format-version','1'],cwd=ROOT,text=True))
     version=next(p['version'] for p in metadata['packages'] if p['name']=='kimage-control')
+    major,minor,_=version.split('.')
+    future=f'{major}.{int(minor)+1}.0'
     example=Path(metadata['target_directory'])/'debug/examples/pull-plan'
     with tempfile.TemporaryDirectory(prefix='kimage-chart-') as temporary:
         work=Path(temporary)
@@ -63,9 +66,17 @@ def main():
             version='0.3.0' if role in ['gateway','proxy'] else '0.33.0' if role=='builder' else '3.1.2' if role=='registry' else version,
             digest=digests[role],platforms=[dict(os='linux',architecture=arch) for arch in ['amd64','arm64']]) for role in ROLES})
         (work/'catalog.json').write_text(json.dumps(catalog))
-        for case,(scope,architectures,existing) in enumerate([
-            ('namespace',['amd64','arm64'],False),('cluster',['amd64','arm64'],False),
-            ('namespace',['arm64'],True),('namespace',['amd64'],False)]):
+        for case,(scope,architectures,existing,release) in enumerate([
+            ('namespace',['amd64','arm64'],False,version),('cluster',['amd64','arm64'],False,version),
+            ('namespace',['arm64'],True,version),('namespace',['amd64'],False,version),
+            ('namespace',['amd64','arm64'],False,future)]):
+            selected=copy.deepcopy(catalog);selected['release']=release
+            for role in ['admission','exporter','input','operator']:selected['components'][role]['version']=release
+            (work/'catalog.json').write_text(json.dumps(selected))
+            chart=ROOT/'charts/kimage'
+            if release!=version:
+                chart=work/'future-chart';shutil.copytree(ROOT/'charts/kimage',chart)
+                path=chart/'Chart.yaml';path.write_text(path.read_text().replace(version,release))
             nodes=[node('node-'+arch,arch) for arch in architectures]
             options=dict(namespace='kimage-system',installation='kimage',scope=scope,
                 applicationNamespace='apps' if scope=='namespace' else None,excludedNamespaces=['excluded'] if scope=='cluster' else [],
@@ -76,7 +87,7 @@ def main():
                 (work/(name+'.json')).write_text(json.dumps(value))
             native=work/f'native-{case}.json'
             subprocess.run([str(example),work/'options.json',work/'catalog.json',work/'nodes.json',native],check=True)
-            command=[helm,'template','kimage',str(ROOT/'charts/kimage'),'--namespace','kimage-system','-f',str(work/'values.json')]
+            command=[helm,'template','kimage',str(chart),'--namespace','kimage-system','-f',str(work/'values.json')]
             result=subprocess.run(command,text=True,capture_output=True)
             if result.returncode:raise RuntimeError(result.stderr)
             rendered=[]
@@ -87,8 +98,8 @@ def main():
             assert actual.keys()==expected.keys(),f'{scope}/{architectures}: resource identity mismatch: {actual.keys() ^ expected.keys()}'
             for key in expected:
                 assert actual[key]==expected[key],f'{scope}/{architectures}: Helm/native mismatch in {key}'
-            subprocess.run([helm,'lint',str(ROOT/'charts/kimage'),'--namespace','kimage-system','-f',str(work/'values.json')],check=True,stdout=subprocess.DEVNULL)
-            print(f'{scope}, {"+".join(architectures)}: {len(actual)} matching resources, retained storage and pinned images')
+            subprocess.run([helm,'lint',str(chart),'--namespace','kimage-system','-f',str(work/'values.json')],check=True,stdout=subprocess.DEVNULL)
+            print(f'{release}, {scope}, {"+".join(architectures)}: {len(actual)} matching resources, retained storage and pinned images')
         # Invalid administrator inputs must fail during rendering, before any API writes.
         for changes,reason in [
             (dict(scope='cluster',applicationNamespace='apps'),'applicationNamespace'),
