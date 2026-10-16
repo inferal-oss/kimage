@@ -3,6 +3,10 @@ import json
 
 FINAL_LINE = 'kimage-diagnostic-output-4999'
 TRUNCATED = '[earlier output truncated]'
+PHASES = {'Capturing','Captured','Submitted','Completed','Interrupted','Unavailable'} | {
+    'Failed:'+reason for reason in ['ContainerfileSolveFailed','BuildProgressLineLimit',
+    'BuildProgressLimit','BuildInputOrEngineFailed','OperationCancelled','BuilderClientUnavailable',
+    'BuilderProgressUnavailable','BuildExportTooLarge','UnsupportedWorkerPlatform']}
 
 
 def summary(live, archived, retained):
@@ -12,7 +16,7 @@ def summary(live, archived, retained):
     phase = retained[0].get('phase') if len(retained) == 1 else None
     return json.dumps(dict(live=output(live), archived=output(archived),
                            retainedCount=len(retained),
-                           phase=phase if phase in ('Failed:ContainerfileSolveFailed', 'Interrupted', 'Unavailable') else 'unexpected'),
+                           phase=phase if phase in PHASES else 'unexpected'),
                       sort_keys=True)
 
 

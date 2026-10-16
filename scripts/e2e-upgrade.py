@@ -161,6 +161,7 @@ class Upgrade:
             nonlocal last_issues
             result=self.run_command([self.installer,'doctor','--namespace',self.system,'--installation',self.id,'--json'],ok=False)
             doctor=json.loads(result.stdout) if result.stdout.strip() else dict(healthy=False,issues=[dict(reason='DoctorCommandUnavailable')])
+            require(not any(v.get('detail')=='NodeReconcileForbidden' for v in doctor['issues']),'Native node reconciliation permission denied; check system resource metadata permissions')
             if result.returncode!=0 or not doctor['healthy']:
                 if doctor['issues']!=last_issues:print('WAIT: installation health '+json.dumps(doctor['issues']),flush=True);last_issues=doctor['issues']
                 return False
@@ -397,7 +398,8 @@ class Upgrade:
             self.build('after')
             for architecture in sorted(self.architectures):
                 self.build('explicit-'+architecture,architecture)
-                self.diagnostics(architecture)
+                repetitions=6 if os.environ.get('GITHUB_ACTIONS')=='true' and os.environ.get('KIMAGE_DIAGNOSTIC_STRESS')=='true' else 1
+                for _ in range(repetitions):self.diagnostics(architecture)
             if self.config.get('nodeChanges'):self.node_changes()
             self.installation_diagnostics()
             self.transition('0.4.1',True)

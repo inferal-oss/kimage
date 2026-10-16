@@ -158,9 +158,14 @@ only `.p7m` files. Decrypt locally with the recipient key and review privately.
 Ordinary CI and publication do not enable this capture. Never upload plaintext
 Helm failure output or the recipient private key as acceptance evidence.
 
-The manual `Focused Helm lifecycle diagnostics` workflow can reuse a prior native
+The manual `Focused native lifecycle diagnostics` workflow can reuse a prior native
 component build run when `Cargo.toml`, `Cargo.lock` and `crates/` are unchanged.
 Supply its exact run ID and source commit plus the public recipient certificate.
 It checks source identity and ancestry, recreates disposable native amd64 and
-arm64 fixtures for both scopes, and runs the same fresh-install and lifecycle sequence without
+arm64 fixtures for both scopes and installation managers, and runs the same fresh-install and lifecycle sequence without
 rebuilding components. It has no publication permissions.
+It repeats private failed-attempt checks with fresh Images to expose timing
+failures while preserving the normal acceptance assertions.
+
+Native failure summaries report only allowlisted phase codes and bounded output
+metadata. They do not upload private attempt Secrets or raw build output.

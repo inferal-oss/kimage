@@ -1,4 +1,4 @@
-name: Focused Helm lifecycle diagnostics
+name: Focused native lifecycle diagnostics
 on:
   workflow_dispatch:
     inputs:
@@ -21,7 +21,7 @@ env:
   CARGO_TERM_COLOR: always
 jobs:
   diagnose:
-    name: ${{ matrix.architecture }} / ${{ matrix.scope }} / Helm lifecycle
+    name: ${{ matrix.architecture }} / ${{ matrix.scope }} / ${{ matrix.mode }} lifecycle
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
@@ -29,6 +29,7 @@ jobs:
       matrix:
         architecture: [amd64, arm64]
         scope: [namespace, cluster]
+        mode: [cli, helm]
         include:
           - architecture: amd64
             os: ubuntu-24.04
@@ -91,18 +92,20 @@ jobs:
         run: python3 scripts/prepare-e2e-cluster.py --directory .local/e2e-cluster
       - name: Exercise the preceding fresh-install stage
         run: |
-          python3 scripts/e2e-install.py --scope ${{ matrix.scope }} --mode helm \
+          python3 scripts/e2e-install.py --scope ${{ matrix.scope }} --mode ${{ matrix.mode }} \
             --image-catalog "$KIMAGE_E2E_IMAGE_CATALOG" --chart .local/chart/kimage-*.tgz \
             --installer .local/e2e/kimage-install --probe .local/e2e/probe --output .local/e2e/results
-      - name: Exercise interrupted Helm upgrade and rollback
+      - name: Exercise interrupted native upgrade and rollback
         env:
           TEST_SCOPE: ${{ matrix.scope }}
+          TEST_MODE: ${{ matrix.mode }}
+          KIMAGE_DIAGNOSTIC_STRESS: "true"
         run: |
           python3 - <<'PY'
           import glob,json,os,subprocess
           from pathlib import Path
           context=subprocess.check_output(['k3s','kubectl','config','current-context'],text=True).strip()
-          config=dict(kubeconfig=os.environ['KUBECONFIG'],context=context,namespace='upgrade-app',systemNamespace='upgrade-system',installation='upgrade',probes=str(Path('.local/e2e/probes').resolve()),output=str(Path('.local/e2e/lifecycle').resolve()),installer=str(Path('.local/e2e/kimage-install').resolve()),previous=str(Path('.local/e2e/previous').resolve()),catalog=os.environ['KIMAGE_E2E_IMAGE_CATALOG'],chart=str(Path(glob.glob('.local/chart/kimage-*.tgz')[0]).resolve()),mode='helm',scope=os.environ['TEST_SCOPE'],runtimeProfile='k3s',port=17702,registryNode='kimage-e2e',kubectlCommand=['k3s','kubectl'])
+          config=dict(kubeconfig=os.environ['KUBECONFIG'],context=context,namespace='upgrade-app',systemNamespace='upgrade-system',installation='upgrade',probes=str(Path('.local/e2e/probes').resolve()),output=str(Path('.local/e2e/lifecycle').resolve()),installer=str(Path('.local/e2e/kimage-install').resolve()),previous=str(Path('.local/e2e/previous').resolve()),catalog=os.environ['KIMAGE_E2E_IMAGE_CATALOG'],chart=str(Path(glob.glob('.local/chart/kimage-*.tgz')[0]).resolve()),mode=os.environ['TEST_MODE'],scope=os.environ['TEST_SCOPE'],runtimeProfile='k3s',port=17702,registryNode='kimage-e2e',kubectlCommand=['k3s','kubectl'])
           Path('.local/e2e/config.json').write_text(json.dumps(config))
           PY
           python3 scripts/e2e-upgrade.py --run --config .local/e2e/config.json
@@ -110,7 +113,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: helm-diagnostic-${{ matrix.architecture }}-${{ matrix.scope }}
+          name: native-diagnostic-${{ matrix.architecture }}-${{ matrix.scope }}-${{ matrix.mode }}
           path: |
             .local/e2e/lifecycle/results.json
             .local/e2e/results/results.json

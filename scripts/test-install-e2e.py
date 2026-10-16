@@ -21,6 +21,11 @@ class Preflight(unittest.TestCase):
             assertions.verify('private-build-secret', tail, receipt, 'fixture')
         self.assertNotIn('private-build-secret', str(error.exception))
         self.assertIn('"finalLine": false', str(error.exception))
+        receipt[0]['phase']='Failed:BuildProgressLineLimit'
+        self.assertIn('Failed:BuildProgressLineLimit',assertions.summary('', '', receipt))
+        receipt[0]['phase']='Failed: PRIVATE_ERROR'
+        self.assertNotIn('PRIVATE_ERROR',assertions.summary('', '', receipt))
+        receipt[0]['phase']='Failed:ContainerfileSolveFailed'
         with self.assertRaisesRegex(RuntimeError, 'Invalid bounded retained output'):
             assertions.verify(tail, burst, receipt, 'fixture')
 

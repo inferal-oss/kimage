@@ -16,34 +16,24 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 - Read-only `kimage status` and `kimage doctor`, including JSON output, pending operations, component readiness, native platforms, retained storage, certificate validity and resource drift.
 - Private build diagnostics through `kimage logs IMAGE --follow` and `kimage builds IMAGE`, with platform and attempt selection. Completed attempt logs survive build Pod cleanup; each platform retains the latest five attempts with a bounded 64 KiB output tail per attempt. Guides explain access permissions, retry policy, output clipping and progress limits.
 
+### Changed
+
+- After rollback to the published 0.4.1 controller, the documented Helm removal procedure stops its operator first to prevent worker recreation during deletion. Fresh 0.5.0 Helm removal is tested directly.
+
 ### Fixed
 
-- CLI uninstall rechecks pending operations and installation identity after acquiring its Lease, and stops if that Lease is lost. A concurrent interrupted upgrade cannot be bypassed by a stale uninstall preflight.
-- Documented and tested operator shutdown before Helm removal after rollback to the published 0.4.1 controller, which can otherwise recreate an ownerless worker during deletion. Fresh 0.5.0 Helm removal remains directly tested.
-- Node reconciliation adds missing installation ownership even when a resource's specification already matches. It updates metadata with UID/resource-version guards, without restarting unchanged workers or taking over a different owner or Helm release. Required Pod/Job patch permission is confined to the operator's system namespace and checked by native acceptance.
-- Doctor identifies denied node reconciliation permissions and points to the system Role and RoleBinding, without exposing raw API error details.
-- Native diagnostic acceptance checks the final stdout line without assuming ordering between stdout and stderr. Failure summaries report bounded metadata without exposing build output; cleanup progress and uninstall timeouts identify remaining resources using metadata only. Focused lifecycle diagnostics cover both native architectures and scopes.
-- Readiness Job names fit Kubernetes label limits for every supported installation name, including 31- and 32-character names. Rust and Helm render the same bounded names.
-- Helm transitions fence node-local proxy Pods before changing their images and use Helm 4's legacy readiness wait, which tolerates transient restart backoff instead of immediately rejecting a recovering proxy. Independent native readiness and retained-data verification still gate completion.
-- CLI rollback resume stops a partially restarted predecessor again before applying resources. Concurrent worker creation is accepted only for an exact, owned, non-deleting resource; foreign or changed resources remain refused.
-- Guarded Helm transitions prepare target workers before restarting the predecessor operator, avoiding concurrent worker creation or fencing during rollback. Helm errors retain safe resource and configuration reason codes.
-- Terminal build-log snapshots read the completion phase before output, preventing follow and archival from ending with a stale tail during a fast failure.
-- Status and doctor preserve Helm ownership inside worker recovery templates, avoiding false drift reports after a guarded chart upgrade.
-- Worker recovery preserves installation and Helm ownership. Automatically registered node resources can be adopted by subsequent chart revisions and removed with their installation.
-- Native readiness Jobs have distinct identities when placement or input images change, avoiding immutable Job update failures during Helm upgrades.
-- Resource checks compare JSON values across Helm and Rust serialization without treating key ordering as drift, while rejecting unexpected or changed fields.
-- Following build output waits through client initialization instead of failing when an attempt's Pod has just been created.
-- Build-log archive names retain the full attempt identity within valid DNS labels, allowing input authorization to consistently recognize and reject private diagnostic Secrets.
-- Live log following retries transient exec connection failures within a bounded window, while authentication and invalid-output errors fail immediately.
-- Lifecycle journals are owned by the installation record so Helm uninstall also removes completed operation metadata.
-- Pending Helm recovery fences partial components and recreates disposable readiness Jobs before replaying history, avoiding immutable Job-template conflicts.
-- Readiness verification waits through a controller replacing a worker during rollback, while still rejecting ownership or specification drift.
-- Guarded Helm 4 transitions use ordinary three-way updates so operator quiescing and native node reconciliation do not conflict with Helm's field ownership. Helm errors expose stable reasons without echoing rendered credentials.
-- Upgrade direction uses semantic version ordering, and node lifecycle features remain enabled for later releases instead of matching only 0.5.0.
+- Guarded Helm transitions coordinate proxy and worker replacement with the predecessor operator, recover interrupted history without immutable Job conflicts, and tolerate transient restart backoff with Helm 4's legacy readiness wait. Ordinary three-way updates preserve Helm ownership and revision history.
+- CLI rollback resume stops partially restarted predecessor components again. Concurrent worker creation is accepted only for the exact owned, non-deleting specification. Uninstall rechecks pending operations and installation identity under its Lease and stops on Lease loss.
+- Node reconciliation repairs missing ownership on unchanged resources without restarting them or taking over another owner. Worker recovery and operation journals retain installation ownership for chart adoption and cleanup. Required Pod/Job patch access is limited to the operator's system namespace; doctor identifies denied permissions safely.
+- Resource checks compare JSON values across Helm and Rust serialization, preserving manager identity inside worker recovery templates while rejecting unexpected fields and genuine drift.
+- Native readiness Jobs track node identity, placement and input images, and fit Kubernetes label limits for every supported installation name. Readiness checks wait through normal worker replacement without accepting ownership or specification drift.
+- Build-log snapshots pair terminal phases with final output. Following an attempt waits through startup and bounded transient connection failures, reports gaps, and retains full attempt identities in valid diagnostic Secret names.
+- Upgrade direction follows semantic version ordering, and native node lifecycle features remain enabled in later releases.
+- Native diagnostic acceptance tolerates independent stdout/stderr ordering. Cleanup progress and failures expose only bounded metadata; focused lifecycle diagnostics cover both architectures and installation scopes.
 
 ### Security
 
-- Optional candidate and focused native workflows encrypt failing Helm output to a maintainer-provided certificate; the private decryption key remains outside CI. Focused runs can reuse unchanged native component artifacts.
+- Optional candidate and focused native workflows encrypt failing Helm output to a maintainer-provided certificate; the private decryption key remains outside CI. Focused runs can reuse unchanged native component artifacts. Native attempt summaries expose only allowlisted phase codes and bounded metadata.
 - Diagnostic Secrets carry the predecessor's reserved input marker, so rolling back to 0.4.1 cannot make private build output eligible as an ordinary build input.
 - Helm upgrade checks reject recovery history that would replay stale credential or build-policy bytes, before stopping components.
 
