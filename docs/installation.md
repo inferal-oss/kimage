@@ -241,11 +241,13 @@ helm uninstall kimage --namespace kimage-system --wait
 ```
 
 After a rollback to 0.4.1, stop its operator before Helm removal. That published
-controller can recreate an ownerless worker while Helm deletes resources:
+controller recreates workers without Helm tracking metadata. Stop it, then remove
+its named workers before removing the chart:
 
 ```sh
 kubectl -n kimage-system scale deployment/kimage-operator --replicas=0
 kubectl -n kimage-system wait --for=delete pod -l kimage.dev/installation=kimage,kimage.dev/role=operator --timeout=180s
+kubectl -n kimage-system delete pod kimage-builder-amd64 kimage-builder-arm64 --ignore-not-found --wait=true
 helm uninstall kimage --namespace kimage-system --wait
 ```
 

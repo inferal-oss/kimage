@@ -425,11 +425,12 @@ kimage uninstall --namespace kimage-system --installation kimage
 helm uninstall kimage --namespace kimage-system --wait
 ```
 
-After rollback to 0.4.1, stop its operator before Helm removal. That published controller can recreate an ownerless worker while Helm deletes resources. The CLI uninstall command already stops supervisors first. Use your installation name and namespace:
+After rollback to 0.4.1, stop its operator and remove its named workers before Helm removal. That published controller recreates workers without Helm tracking metadata. The CLI uninstall command already stops supervisors first. Use your installation name and namespace:
 
 ```
 kubectl -n kimage-system scale deployment/kimage-operator --replicas=0
 kubectl -n kimage-system wait --for=delete pod -l kimage.dev/installation=kimage,kimage.dev/role=operator --timeout=180s
+kubectl -n kimage-system delete pod kimage-builder-amd64 kimage-builder-arm64 --ignore-not-found --wait=true
 helm uninstall kimage --namespace kimage-system --wait
 ```
 

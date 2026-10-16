@@ -812,9 +812,10 @@ kimage rollback --to 0.4.1</code></pre>
 <pre><code>kimage uninstall --namespace kimage-system --installation kimage
 # For a Helm-managed installation:
 helm uninstall kimage --namespace kimage-system --wait</code></pre>
-<p>After rollback to 0.4.1, stop its operator before Helm removal. That published controller can recreate an ownerless worker while Helm deletes resources. The CLI uninstall command already stops supervisors first. Use your installation name and namespace:</p>
+<p>After rollback to 0.4.1, stop its operator and remove its named workers before Helm removal. That published controller recreates workers without Helm tracking metadata. The CLI uninstall command already stops supervisors first. Use your installation name and namespace:</p>
 <pre><code>kubectl -n kimage-system scale deployment/kimage-operator --replicas=0
 kubectl -n kimage-system wait --for=delete pod -l kimage.dev/installation=kimage,kimage.dev/role=operator --timeout=180s
+kubectl -n kimage-system delete pod kimage-builder-amd64 kimage-builder-arm64 --ignore-not-found --wait=true
 helm uninstall kimage --namespace kimage-system --wait</code></pre>
 <p>Removal keeps PVCs, Images, ImageReleases and shared CRDs. Do not remove namespaces, release pins, finalizers or registry backends during ordinary cleanup. Running containers survive registry downtime; new uncached application starts wait or fail until serving returns. This remains a single-registry deployment, not HA.</p>
 <p>Version 0.4.1 fixes intermittent <code>CleanupIdentityConflict</code> errors during CLI uninstall when Pod status changes between LIST and DELETE. UID, specification and ownership checks remain enforced. For an existing 0.4.0 installation, update the CLI with the Cargo command above, then run the same uninstall command. This cleanup fix requires no component reinstallation or data migration.</p>

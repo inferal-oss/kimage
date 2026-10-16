@@ -6,9 +6,11 @@ case uses a disposable, single-node K3s cluster. It does not emulate a mixed
 cluster with QEMU or nested multi-platform Docker.
 
 Fresh 0.5.0 Helm removal is tested directly. After rollback, the test drains the
-published 0.4.1 operator before Helm removal, following the
+published 0.4.1 operator and retires its exact template-matching native workers
+with UID/resource-version delete guards before Helm removal, following the
 [documented predecessor shutdown procedure](installation.md). That older
-controller can otherwise recreate an ownerless worker during deletion. Cleanup
+controller recreates workers without Helm tracking metadata. Foreign owners and
+specification changes are refused. Cleanup
 still requires every disposable system resource to disappear; retained PVC/PV,
 Image and release identities and complete OCI readback remain required.
 

@@ -347,8 +347,9 @@ belongs only to that system namespace, not application namespaces or admission.
 kimage uninstall --namespace kimage-system --installation kimage, or helm uninstall
 kimage --namespace kimage-system --wait, preserves PVCs, CRDs, Images and releases.
 After rollback to 0.4.1, first scale deployment/INSTALLATION-operator to zero and
-wait for its operator Pods to be deleted, then helm uninstall. The published
-0.4.1 operator can otherwise recreate an ownerless worker during Helm deletion.
+wait for its operator Pods to be deleted, delete its named INSTALLATION-builder-amd64
+and INSTALLATION-builder-arm64 Pods with --ignore-not-found --wait=true, then helm
+uninstall. Published 0.4.1 recreates workers without Helm tracking metadata.
 Use the installation label plus kimage.dev/role=operator for the Pod wait.
 CLI uninstall already stops supervisors first. Fresh 0.5.0 Helm removal is
 tested directly; predecessor removal uses the documented shutdown procedure.

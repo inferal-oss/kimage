@@ -18,7 +18,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ### Changed
 
-- After rollback to the published 0.4.1 controller, the documented Helm removal procedure stops its operator first to prevent worker recreation during deletion. Fresh 0.5.0 Helm removal is tested directly.
+- After rollback to the published 0.4.1 controller, the documented Helm removal procedure stops its operator and retires its recreated workers before chart removal. Acceptance guards worker identity/specification and refuses foreign owners. Fresh 0.5.0 Helm removal is tested directly.
 
 ### Fixed
 

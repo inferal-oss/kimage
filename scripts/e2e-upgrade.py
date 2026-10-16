@@ -252,7 +252,41 @@ class Upgrade:
             require('Conflict' in result.stderr and attempt<2,'Predecessor operator shutdown failed')
         self.api.wait(lambda:not self.api.get('pods',namespace=self.system,selector='kimage.dev/installation='+self.id+',kimage.dev/role=operator')['items'],'published predecessor operator stops before Helm removal')
         self.check('published 0.4.1 operator drained before Helm uninstall')
+        # The predecessor recreates workers without Helm's original tracking
+        # metadata. Retire only exact template-matching workers after shutdown;
+        # a raw UID/RV precondition cannot delete a replacement Pod.
+        for architecture in sorted(self.architectures):self.retire_previous_worker(architecture)
         self.run_command(['helm','uninstall',self.id,'--namespace',self.system,'--wait','--timeout','5m'])
+
+    def retire_previous_worker(self,architecture):
+        name=self.id+'-builder-'+architecture
+        template=self.api.get('configmap',self.id+'-builder-template-'+architecture,self.system)
+        require(template and template['metadata'].get('labels',{}).get('kimage.dev/installation')==self.id,'Predecessor worker template ownership changed')
+        expected=json.loads(template['data']['pod.json'])
+        require(expected['metadata']['name']==name and expected['metadata'].get('labels',{}).get('kimage.dev/installation')==self.id,'Predecessor worker template identity changed')
+        def contains(actual,desired):
+            if isinstance(desired,dict):return isinstance(actual,dict) and all(k in actual and contains(actual[k],v) for k,v in desired.items())
+            if isinstance(desired,list):return isinstance(actual,list) and len(actual)==len(desired) and all(contains(a,d) for a,d in zip(actual,desired))
+            return actual==desired
+        for attempt in range(3):
+            worker=self.api.get('pod',name,self.system)
+            if worker is None:return
+            metadata=worker['metadata']
+            require(metadata.get('labels',{}).get('kimage.dev/installation')==self.id
+                    and metadata.get('annotations',{}).get('kimage.dev/manager') in (None,'helm')
+                    and contains(worker['spec'],expected['spec']),'Predecessor worker ownership or specification changed')
+            if metadata.get('ownerReferences'):
+                state=self.api.get('configmap',self.id+'-installation',self.system)
+                require(state and state['metadata'].get('labels',{}).get('kimage.dev/installation')==self.id
+                    and all(o.get('apiVersion')=='v1' and o.get('kind')=='ConfigMap' and o.get('name')==self.id+'-installation'
+                        and o.get('uid')==state['metadata']['uid'] for o in metadata['ownerReferences']),'Predecessor worker has a foreign owner')
+            if metadata.get('deletionTimestamp'):break
+            result=self.api.call(['delete','--raw','/api/v1/namespaces/'+self.system+'/pods/'+name,'-f','-'],
+                dict(apiVersion='v1',kind='DeleteOptions',gracePeriodSeconds=1,preconditions=dict(uid=metadata['uid'],resourceVersion=metadata['resourceVersion'])),ok=False)
+            if result.returncode==0:break
+            require(('Conflict' in result.stderr or 'NotFound' in result.stderr) and attempt<2,'Predecessor worker retirement failed')
+        self.api.wait(lambda:self.api.get('pod',name,self.system) is None,'published predecessor worker retires before Helm removal')
+        self.check('published 0.4.1 native '+architecture+' worker retired with guarded identity before Helm uninstall')
 
     def assert_removed(self):
         remaining={}

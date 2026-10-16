@@ -37,12 +37,38 @@ class Boundaries(unittest.TestCase):
             def wait(self,predicate,message):assert predicate()
         fixture=upgrade.Upgrade.__new__(upgrade.Upgrade)
         fixture.api=API();fixture.config=dict(mode='helm');fixture.system='system';fixture.id='fixture'
+        fixture.architectures=set()
         fixture.check=lambda message:None
         def command(args):
             self.assertEqual(events,['scale','pods-gone']);self.assertEqual(args[:3],['helm','uninstall','fixture']);events.append('helm-uninstall')
         fixture.run_command=command
         fixture.uninstall_previous()
         self.assertEqual(events,['scale','pods-gone','helm-uninstall'])
+
+    def test_predecessor_worker_retirement_checks_the_template_and_delete_preconditions(self):
+        import copy,types
+        expected=dict(metadata=dict(name='fixture-builder-arm64',labels={'kimage.dev/installation':'fixture'}),spec=dict(nodeName='native',containers=[dict(name='builder',image='pinned')],automountServiceAccountToken=False))
+        for changed in ['none','image','owner']:
+            worker=copy.deepcopy(expected);worker['metadata'].update(uid='worker-uid',resourceVersion='17')
+            if changed=='image':worker['spec']['containers'][0]['image']='foreign'
+            if changed=='owner':worker['metadata']['ownerReferences']=[dict(apiVersion='v1',kind='ConfigMap',name='foreign',uid='foreign')]
+            events=[]
+            class API:
+                def get(self,kind,*args):
+                    if args and args[0]=='fixture-installation':return dict(metadata=dict(uid='state-uid',labels={'kimage.dev/installation':'fixture'}))
+                    if kind=='configmap':return dict(metadata=dict(labels={'kimage.dev/installation':'fixture'}),data={'pod.json':json.dumps(expected)})
+                    return None if events else worker
+                def call(self,args,body,**kwargs):
+                    self_body=dict(apiVersion='v1',kind='DeleteOptions',gracePeriodSeconds=1,preconditions=dict(uid='worker-uid',resourceVersion='17'))
+                    assert body==self_body and args[2]=='/api/v1/namespaces/system/pods/fixture-builder-arm64'
+                    events.append('delete');return types.SimpleNamespace(returncode=0)
+                def wait(self,predicate,message):assert predicate()
+            fixture=upgrade.Upgrade.__new__(upgrade.Upgrade);fixture.api=API();fixture.system='system';fixture.id='fixture';fixture.check=lambda text:None
+            if changed!='none':
+                with self.assertRaisesRegex(RuntimeError,'ownership or specification|foreign owner'):fixture.retire_previous_worker('arm64')
+                self.assertEqual(events,[])
+            else:
+                fixture.retire_previous_worker('arm64');self.assertEqual(events,['delete'])
 
     def test_uninstall_timeout_inventory_excludes_secret_values(self):
         class API:
