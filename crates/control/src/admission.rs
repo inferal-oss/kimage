@@ -244,8 +244,7 @@ async fn authorized_native_helper(state: &Admission, request: &Value) -> Result<
             continue;
         };
         ensure!(
-            map.immutable == Some(true)
-                && map.labels().get(crate::install::LABEL) == Some(installation),
+            map.labels().get(crate::install::LABEL) == Some(installation),
             "BuilderCatalogOwnershipConflict"
         );
         let catalog: Value = serde_json::from_str(
@@ -256,7 +255,7 @@ async fn authorized_native_helper(state: &Admission, request: &Value) -> Result<
         )?;
         let builder = &catalog["builders"]["default"];
         ensure!(
-            catalog["schema"] == 1
+            matches!(catalog["schema"].as_u64(), Some(1 | 2))
                 && builder["platforms"] == json!([format!("linux/{architecture}")]),
             "UnsupportedBuilderPlatform"
         );
@@ -266,13 +265,27 @@ async fn authorized_native_helper(state: &Admission, request: &Value) -> Result<
         let worker = builder["image"]
             .as_str()
             .context("MissingNativeBuilderImage")?;
-        for (reference, role) in [(input, "input"), (worker, "builder")] {
+        if catalog["schema"] == 2 {
+            crate::component_images::authorize_builder_catalog(
+                state.client.clone(),
+                system,
+                installation,
+                &catalog,
+            )
+            .await?;
+        } else {
             ensure!(
-                reference
-                    .strip_prefix(&format!("{}/{system}/system-{role}@", state.endpoint))
-                    .is_some_and(kimage_core::oci::valid_digest),
-                "InvalidNativeComponentReference"
+                map.immutable == Some(true),
+                "BuilderCatalogOwnershipConflict"
             );
+            for (reference, role) in [(input, "input"), (worker, "builder")] {
+                ensure!(
+                    reference
+                        .strip_prefix(&format!("{}/{system}/system-{role}@", state.endpoint))
+                        .is_some_and(kimage_core::oci::valid_digest),
+                    "InvalidNativeComponentReference"
+                );
+            }
         }
         let identity = (username.clone(), input.to_owned());
         if request["object"]["spec"]["nodeName"] == builder["node"]
@@ -409,6 +422,22 @@ async fn eligible_nodes(
             excluded_namespaces: state.excluded_namespaces.clone(),
         };
         record.validate_scope(installation, namespace, &scope.registry_namespaces(), port)?;
+        let legacy = format!("127.0.0.1:{port}/{namespace}/system-proxy@");
+        for reference in &record.proxy_images {
+            if !reference
+                .strip_prefix(&legacy)
+                .is_some_and(kimage_core::oci::valid_digest)
+            {
+                crate::component_images::authorize_reference(
+                    state.client.clone(),
+                    namespace,
+                    installation,
+                    "proxy",
+                    reference,
+                )
+                .await?;
+            }
+        }
         let scope = crate::node_install::scope(installation, &record.node_uid);
         ensure!(
             map.name_any() == format!("{scope}-endpoint"),

@@ -81,7 +81,8 @@ impl Endpoint {
         ensure!(
             self.proxy_images.iter().all(|r| r
                 .strip_prefix(&prefix)
-                .is_some_and(kimage_core::oci::valid_digest)),
+                .is_some_and(kimage_core::oci::valid_digest)
+                || crate::component_images::pinned_component(r, "proxy")),
             "InvalidNodeProxyImage"
         );
         Ok(())

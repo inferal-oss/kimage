@@ -1,0 +1,754 @@
+[
+  {
+    "apiVersion": "v1",
+    "kind": "ServiceAccount",
+    "metadata": {
+      "name": "${installation}-operator",
+      "labels": {
+        "kimage.dev/installation": "${installation}"
+      },
+      "namespace": "${namespace}",
+      "annotations": {
+        "kimage.dev/manager": "${manager}"
+      }
+    },
+    "automountServiceAccountToken": false
+  },
+  {
+    "apiVersion": "rbac.authorization.k8s.io/v1",
+    "kind": "ClusterRole",
+    "metadata": {
+      "name": "${installation}-operator",
+      "labels": {
+        "kimage.dev/installation": "${installation}"
+      },
+      "annotations": {
+        "kimage.dev/manager": "${manager}"
+      }
+    },
+    "rules": [
+      {
+        "apiGroups": [
+          "apiextensions.k8s.io"
+        ],
+        "resources": [
+          "customresourcedefinitions"
+        ],
+        "verbs": [
+          "create"
+        ]
+      },
+      {
+        "apiGroups": [
+          "apiextensions.k8s.io"
+        ],
+        "resources": [
+          "customresourcedefinitions"
+        ],
+        "verbs": [
+          "get",
+          "update",
+          "patch"
+        ],
+        "resourceNames": [
+          "images.kimage.dev",
+          "imagereleases.kimage.dev",
+          "imagedemands.kimage.dev"
+        ]
+      },
+      {
+        "apiGroups": [
+          ""
+        ],
+        "resources": [
+          "persistentvolumes"
+        ],
+        "verbs": [
+          "get"
+        ]
+      },
+      {
+        "apiGroups": [
+          ""
+        ],
+        "resources": [
+          "nodes"
+        ],
+        "verbs": [
+          "get",
+          "list"
+        ]
+      }
+    ]
+  },
+  {
+    "apiVersion": "rbac.authorization.k8s.io/v1",
+    "kind": "ClusterRoleBinding",
+    "metadata": {
+      "name": "${installation}-operator",
+      "labels": {
+        "kimage.dev/installation": "${installation}"
+      },
+      "annotations": {
+        "kimage.dev/manager": "${manager}"
+      }
+    },
+    "subjects": [
+      {
+        "kind": "ServiceAccount",
+        "name": "${installation}-operator",
+        "namespace": "${namespace}"
+      }
+    ],
+    "roleRef": {
+      "apiGroup": "rbac.authorization.k8s.io",
+      "kind": "ClusterRole",
+      "name": "${installation}-operator"
+    }
+  },
+  {
+    "apiVersion": "rbac.authorization.k8s.io/v1",
+    "kind": "Role",
+    "metadata": {
+      "name": "${installation}-operator",
+      "labels": {
+        "kimage.dev/installation": "${installation}"
+      },
+      "namespace": "${namespace}",
+      "annotations": {
+        "kimage.dev/manager": "${manager}"
+      }
+    },
+    "rules": [
+      {
+        "apiGroups": [
+          "coordination.k8s.io"
+        ],
+        "resources": [
+          "leases"
+        ],
+        "verbs": [
+          "create"
+        ]
+      },
+      {
+        "apiGroups": [
+          "coordination.k8s.io"
+        ],
+        "resources": [
+          "leases"
+        ],
+        "verbs": [
+          "get",
+          "update",
+          "patch"
+        ],
+        "resourceNames": [
+          "kimage-schema-manager"
+        ]
+      },
+      {
+        "apiGroups": [
+          ""
+        ],
+        "resources": [
+          "configmaps"
+        ],
+        "verbs": [
+          "create"
+        ]
+      },
+      {
+        "apiGroups": [
+          ""
+        ],
+        "resources": [
+          "configmaps"
+        ],
+        "verbs": [
+          "get",
+          "update",
+          "patch"
+        ],
+        "resourceNames": [
+          "kimage-schema-status"
+        ]
+      },
+      {
+        "apiGroups": [
+          ""
+        ],
+        "resources": [
+          "configmaps"
+        ],
+        "verbs": [
+          "get",
+          "list",
+          "watch"
+        ]
+      },
+      {
+        "apiGroups": [
+          "kimage.dev"
+        ],
+        "resources": [
+          "imagedemands"
+        ],
+        "verbs": [
+          "get",
+          "list",
+          "watch"
+        ]
+      },
+      {
+        "apiGroups": [
+          ""
+        ],
+        "resources": [
+          "secrets"
+        ],
+        "verbs": [
+          "get"
+        ],
+        "resourceNames": [
+          "${installation}-builder-client-amd64",
+          "${installation}-builder-client-arm64"
+        ]
+      },
+      {
+        "apiGroups": [
+          ""
+        ],
+        "resources": [
+          "pods"
+        ],
+        "verbs": [
+          "get",
+          "delete"
+        ],
+        "resourceNames": [
+          "${installation}-builder-amd64",
+          "${installation}-builder-arm64"
+        ]
+      },
+      {
+        "apiGroups": [
+          ""
+        ],
+        "resources": [
+          "pods"
+        ],
+        "verbs": [
+          "create"
+        ]
+      },
+      {
+        "apiGroups": [
+          "discovery.k8s.io"
+        ],
+        "resources": [
+          "endpointslices"
+        ],
+        "verbs": [
+          "get",
+          "list"
+        ]
+      },
+      {
+        "apiGroups": [
+          "coordination.k8s.io"
+        ],
+        "resources": [
+          "leases"
+        ],
+        "verbs": [
+          "get",
+          "update",
+          "patch"
+        ],
+        "resourceNames": [
+          "${installation}-direct-worker-amd64",
+          "${installation}-direct-worker-arm64"
+        ]
+      }
+    ]
+  },
+  {
+    "apiVersion": "rbac.authorization.k8s.io/v1",
+    "kind": "RoleBinding",
+    "metadata": {
+      "name": "${installation}-operator",
+      "labels": {
+        "kimage.dev/installation": "${installation}"
+      },
+      "namespace": "${namespace}",
+      "annotations": {
+        "kimage.dev/manager": "${manager}"
+      }
+    },
+    "subjects": [
+      {
+        "kind": "ServiceAccount",
+        "name": "${installation}-operator",
+        "namespace": "${namespace}"
+      }
+    ],
+    "roleRef": {
+      "apiGroup": "rbac.authorization.k8s.io",
+      "kind": "Role",
+      "name": "${installation}-operator"
+    }
+  },
+  {
+    "apiVersion": "apps/v1",
+    "kind": "Deployment",
+    "metadata": {
+      "name": "${installation}-operator",
+      "labels": {
+        "kimage.dev/installation": "${installation}",
+        "kimage.dev/role": "operator"
+      },
+      "namespace": "${namespace}",
+      "annotations": {
+        "kimage.dev/manager": "${manager}"
+      }
+    },
+    "spec": {
+      "replicas": 1,
+      "strategy": {
+        "type": "Recreate"
+      },
+      "selector": {
+        "matchLabels": {
+          "kimage.dev/installation": "${installation}",
+          "kimage.dev/role": "operator"
+        }
+      },
+      "template": {
+        "metadata": {
+          "labels": {
+            "kimage.dev/installation": "${installation}",
+            "kimage.dev/role": "operator"
+          }
+        },
+        "spec": {
+          "automountServiceAccountToken": true,
+          "restartPolicy": "Always",
+          "hostNetwork": false,
+          "dnsPolicy": "ClusterFirst",
+          "securityContext": {
+            "seccompProfile": {
+              "type": "RuntimeDefault"
+            }
+          },
+          "containers": [
+            {
+              "name": "operator",
+              "image": "${operatorImage}",
+              "imagePullPolicy": "IfNotPresent",
+              "command": [
+                "/kimage-operator"
+              ],
+              "args": "${operatorArguments}",
+              "env": [
+                {
+                  "name": "POD_UID",
+                  "valueFrom": {
+                    "fieldRef": {
+                      "fieldPath": "metadata.uid"
+                    }
+                  }
+                }
+              ],
+              "securityContext": {
+                "runAsUser": 65532,
+                "runAsGroup": 65532,
+                "runAsNonRoot": true,
+                "allowPrivilegeEscalation": false,
+                "readOnlyRootFilesystem": true,
+                "capabilities": {
+                  "drop": [
+                    "ALL"
+                  ]
+                }
+              },
+              "resources": {
+                "requests": {
+                  "cpu": "50m",
+                  "memory": "64Mi"
+                },
+                "limits": {
+                  "cpu": "1",
+                  "memory": "512Mi",
+                  "ephemeral-storage": "2Gi"
+                }
+              },
+              "volumeMounts": [
+                {
+                  "name": "credentials",
+                  "mountPath": "/credentials",
+                  "readOnly": true
+                },
+                {
+                  "name": "scratch",
+                  "mountPath": "/tmp",
+                  "readOnly": false
+                }
+              ],
+              "readinessProbe": {
+                "httpGet": {
+                  "path": "/readyz",
+                  "port": 8080,
+                  "scheme": "HTTP"
+                },
+                "periodSeconds": 2
+              }
+            }
+          ],
+          "volumes": [
+            {
+              "name": "credentials",
+              "secret": {
+                "secretName": "${installation}-publisher-credentials",
+                "defaultMode": 292
+              }
+            },
+            {
+              "name": "scratch",
+              "emptyDir": {
+                "sizeLimit": "2Gi"
+              }
+            }
+          ],
+          "affinity": {
+            "nodeAffinity": {
+              "requiredDuringSchedulingIgnoredDuringExecution": {
+                "nodeSelectorTerms": [
+                  {
+                    "matchFields": [
+                      {
+                        "key": "metadata.name",
+                        "operator": "In",
+                        "values": [
+                          "${primaryNode}"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "serviceAccountName": "${installation}-operator"
+        }
+      }
+    }
+  },
+  {
+    "apiVersion": "v1",
+    "kind": "ServiceAccount",
+    "metadata": {
+      "name": "${installation}-admission",
+      "labels": {
+        "kimage.dev/installation": "${installation}"
+      },
+      "namespace": "${namespace}",
+      "annotations": {
+        "kimage.dev/manager": "${manager}"
+      }
+    },
+    "automountServiceAccountToken": false
+  },
+  {
+    "apiVersion": "rbac.authorization.k8s.io/v1",
+    "kind": "ClusterRole",
+    "metadata": {
+      "name": "${installation}-admission",
+      "labels": {
+        "kimage.dev/installation": "${installation}"
+      },
+      "annotations": {
+        "kimage.dev/manager": "${manager}"
+      }
+    },
+    "rules": [
+      {
+        "apiGroups": [
+          ""
+        ],
+        "resources": [
+          "nodes"
+        ],
+        "verbs": [
+          "get",
+          "list"
+        ]
+      }
+    ]
+  },
+  {
+    "apiVersion": "rbac.authorization.k8s.io/v1",
+    "kind": "ClusterRoleBinding",
+    "metadata": {
+      "name": "${installation}-admission",
+      "labels": {
+        "kimage.dev/installation": "${installation}"
+      },
+      "annotations": {
+        "kimage.dev/manager": "${manager}"
+      }
+    },
+    "subjects": [
+      {
+        "kind": "ServiceAccount",
+        "name": "${installation}-admission",
+        "namespace": "${namespace}"
+      }
+    ],
+    "roleRef": {
+      "apiGroup": "rbac.authorization.k8s.io",
+      "kind": "ClusterRole",
+      "name": "${installation}-admission"
+    }
+  },
+  {
+    "apiVersion": "rbac.authorization.k8s.io/v1",
+    "kind": "Role",
+    "metadata": {
+      "name": "${installation}-admission",
+      "labels": {
+        "kimage.dev/installation": "${installation}"
+      },
+      "namespace": "${namespace}",
+      "annotations": {
+        "kimage.dev/manager": "${manager}"
+      }
+    },
+    "rules": [
+      {
+        "apiGroups": [
+          ""
+        ],
+        "resources": [
+          "pods",
+          "configmaps"
+        ],
+        "verbs": [
+          "get",
+          "list"
+        ]
+      },
+      {
+        "apiGroups": [
+          "kimage.dev"
+        ],
+        "resources": [
+          "imagedemands"
+        ],
+        "verbs": [
+          "get",
+          "list",
+          "create",
+          "update"
+        ]
+      }
+    ]
+  },
+  {
+    "apiVersion": "rbac.authorization.k8s.io/v1",
+    "kind": "RoleBinding",
+    "metadata": {
+      "name": "${installation}-admission",
+      "labels": {
+        "kimage.dev/installation": "${installation}"
+      },
+      "namespace": "${namespace}",
+      "annotations": {
+        "kimage.dev/manager": "${manager}"
+      }
+    },
+    "subjects": [
+      {
+        "kind": "ServiceAccount",
+        "name": "${installation}-admission",
+        "namespace": "${namespace}"
+      }
+    ],
+    "roleRef": {
+      "apiGroup": "rbac.authorization.k8s.io",
+      "kind": "Role",
+      "name": "${installation}-admission"
+    }
+  },
+  {
+    "apiVersion": "apps/v1",
+    "kind": "Deployment",
+    "metadata": {
+      "name": "${installation}-admission",
+      "labels": {
+        "kimage.dev/installation": "${installation}",
+        "kimage.dev/role": "admission"
+      },
+      "namespace": "${namespace}",
+      "annotations": {
+        "kimage.dev/manager": "${manager}"
+      }
+    },
+    "spec": {
+      "replicas": 1,
+      "strategy": {
+        "type": "Recreate"
+      },
+      "selector": {
+        "matchLabels": {
+          "kimage.dev/installation": "${installation}",
+          "kimage.dev/role": "admission"
+        }
+      },
+      "template": {
+        "metadata": {
+          "labels": {
+            "kimage.dev/installation": "${installation}",
+            "kimage.dev/role": "admission"
+          }
+        },
+        "spec": {
+          "automountServiceAccountToken": true,
+          "restartPolicy": "Always",
+          "hostNetwork": false,
+          "dnsPolicy": "ClusterFirst",
+          "securityContext": {
+            "seccompProfile": {
+              "type": "RuntimeDefault"
+            }
+          },
+          "containers": [
+            {
+              "name": "admission",
+              "image": "${admissionImage}",
+              "imagePullPolicy": "IfNotPresent",
+              "command": [
+                "/kimage-admission"
+              ],
+              "args": "${admissionArguments}",
+              "env": [
+                {
+                  "name": "POD_UID",
+                  "valueFrom": {
+                    "fieldRef": {
+                      "fieldPath": "metadata.uid"
+                    }
+                  }
+                }
+              ],
+              "securityContext": {
+                "runAsUser": 65532,
+                "runAsGroup": 65532,
+                "runAsNonRoot": true,
+                "allowPrivilegeEscalation": false,
+                "readOnlyRootFilesystem": true,
+                "capabilities": {
+                  "drop": [
+                    "ALL"
+                  ]
+                }
+              },
+              "resources": {
+                "requests": {
+                  "cpu": "50m",
+                  "memory": "64Mi"
+                },
+                "limits": {
+                  "cpu": "1",
+                  "memory": "512Mi",
+                  "ephemeral-storage": "2Gi"
+                }
+              },
+              "volumeMounts": [
+                {
+                  "name": "credentials",
+                  "mountPath": "/credentials",
+                  "readOnly": true
+                },
+                {
+                  "name": "scratch",
+                  "mountPath": "/tmp",
+                  "readOnly": false
+                }
+              ],
+              "readinessProbe": {
+                "httpGet": {
+                  "path": "/readyz",
+                  "port": 8443,
+                  "scheme": "HTTPS"
+                },
+                "periodSeconds": 2
+              }
+            }
+          ],
+          "volumes": [
+            {
+              "name": "credentials",
+              "secret": {
+                "secretName": "${installation}-admission-credentials",
+                "defaultMode": 292
+              }
+            },
+            {
+              "name": "scratch",
+              "emptyDir": {
+                "sizeLimit": "2Gi"
+              }
+            }
+          ],
+          "affinity": {
+            "nodeAffinity": {
+              "requiredDuringSchedulingIgnoredDuringExecution": {
+                "nodeSelectorTerms": [
+                  {
+                    "matchFields": [
+                      {
+                        "key": "metadata.name",
+                        "operator": "In",
+                        "values": [
+                          "${primaryNode}"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "serviceAccountName": "${installation}-admission"
+        }
+      }
+    }
+  },
+  {
+    "apiVersion": "v1",
+    "kind": "Service",
+    "metadata": {
+      "name": "${installation}-admission",
+      "labels": {
+        "kimage.dev/installation": "${installation}"
+      },
+      "namespace": "${namespace}",
+      "annotations": {
+        "kimage.dev/manager": "${manager}"
+      }
+    },
+    "spec": {
+      "selector": {
+        "kimage.dev/installation": "${installation}",
+        "kimage.dev/role": "admission"
+      },
+      "ports": [
+        {
+          "port": 443,
+          "targetPort": 8443
+        }
+      ]
+    }
+  }
+]

@@ -5,7 +5,7 @@ use std::path::PathBuf;
 #[command(
     name = "kimage",
     version,
-    about = "Install, verify, upgrade, and recover a kimage installation through Kubernetes APIs"
+    about = "Install kimage using versioned component images and ordinary Kubernetes resources"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -56,11 +56,18 @@ enum Command {
         password_file: PathBuf,
     },
     /// Download and verify an official release without accessing Kubernetes.
+    #[command(hide = true)]
     BundleFetch(BundleSource),
     /// Verify a local bundle or the selected cached/official release.
+    #[command(hide = true)]
     BundleCheck(BundleSource),
-    /// Fetch the bundle and run bootstrap, seed, handover, control plane, and builder.
-    Install {
+    /// Install ordinary components pulled directly from the release image registry.
+    Install(ImageInstall),
+    /// Remove an installation while retaining images and registry storage.
+    Uninstall(RemoveInstallation),
+    /// Retained bootstrap workflow for independently trusted legacy bundles.
+    #[command(hide = true)]
+    LegacyInstall {
         #[command(flatten)]
         install: PhaseOptions,
         #[arg(long)]
@@ -68,24 +75,33 @@ enum Command {
         #[arg(long)]
         builder_credentials: PathBuf,
     },
+    #[command(hide = true)]
     Bootstrap(PhaseOptions),
+    #[command(hide = true)]
     Recover(PhaseOptions),
+    #[command(hide = true)]
     Seed(PhaseOptions),
+    #[command(hide = true)]
     Handover(PhaseOptions),
+    #[command(hide = true)]
     Cleanup(PhaseOptions),
-    Uninstall(Cluster),
+    #[command(hide = true)]
+    LegacyUninstall(Cluster),
+    #[command(hide = true)]
     ControlPlane {
         #[command(flatten)]
         install: PhaseOptions,
         #[arg(long)]
         admission_credentials: PathBuf,
     },
+    #[command(hide = true)]
     Builder {
         #[command(flatten)]
         install: PhaseOptions,
         #[arg(long)]
         builder_credentials: PathBuf,
     },
+    #[command(hide = true)]
     JoinNode {
         #[command(flatten)]
         install: PhaseOptions,
@@ -94,6 +110,7 @@ enum Command {
         #[arg(long)]
         recover: bool,
     },
+    #[command(hide = true)]
     UpgradeServing {
         #[command(flatten)]
         install: PhaseOptions,
@@ -109,12 +126,14 @@ enum Command {
         #[arg(long, required_unless_present = "previous_bundle")]
         previous_release: Option<String>,
     },
+    #[command(hide = true)]
     Exporter {
         #[command(flatten)]
         install: PhaseOptions,
         #[arg(long, required = true)]
         approved_origin: Vec<String>,
     },
+    #[command(hide = true)]
     RenewTls {
         #[command(flatten)]
         cluster: Cluster,
@@ -122,6 +141,80 @@ enum Command {
         admission_credentials: PathBuf,
     },
     Schemas,
+}
+#[derive(Args)]
+struct ImageInstall {
+    #[command(flatten)]
+    cluster: ImageCluster,
+    /// Exact release whose small component catalog selects immutable image digests.
+    #[arg(long)]
+    release: Option<String>,
+    /// Independently selected catalog, for a verified local copy or registry mirror.
+    #[arg(long)]
+    image_catalog: Option<PathBuf>,
+}
+#[derive(Args)]
+struct RemoveInstallation {
+    #[arg(long, default_value = "kimage-system")]
+    namespace: String,
+    #[arg(long, default_value = "kimage")]
+    installation: String,
+}
+#[derive(Args)]
+struct ImageCluster {
+    #[arg(long, default_value = "kimage-system")]
+    namespace: String,
+    #[arg(long, default_value = "kimage")]
+    installation: String,
+    #[arg(long, value_enum, default_value = "namespace")]
+    scope: kimage_control::install::InstallScope,
+    /// Defaults to the current kubeconfig namespace for namespace scope.
+    #[arg(long)]
+    application_namespace: Option<String>,
+    #[arg(long = "exclude-namespace")]
+    excluded_namespaces: Vec<String>,
+    #[arg(long, value_enum, default_value = "inferal")]
+    runtime_profile: kimage_control::install::RuntimeProfile,
+    /// Optional registry placement; workers and node proxies are discovered automatically.
+    #[arg(long)]
+    registry_node: Option<String>,
+    /// Omit to use the cluster's default StorageClass.
+    #[arg(long)]
+    storage_class: Option<String>,
+    #[arg(long, default_value = "1Gi")]
+    storage_size: String,
+    #[arg(long)]
+    pvc: Option<String>,
+    #[arg(long, default_value_t = 17701)]
+    port: u16,
+}
+impl ImageCluster {
+    fn options(&self, default_namespace: &str) -> Result<kimage_control::pull_install::Options> {
+        let options = kimage_control::pull_install::Options {
+            namespace: self.namespace.clone(),
+            installation: self.installation.clone(),
+            scope: self.scope,
+            application_namespace: match self.scope {
+                kimage_control::install::InstallScope::Namespace => Some(
+                    self.application_namespace
+                        .clone()
+                        .unwrap_or_else(|| default_namespace.into()),
+                ),
+                kimage_control::install::InstallScope::Cluster => {
+                    self.application_namespace.clone()
+                }
+            },
+            excluded_namespaces: self.excluded_namespaces.iter().cloned().collect(),
+            runtime_profile: self.runtime_profile,
+            registry_node: self.registry_node.clone(),
+            storage_class: self.storage_class.clone(),
+            storage_size: self.storage_size.clone(),
+            existing_claim: self.pvc.clone(),
+            port: self.port,
+        };
+        options.validate()?;
+        Ok(options)
+    }
 }
 #[derive(Args)]
 struct Cluster {
@@ -362,7 +455,39 @@ async fn main() -> Result<()> {
             }
             println!("{}", serde_json::to_string(image.root())?);
         }
-        Command::Install {
+        Command::Install(args) => {
+            let release = args.release.as_deref().unwrap_or(env!("CARGO_PKG_VERSION"));
+            let catalog = kimage_control::component_images::ImageCatalog::resolve(
+                release,
+                args.image_catalog.as_deref(),
+            )
+            .await?;
+            let namespace = kube::Config::infer().await?.default_namespace;
+            let options = args.cluster.options(&namespace)?;
+            kimage_control::pull_install::apply::install(
+                kimage_control::kubernetes::client().await?,
+                &options,
+                &catalog,
+            )
+            .await?;
+            println!(
+                "kimage {} ready in {}",
+                options.installation, options.namespace
+            );
+        }
+        Command::Uninstall(args) => {
+            kimage_control::pull_install::apply::uninstall_installed(
+                kimage_control::kubernetes::client().await?,
+                &args.namespace,
+                &args.installation,
+            )
+            .await?;
+            println!(
+                "kimage {} removed; image resources and registry storage retained",
+                args.installation
+            );
+        }
+        Command::LegacyInstall {
             install,
             admission_credentials,
             builder_credentials,
@@ -417,7 +542,7 @@ async fn main() -> Result<()> {
             )?;
             installer.seed(&bundle).await?;
         }
-        Command::Uninstall(args) => {
+        Command::LegacyUninstall(args) => {
             kimage_control::install::Installer::new(
                 kimage_control::kubernetes::client().await?,
                 args.options(),
@@ -553,10 +678,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn standard_install_defaults_to_automatic_bundle_selection() {
+    fn legacy_install_retains_explicit_bootstrap_inputs() {
         let args = [
             "kimage",
-            "install",
+            "legacy-install",
             "--namespace",
             "system",
             "--application-namespace",
@@ -579,13 +704,47 @@ mod tests {
             "builder",
         ];
         let cli = Cli::try_parse_from(args).unwrap();
-        let Command::Install { install, .. } = cli.command else {
+        let Command::LegacyInstall { install, .. } = cli.command else {
             panic!("expected install")
         };
         assert!(install.source.bundle.is_none());
         assert!(install.source.release.is_none());
         assert!(!install.source.offline);
         assert!(Cli::try_parse_from(&args[..args.len() - 2]).is_err());
+    }
+
+    #[test]
+    fn default_install_needs_no_bundle_carrier_node_or_credential_script() {
+        let cli = Cli::try_parse_from(["kimage", "install"]).unwrap();
+        let Command::Install(args) = cli.command else {
+            panic!("expected ordinary image install")
+        };
+        assert!(args.release.is_none() && args.image_catalog.is_none());
+        let options = args.cluster.options("apps").unwrap();
+        assert_eq!(options.namespace, "kimage-system");
+        assert_eq!(options.installation, "kimage");
+        assert_eq!(options.application_namespace.as_deref(), Some("apps"));
+        assert!(options.registry_node.is_none() && options.storage_class.is_none());
+        assert!(
+            Cli::try_parse_from(["kimage", "install", "--carrier", "cached@sha256:old"]).is_err()
+        );
+        assert!(Cli::try_parse_from(["kimage", "uninstall"]).is_ok());
+        let cli = Cli::try_parse_from([
+            "kimage",
+            "install",
+            "--scope",
+            "cluster",
+            "--exclude-namespace",
+            "skip",
+        ])
+        .unwrap();
+        let Command::Install(args) = cli.command else {
+            unreachable!()
+        };
+        let options = args.cluster.options("apps").unwrap();
+        assert!(
+            options.application_namespace.is_none() && options.excluded_namespaces.contains("skip")
+        );
     }
 
     #[test]

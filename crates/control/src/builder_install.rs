@@ -9,46 +9,7 @@ use std::{collections::BTreeMap, path::Path, time::Duration};
 
 // Versioned configuration is kept private to this engine adapter. Insecure
 // entitlements, delegated frontends and build history are disabled.
-pub(crate) const CONFIG: &str = r#"
-root = "/cache"
-insecure-entitlements = []
-[log]
-level = "panic"
-[grpc]
-address = ["unix:///run/buildkit/buildkitd.sock", "tcp://0.0.0.0:1234"]
-[grpc.tls]
-cert = "/credentials/server.crt"
-key = "/credentials/server.key"
-ca = "/credentials/ca.crt"
-[history]
-maxEntries = 0
-[cdi]
-disabled = true
-[worker.oci]
-enabled = true
-platforms = ["linux/amd64"]
-snapshotter = "native"
-rootless = true
-noProcessSandbox = false
-binary = "/buildkit-runc"
-networkMode = "host"
-max-parallelism = 1
-gc = true
-reservedSpace = "256MiB"
-maxUsedSpace = "2GiB"
-minFreeSpace = "1GiB"
-[[worker.oci.gcpolicy]]
-all = true
-reservedSpace = "256MiB"
-maxUsedSpace = "2GiB"
-keepDuration = "24h"
-[worker.containerd]
-enabled = false
-[frontend."dockerfile.v0"]
-enabled = true
-[frontend."gateway.v0"]
-enabled = false
-"#;
+pub(crate) const CONFIG: &str = include_str!("pull_install/templates/buildkitd.toml");
 pub(crate) fn configuration(architecture: &str) -> String {
     CONFIG.replace("linux/amd64", &format!("linux/{architecture}"))
 }
@@ -57,7 +18,7 @@ pub(crate) fn configuration(architecture: &str) -> String {
 // those capabilities, plus SYS_ADMIN for mount setup and NET_ADMIN for runc's
 // private loopback setup. All remain Pod-userns
 // scoped; the nested executor's default set does not include SYS_ADMIN.
-const WORKER_CAPABILITIES: &[&str] = &[
+pub(crate) const WORKER_CAPABILITIES: &[&str] = &[
     "CHOWN",
     "DAC_OVERRIDE",
     "FSETID",

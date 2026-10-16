@@ -55,16 +55,15 @@ jobs:
           rustc --edition=2024 --target ${{ matrix.target }} -C opt-level=z -C strip=symbols -C panic=abort scripts/fixtures/build-probe.rs -o .local/e2e/probe
       - name: Fetch pinned native upstream components
         run: python3 scripts/fetch-release-inputs.py --architecture ${{ matrix.architecture }} --out .local/e2e/upstream
-      - name: Prepare independently verified local bundle
+      - name: Package native registry images
         run: |
-          python3 scripts/package-bundle.py --architecture ${{ matrix.architecture }} \
-            --linux-dir target/${{ matrix.target }}/release \
-            --registry .local/e2e/upstream/registry --buildkit-dir .local/e2e/upstream/buildkit \
-            --out .local/e2e/bundle
-      - name: Stage executable fixture and installer
-        run: |
+          cargo metadata --locked --format-version 1 > .local/e2e/cargo-metadata.json
+          python3 scripts/package-component-images.py --architecture ${{ matrix.architecture }} \
+            --linux-dir target/${{ matrix.target }}/release --registry .local/e2e/upstream/registry \
+            --buildkit-dir .local/e2e/upstream/buildkit --cargo-metadata .local/e2e/cargo-metadata.json --out .local/e2e/images
           cp target/${{ matrix.target }}/release/kimage-install .local/e2e/kimage-install
-          tar -czf .local/e2e-native-${{ matrix.architecture }}.tar.gz -C .local/e2e bundle probe kimage-install
+          cp .local/e2e/upstream/registry .local/e2e/registry
+          tar -czf .local/e2e-native-${{ matrix.architecture }}.tar.gz -C .local/e2e images probe kimage-install registry
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: e2e-native-${{ matrix.architecture }}
@@ -73,14 +72,55 @@ jobs:
           compression-level: 0
           retention-days: 7
 
-  install:
-    name: ${{ matrix.architecture }} / ${{ matrix.scope }} install
+  assemble:
+    name: Assemble complete component indexes
     needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          pattern: e2e-native-*
+          merge-multiple: true
+          path: .local/native
+      - name: Verify and assemble native OCI graphs and pinned chart
+        run: |
+          mkdir -p .local/amd64 .local/arm64
+          tar -xzf .local/native/e2e-native-amd64.tar.gz -C .local/amd64
+          tar -xzf .local/native/e2e-native-arm64.tar.gz -C .local/arm64
+          python3 scripts/assemble-component-images.py --native .local/amd64/images --native .local/arm64/images --out .local/components
+          for role in admission builder exporter gateway input operator proxy registry; do
+            .local/amd64/kimage-install verify --archive .local/components/$role.oci.tar --root .local/components/$role.root.json
+          done
+          python3 scripts/package-chart.py --catalog .local/components/component-images.json --out .local/chart
+          rm .local/components/*.oci.tar
+          tar -czf .local/component-layouts.tar.gz -C .local/components .
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: component-layouts
+          path: .local/component-layouts.tar.gz
+          compression-level: 0
+          retention-days: 7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: component-catalog-chart
+          path: |
+            .local/components/component-images.json
+            .local/chart/*.tgz
+          retention-days: 7
+
+  install:
+    name: ${{ matrix.architecture }} / ${{ matrix.scope }} / ${{ matrix.mode }} install
+    needs: [build, assemble]
     strategy:
       fail-fast: false
       matrix:
         architecture: [amd64, arm64]
         scope: [namespace, cluster]
+        mode: [cli, helm]
         include:
           - architecture: amd64
             os: ubuntu-24.04
@@ -100,18 +140,35 @@ jobs:
         run: |
           mkdir -p .local/e2e
           tar -xzf .local/e2e-native-${{ matrix.architecture }}.tar.gz -C .local/e2e
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: component-layouts
+          path: .local
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: component-catalog-chart
+          path: .local/chart
+      - name: Install registry tooling and Helm
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends skopeo
+          python3 scripts/fetch-helm.py --out .local/helm
+          sudo install -m 755 .local/helm /usr/local/bin/helm
+          mkdir -p .local/components
+          tar -xzf .local/component-layouts.tar.gz -C .local/components
+          python3 scripts/prepare-image-pull-fixture.py --images .local/components --registry .local/e2e/registry --directory .local/e2e-registry
       - name: Start pinned disposable Kubernetes fixture
         run: python3 scripts/prepare-e2e-cluster.py --directory .local/e2e-cluster
-      - name: Exercise actual native installation, builds, controllers, and scope boundaries
+      - name: Exercise registry pulls, native builds, controllers and scope boundaries
         run: |
-          python3 scripts/e2e-install.py --scope ${{ matrix.scope }} \
-            --bundle .local/e2e/bundle --installer .local/e2e/kimage-install \
-            --probe .local/e2e/probe --output .local/e2e/results
+          python3 scripts/e2e-install.py --scope ${{ matrix.scope }} --mode ${{ matrix.mode }} \
+            --image-catalog "$KIMAGE_E2E_IMAGE_CATALOG" --chart .local/chart/kimage-0.4.0.tgz \
+            --installer .local/e2e/kimage-install --probe .local/e2e/probe --output .local/e2e/results
       - name: Upload non-sensitive acceptance evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: e2e-${{ matrix.architecture }}-${{ matrix.scope }}
+          name: e2e-${{ matrix.architecture }}-${{ matrix.scope }}-${{ matrix.mode }}
           path: |
             .local/e2e/results/*.json
             .local/e2e/results/*.log

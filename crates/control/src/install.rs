@@ -62,6 +62,23 @@ impl Installer {
     }
     pub fn new(client: Client, options: Options) -> Result<Self> {
         ensure!(
+            options
+                .carrier
+                .rsplit_once('@')
+                .is_some_and(|(_, d)| kimage_core::oci::valid_digest(d)),
+            "ExplicitCarrierDigestRequired"
+        );
+        Self::identity(client, options)
+    }
+    pub(crate) fn image_pull_context(client: Client, options: Options) -> Result<Self> {
+        ensure!(
+            options.carrier.is_empty() && options.credentials.as_os_str().is_empty(),
+            "UnexpectedLegacyInstallSource"
+        );
+        Self::identity(client, options)
+    }
+    fn identity(client: Client, options: Options) -> Result<Self> {
+        ensure!(
             kimage_core::selector::dns_label(&options.namespace)
                 && kimage_core::selector::dns_label(&options.installation)
                 && options.installation.len() <= 32,
@@ -78,13 +95,6 @@ impl Installer {
             "ClusterScopeApplicationNamespaceConflict"
         );
         ensure!(options.port >= 1024, "NonprivilegedPortRequired");
-        ensure!(
-            options
-                .carrier
-                .rsplit_once('@')
-                .is_some_and(|(_, d)| kimage_core::oci::valid_digest(d)),
-            "ExplicitCarrierDigestRequired"
-        );
         Ok(Self { client, options })
     }
     pub(crate) fn name(&self, suffix: &str) -> String {
@@ -96,6 +106,8 @@ impl Installer {
     pub(crate) fn api_at(&self, kind: &str, namespace: Option<&str>) -> Result<Api<DynamicObject>> {
         let (group, version, plural) = match kind {
             "Pod" => ("", "v1", "pods"),
+            "Deployment" => ("apps", "v1", "deployments"),
+            "Job" => ("batch", "v1", "jobs"),
             "ConfigMap" => ("", "v1", "configmaps"),
             "Secret" => ("", "v1", "secrets"),
             "Service" => ("", "v1", "services"),
@@ -143,6 +155,12 @@ impl Installer {
             let mut actual = serde_json::to_value(existing)?;
             if kind == "Pod" {
                 normalize_serviceaccount_projection(&mut actual["spec"], &v["spec"])?;
+                normalize_pod_defaults(&mut actual["spec"], &v["spec"]);
+            } else if kind == "Deployment" || kind == "Job" {
+                normalize_pod_defaults(
+                    &mut actual["spec"]["template"]["spec"],
+                    &v["spec"]["template"]["spec"],
+                );
             }
             if kind == "NetworkPolicy" {
                 normalize_empty_network_rules(&mut actual["spec"], &v["spec"]);
@@ -930,6 +948,42 @@ impl Installer {
         Ok(())
     }
 }
+fn normalize_pod_defaults(actual: &mut Value, expected: &Value) {
+    if expected["hostNetwork"] == false && actual["hostNetwork"].is_null() {
+        actual["hostNetwork"] = json!(false);
+    }
+    for (index, container) in expected["containers"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .enumerate()
+    {
+        let Some(actual_container) = actual
+            .get_mut("containers")
+            .and_then(Value::as_array_mut)
+            .and_then(|containers| containers.get_mut(index))
+        else {
+            continue;
+        };
+        for (mount_index, mount) in container["volumeMounts"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .enumerate()
+        {
+            let Some(actual_mount) = actual_container
+                .get_mut("volumeMounts")
+                .and_then(Value::as_array_mut)
+                .and_then(|mounts| mounts.get_mut(mount_index))
+            else {
+                continue;
+            };
+            if mount["readOnly"] == false && actual_mount["readOnly"].is_null() {
+                actual_mount["readOnly"] = json!(false);
+            }
+        }
+    }
+}
 fn cleanup_identity(object: &DynamicObject) -> Result<Value> {
     let mut value = serde_json::to_value(object)?;
     value.as_object_mut().unwrap().remove("status");
@@ -942,6 +996,24 @@ fn cleanup_identity(object: &DynamicObject) -> Result<Value> {
 /// A kubelet status update must not defeat uninstall, but a replacement UID or
 /// a concurrent spec/ownership edit must never inherit a stale delete decision.
 async fn delete_snapshot(api: &Api<DynamicObject>, original: &DynamicObject) -> Result<()> {
+    delete_snapshot_policy(api, original, None).await
+}
+pub(crate) async fn delete_foreground_snapshot(
+    api: &Api<DynamicObject>,
+    original: &DynamicObject,
+) -> Result<()> {
+    delete_snapshot_policy(
+        api,
+        original,
+        Some(kube::api::PropagationPolicy::Foreground),
+    )
+    .await
+}
+async fn delete_snapshot_policy(
+    api: &Api<DynamicObject>,
+    original: &DynamicObject,
+    propagation_policy: Option<kube::api::PropagationPolicy>,
+) -> Result<()> {
     let uid = original.uid().context("MissingCleanupUid")?;
     let identity = cleanup_identity(original)?;
     let mut current = original.clone();
@@ -950,6 +1022,7 @@ async fn delete_snapshot(api: &Api<DynamicObject>, original: &DynamicObject) -> 
             .delete(
                 &current.name_any(),
                 &DeleteParams {
+                    propagation_policy: propagation_policy.clone(),
                     preconditions: Some(Preconditions {
                         uid: Some(uid.clone()),
                         resource_version: Some(

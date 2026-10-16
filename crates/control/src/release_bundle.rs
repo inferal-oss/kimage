@@ -57,6 +57,23 @@ pub fn release_tag(value: &str) -> Result<String> {
     Ok(format!("v{version}"))
 }
 
+/// Fetch only bounded, digest-verified release metadata. Component layers are
+/// pulled by kubelet from the published image registry, never sent through API
+/// ConfigMaps or installer port forwarding.
+pub async fn small_release_asset(version: &str, name: &str) -> Result<Vec<u8>> {
+    let tag = release_tag(version)?;
+    ensure!(
+        name.len() <= 128
+            && name
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b".-_".contains(&b)),
+        "InvalidReleaseAssetName"
+    );
+    Client::official(Platform::native())?
+        .small_asset(&tag, name)
+        .await
+}
+
 pub fn default_cache() -> Result<PathBuf> {
     if let Some(cache) = std::env::var_os("XDG_CACHE_HOME") {
         ensure!(!cache.is_empty(), "EmptyCacheDirectory");
@@ -324,6 +341,42 @@ fn trusted_redirect(url: &reqwest::Url) -> bool {
         )
 }
 impl Client {
+    async fn small_asset(&self, tag: &str, name: &str) -> Result<Vec<u8>> {
+        const LIMIT: u64 = 256 * 1024;
+        let release = self.release_metadata(tag).await?;
+        let matches: Vec<_> = release.assets.iter().filter(|a| a.name == name).collect();
+        ensure!(matches.len() == 1, "MissingOrDuplicateReleaseAsset: {name}");
+        let asset = matches[0];
+        let url = self.assets.join(&format!("{tag}/{name}"))?;
+        ensure!(
+            asset.state == "uploaded"
+                && asset.size > 0
+                && asset.size <= LIMIT
+                && asset.browser_download_url == url.as_str(),
+            "InvalidSmallReleaseAsset"
+        );
+        let digest = asset.digest.as_ref().context("GitHubAssetDigestRequired")?;
+        ensure!(
+            kimage_core::oci::valid_digest(digest),
+            "InvalidGitHubAssetDigest"
+        );
+        // Authorization belongs exclusively to the GitHub metadata request.
+        let mut response = self.http.get(url).send().await?.error_for_status()?;
+        let mut bytes = Vec::new();
+        while let Some(chunk) = response.chunk().await? {
+            ensure!(
+                bytes.len() as u64 + chunk.len() as u64 <= asset.size,
+                "SmallReleaseAssetTooLarge"
+            );
+            bytes.extend_from_slice(&chunk);
+        }
+        ensure!(
+            bytes.len() as u64 == asset.size && kimage_core::oci::digest(&bytes) == *digest,
+            "SmallReleaseAssetDigestMismatch"
+        );
+        Ok(bytes)
+    }
+
     fn official(platform: Platform) -> Result<Self> {
         let http = reqwest::Client::builder()
             .user_agent(concat!("kimage-install/", env!("CARGO_PKG_VERSION")))
@@ -368,7 +421,7 @@ impl Client {
         })
     }
 
-    async fn metadata(&self, tag: &str) -> Result<Receipt> {
+    async fn release_metadata(&self, tag: &str) -> Result<Release> {
         let mut request = self
             .http
             .get(self.api.join(tag)?)
@@ -404,6 +457,11 @@ impl Client {
             release.tag_name == tag && !release.draft && release.assets.len() <= 64,
             "InvalidOfficialRelease"
         );
+        Ok(release)
+    }
+
+    async fn metadata(&self, tag: &str) -> Result<Receipt> {
+        let release = self.release_metadata(tag).await?;
         let (archive, inventory) = names_for(tag, &self.platform);
         let select = |name: String, limit| -> Result<FileEntry> {
             let matches: Vec<_> = release

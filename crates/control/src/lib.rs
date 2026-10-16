@@ -15,9 +15,11 @@ pub mod schema;
 pub mod serving;
 pub mod tunnel;
 
+pub mod component_images;
 pub mod configuration;
 pub mod control_install;
 pub mod credentials;
+pub mod pull_install;
 
 pub mod build_inputs;
 pub mod build_lifecycle;

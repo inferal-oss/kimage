@@ -56,7 +56,7 @@ pub async fn native_context(image: &crate::api::Image, config: &Config) -> Resul
         return Ok(config);
     };
     ensure!(
-        map.labels().get(LABEL) == Some(&settings.installation) && map.immutable == Some(true),
+        map.labels().get(LABEL) == Some(&settings.installation),
         "BuilderCatalogOwnershipConflict"
     );
     let catalog: Value = serde_json::from_str(
@@ -67,7 +67,7 @@ pub async fn native_context(image: &crate::api::Image, config: &Config) -> Resul
     )?;
     let builder = &catalog["builders"]["default"];
     ensure!(
-        catalog["schema"] == 1
+        matches!(catalog["schema"].as_u64(), Some(1 | 2))
             && builder["platforms"] == serde_json::json!([image.spec.platform.name()]),
         "UnsupportedBuilderPlatform"
     );
@@ -77,19 +77,33 @@ pub async fn native_context(image: &crate::api::Image, config: &Config) -> Resul
     let worker = builder["image"]
         .as_str()
         .context("MissingNativeBuilderImage")?;
-    for (reference, role) in [(input, "input"), (worker, "builder")] {
-        let prefix = format!("{}/system-{role}@", settings.system_namespace);
+    if catalog["schema"] == 2 {
+        crate::component_images::authorize_builder_catalog(
+            config.client.clone(),
+            &settings.system_namespace,
+            &settings.installation,
+            &catalog,
+        )
+        .await?;
+    } else {
         ensure!(
-            reference
-                .split_once('/')
-                .is_some_and(|(authority, path)| authority
-                    .parse::<std::net::SocketAddr>()
-                    .is_ok_and(|a| a.ip() == std::net::Ipv4Addr::LOCALHOST && a.port() >= 1024)
-                    && path
-                        .strip_prefix(&prefix)
-                        .is_some_and(kimage_core::oci::valid_digest)),
-            "InvalidNativeComponentReference"
+            map.immutable == Some(true),
+            "BuilderCatalogOwnershipConflict"
         );
+        for (reference, role) in [(input, "input"), (worker, "builder")] {
+            let prefix = format!("{}/system-{role}@", settings.system_namespace);
+            ensure!(
+                reference
+                    .split_once('/')
+                    .is_some_and(|(authority, path)| authority
+                        .parse::<std::net::SocketAddr>()
+                        .is_ok_and(|a| a.ip() == std::net::Ipv4Addr::LOCALHOST && a.port() >= 1024)
+                        && path
+                            .strip_prefix(&prefix)
+                            .is_some_and(kimage_core::oci::valid_digest)),
+                "InvalidNativeComponentReference"
+            );
+        }
     }
     config.node = builder["node"]
         .as_str()
@@ -124,6 +138,15 @@ pub async fn approved(
             .context("MissingBuilderCatalog")?,
     )?;
     let builder = &catalog["builders"]["default"];
+    if catalog["schema"] == 2 {
+        crate::component_images::authorize_builder_catalog(
+            config.client.clone(),
+            &settings.system_namespace,
+            &settings.installation,
+            &catalog,
+        )
+        .await?;
+    }
     let dns = format!(
         "{}.{}.svc",
         settings.name("builder"),
@@ -134,7 +157,7 @@ pub async fn approved(
         settings.installation, settings.system_namespace
     );
     ensure!(
-        catalog["schema"] == 1
+        matches!(catalog["schema"].as_u64(), Some(1 | 2))
             && builder["engine"] == "BuildKit"
             && builder["version"] == "0.33.0"
             && builder["frontendVersion"] == "1.27.0"
@@ -167,7 +190,7 @@ pub async fn approved(
         let template = maps.get(&settings.name("builder-template")).await?;
         ensure!(
             template.labels().get(LABEL) == Some(&settings.installation)
-                && template.immutable == Some(true),
+                && (template.immutable == Some(true) || catalog["schema"] == 2),
             "BuilderTemplateOwnershipConflict"
         );
         let pod: Pod = serde_json::from_str(

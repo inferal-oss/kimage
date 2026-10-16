@@ -2,6 +2,7 @@
 """Offline component packaging; no network, credentials, cluster or runtime store access."""
 import argparse
 import hashlib
+import gzip
 import io
 import json
 import pathlib
@@ -45,31 +46,36 @@ def static_elf(path, architecture="amd64"):
     return data
 
 
-def image(binary, target, executable, nonce=None, revision=None, architecture="amd64"):
-    return image_files({executable: static_elf(binary, architecture)}, target, executable, nonce, revision, architecture)
+def image(binary, target, executable, nonce=None, revision=None, architecture="amd64", labels=None, compress=False, additional=None):
+    files = dict(additional or {})
+    files[executable] = static_elf(binary, architecture)
+    return image_files(files, target, executable, nonce, revision, architecture, labels, compress)
 
 
-def image_files(files, target, executable, nonce=None, revision=None, architecture="amd64"):
+def image_files(files, target, executable, nonce=None, revision=None, architecture="amd64", labels=None, compress=False):
     layer = io.BytesIO()
     with tarfile.open(fileobj=layer, mode='w') as tar:
         for name, data in sorted(files.items()):
-            append(tar, name, data, 0o555)
+            append(tar, name, data, 0o444 if name in ('LICENSE', 'THIRD-PARTY-NOTICES.txt') else 0o555)
         if nonce:
             append(tar, 'fixture-nonce', nonce.encode())
     layer = layer.getvalue()
     configuration = dict(
         Entrypoint=['/' + executable], Env=[] if nonce is None else ['KIMAGE_PROBE_MESSAGE=' + nonce])
+    if labels:
+        configuration['Labels'] = dict(labels)
     if revision:
-        configuration['Labels'] = {'org.opencontainers.image.revision': revision}
+        configuration.setdefault('Labels', {})['org.opencontainers.image.revision'] = revision
     config = encode(dict(os='linux', architecture=architecture, config=configuration,
         rootfs=dict(type='layers', diff_ids=[digest(layer)])))
+    stored_layer = gzip.compress(layer, mtime=0) if compress else layer
     manifest = encode(dict(schemaVersion=2, mediaType=MANIFEST,
-                          config=descriptor(config, CONFIG), layers=[descriptor(layer, LAYER)]))
+                          config=descriptor(config, CONFIG), layers=[descriptor(stored_layer, LAYER + '+gzip' if compress else LAYER)]))
     root = descriptor(manifest, MANIFEST)
     with tarfile.open(target, 'w') as tar:
         append(tar, 'oci-layout', encode(dict(imageLayoutVersion='1.0.0')))
         append(tar, 'index.json', encode(dict(schemaVersion=2, manifests=[root])))
-        for blob in [layer, config, manifest]:
+        for blob in [stored_layer, config, manifest]:
             append(tar, 'blobs/sha256/' + digest(blob)[7:], blob)
     return root
 

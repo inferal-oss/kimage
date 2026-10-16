@@ -45,6 +45,7 @@ def main():
     with (directory / 'k3s.log').open('wb') as log:
         process = subprocess.Popen(['sudo', '/usr/local/bin/k3s', 'server', '--node-name', 'kimage-e2e',
             '--tls-san', '127.0.0.1', '--disable', 'traefik', '--disable', 'metrics-server', '--disable', 'servicelb',
+            *(['--private-registry', os.environ['KIMAGE_E2E_REGISTRY_CONFIG']] if os.environ.get('KIMAGE_E2E_REGISTRY_CONFIG') else []),
             '--write-kubeconfig', str(kubeconfig), '--write-kubeconfig-mode', '600'], stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
     (directory / 'pid').write_text(str(process.pid))
     deadline = time.monotonic() + 180
@@ -59,7 +60,7 @@ def main():
     else:
         raise RuntimeError('K3s fixture did not become ready')
     # Only Kubernetes prerequisites are imported; all kimage components must
-    # subsequently arrive through its normal API-only installer and registry.
+    # subsequently arrive through its normal registry pulls.
     with open(os.environ['GITHUB_ENV'], 'a') as output:
         output.write('KUBECONFIG=' + str(kubeconfig) + '\n')
         output.write('KIMAGE_E2E_ARCHITECTURE=' + arch + '\n')

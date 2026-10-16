@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Real API-only installation, native build/pull, policy, and scope acceptance.
+"""Real registry-pulled installation, native build/pull, policy, and scope acceptance.
 
 Restricted to a disposable GitHub-hosted fixture. Never points at a user's
 current context and never imports kimage images into the node runtime.
@@ -20,7 +20,9 @@ ROOT = Path(__file__).resolve().parents[1]
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--scope', choices=['namespace', 'cluster'], required=True)
-    parser.add_argument('--bundle', type=Path, required=True)
+    parser.add_argument('--image-catalog', type=Path, required=True)
+    parser.add_argument('--mode', choices=['cli','helm'], default='cli')
+    parser.add_argument('--chart', type=Path)
     parser.add_argument('--installer', type=Path, required=True)
     parser.add_argument('--probe', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
@@ -32,7 +34,7 @@ def main():
     assert kubeconfig.name == 'config' and 'e2e-cluster' in str(kubeconfig)
     args.output.mkdir(parents=True, exist_ok=True)
     command = ['k3s', 'kubectl', '--kubeconfig', str(kubeconfig), '--request-timeout=20s']
-    report = dict(scope=args.scope, platform='linux/'+arch, checks=[], complete=False)
+    report = dict(mode=args.mode, scope=args.scope, platform='linux/'+arch, checks=[], complete=False)
     system, app, other, excluded, installation = 'e2e-system', 'e2e-app', 'e2e-other', 'e2e-excluded', 'e2e'
 
     def run(arguments, value=None, ok=True, timeout=90):
@@ -83,23 +85,31 @@ def main():
         return images if any('mirrored-pause@sha256:' in name for image in images for name in image.get('names', [])) else None
     images = wait(cached_prerequisites, 'kubelet cached prerequisite image report', 180)
     assert not any(name.startswith('127.0.0.1:') for image in images for name in image.get('names', []))
-    carriers = sorted(name for image in images for name in image.get('names', []) if 'mirrored-pause@sha256:' in name)
-    assert carriers, 'cached prerequisite carrier required'
     for namespace in [system, app, other, excluded]:
         kubectl(['create', 'namespace', namespace])
-    registry, admission, builder = (args.output / name for name in ('registry', 'admission', 'builder'))
-    run(['python3', ROOT/'scripts/prepare-test-credentials.py', '--dir', registry, '--registry-dns', 'e2e-registry.e2e-system.svc'])
-    run(['python3', ROOT/'scripts/prepare-test-credentials.py', '--dir', admission, '--registry-dns', 'e2e-admission.e2e-system.svc'])
-    run(['python3', ROOT/'scripts/prepare-builder-test-credentials.py', '--dir', builder, '--dns', 'e2e-builder.e2e-system.svc'])
-    digest = 'sha256:'+hashlib.sha256((args.bundle/'inventory.json').read_bytes()).hexdigest()
-    common = ['--scope', args.scope, '--namespace', system, '--installation', installation, '--node', 'kimage-e2e', '--carrier', carriers[0], '--runtime-profile', 'k3s', '--storage-class', 'local-path', '--port', '17701', '--credentials', registry]
-    common += ['--application-namespace', app] if args.scope == 'namespace' else ['--exclude-namespace', excluded]
-    local = ['--bundle', args.bundle.resolve(), '--trusted-inventory', digest]
+    catalog=json.loads(args.image_catalog.read_bytes())
+    assert catalog['repository']=='127.0.0.1:14901/kimage'
+    common=['--namespace',system,'--installation',installation,'--scope',args.scope,'--runtime-profile','k3s','--storage-class','local-path']
+    common += ['--application-namespace',app] if args.scope=='namespace' else ['--exclude-namespace',excluded]
+    def install():
+        if args.mode=='cli':
+            return run([args.installer.resolve(),'install',*common,'--image-catalog',args.image_catalog.resolve()],timeout=1200,ok=False)
+        assert args.chart
+        values=dict(scope=args.scope,applicationNamespace=app if args.scope=='namespace' else '',excludedNamespaces=[] if args.scope=='namespace' else [excluded],runtimeProfile='k3s',persistence=dict(storageClass='local-path'),images=dict(repository=catalog['repository']))
+        path=args.output/'helm-values.json';path.write_text(json.dumps(values))
+        return run(['helm','upgrade','--install',installation,args.chart.resolve(),'--namespace',system,'-f',path,'--wait','--wait-for-jobs','--timeout','15m'],timeout=1200,ok=False)
     try:
-        result = run([args.installer.resolve(), 'install'] + common + local + ['--admission-credentials', admission, '--builder-credentials', builder], timeout=1200, ok=False)
+        result = install()
         (args.output/'install.log').write_text(result.stdout+result.stderr)
         assert result.returncode == 0, 'installation failed: '+result.stderr[-3000:]
-        check('fresh API-only '+args.scope+' install and authenticated native worker readiness')
+        check('fresh '+args.mode+' '+args.scope+' install and authenticated native worker readiness')
+        pods=get('pods',ns=system)['items']
+        assert pods and all(c['image'].startswith(catalog['repository']+'/') and '@sha256:' in c['image'] for pod in pods for c in pod['spec']['containers'])
+        maps=get('configmaps',ns=system)['items']
+        assert all(not v.get('binaryData') for v in maps)
+        assert not any('launcher' in json.dumps(v) or 'chunk-' in v['metadata']['name'] for v in maps)
+        check('components use ordinary digest-pinned registry pulls with no executable ConfigMaps')
+        credential_uids={v['metadata']['name']:v['metadata']['uid'] for v in get('secrets',ns=system)['items'] if v['metadata'].get('labels',{}).get('kimage.dev/installation')==installation}
         pvc = get('pvc', 'e2e-data', system)
         assert pvc, 'registry PVC missing'
         pvc_uid = pvc['metadata']['uid']
@@ -205,7 +215,16 @@ def main():
         wait(lambda: ready('eager'), 'eager native build without consumer', 600)
         assert all(v['spec']['imageName'] != 'eager' for v in get('imagedemands.kimage.dev', ns=system)['items'])
         check('administrator ConfigMap eager policy builds without workload demand')
-        run([args.installer.resolve(), 'uninstall'] + common, timeout=300)
+        again=install()
+        assert again.returncode==0, 'idempotent reapply failed: '+again.stderr[-3000:]
+        assert json.loads(get('configmap','e2e-config',system)['data']['configuration.json'])['buildPolicy']=='Eager'
+        assert all(get('secret',name,system)['metadata']['uid']==uid for name,uid in credential_uids.items())
+        assert get('pvc','e2e-data',system)['metadata']['uid']==pvc_uid
+        check('reapply preserves credentials, registry storage and administrator eager policy')
+        if args.mode=='cli':
+            run([args.installer.resolve(),'uninstall','--namespace',system,'--installation',installation],timeout=300)
+        else:
+            run(['helm','uninstall',installation,'--namespace',system,'--wait','--timeout','5m'],timeout=320)
         assert get('pvc', 'e2e-data', system)['metadata']['uid'] == pvc_uid
         assert get('images.kimage.dev', 'service')['metadata']['uid'] == built['metadata']['uid']
         check('uninstall preserves registry storage and published image resources')
@@ -218,10 +237,10 @@ def main():
                 result = kubectl(['get', resource, '-n', ns, '-o', 'json'], ok=False)
                 (args.output/(ns+'-'+resource+'.json')).write_text(result.stdout)
         for role in ['operator','admission']:
-            result = kubectl(['logs', 'e2e-'+role, '-n', system, '--tail=200', '--timestamps'], ok=False)
+            result = kubectl(['logs', 'deployment/e2e-'+role, '-n', system, '--tail=200', '--timestamps'], ok=False)
             (args.output/(role+'.log')).write_text(result.stdout+result.stderr)
         for container in ['gateway', 'registry']:
-            result = kubectl(['logs', 'e2e-registry', '-n', system, '-c', container, '--tail=100', '--timestamps'], ok=False)
+            result = kubectl(['logs', 'deployment/e2e-registry', '-n', system, '-c', container, '--tail=100', '--timestamps'], ok=False)
             (args.output/('registry-'+container+'.log')).write_text(result.stdout+result.stderr)
         (args.output/'results.json').write_text(json.dumps(report, indent=2)+'\n')
     print('E2E complete: '+args.scope+' linux/'+arch)
