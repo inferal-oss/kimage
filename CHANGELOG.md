@@ -21,6 +21,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 - Worker recovery preserves installation and Helm ownership. Automatically registered node resources can be adopted by subsequent chart revisions and removed with their installation.
 - Native readiness Jobs have distinct identities when placement or input images change, avoiding immutable Job update failures during Helm upgrades.
 - Resource checks compare JSON values across Helm and Rust serialization without treating key ordering as drift, while rejecting unexpected or changed fields.
+- Following build output waits through client initialization instead of failing when an attempt's Pod has just been created.
 
 ### Security
 

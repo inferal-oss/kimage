@@ -385,6 +385,8 @@ pub async fn read(
     }
     let mut selected = attempt.map(str::to_owned);
     let mut offset = 0;
+    let startup_deadline = tokio::time::Instant::now() + Duration::from_secs(300);
+    let mut waiting_reported = false;
     loop {
         let mut variants = Vec::new();
         if image.spec.platform.is_automatic() {
@@ -495,6 +497,20 @@ pub async fn read(
             .as_deref()
             .context("NoBuildLogs: use kimage builds IMAGE to inspect build conditions")?;
         let snapshot = if let Some((_, _, pod)) = active.iter().find(|(_, other, _)| other == id) {
+            // A durable attempt exists before its init containers finish. Follow
+            // that same attempt through startup instead of failing an early exec.
+            if follow && waiting_for_client(pod) {
+                ensure!(
+                    tokio::time::Instant::now() < startup_deadline,
+                    "BuildClientStartupPending: inspect Pod events and kimage builds IMAGE"
+                );
+                if !waiting_reported {
+                    eprintln!("attempt {id}: waiting for the build client");
+                    waiting_reported = true;
+                }
+                tokio::select! {_=tokio::signal::ctrl_c()=>return Ok(()),_=tokio::time::sleep(Duration::from_secs(1))=>{}}
+                continue;
+            }
             match live(client.clone(), namespace, &pod.name_any()).await {
                 Ok(s) => s,
                 Err(e) => {
@@ -538,6 +554,17 @@ pub async fn read(
         }
         tokio::select! {_=tokio::signal::ctrl_c()=>return Ok(()),_=tokio::time::sleep(Duration::from_secs(1))=>{}}
     }
+}
+fn waiting_for_client(pod: &Pod) -> bool {
+    pod.metadata.deletion_timestamp.is_none()
+        && pod.status.as_ref().is_none_or(|status| {
+            !matches!(status.phase.as_deref(), Some("Succeeded" | "Failed"))
+                && !status.container_statuses.as_ref().is_some_and(|statuses| {
+                    statuses.iter().any(|s| {
+                        s.name == "client" && s.state.as_ref().is_some_and(|s| s.running.is_some())
+                    })
+                })
+        })
 }
 fn delta(buffer: &Buffer, offset: u64) -> Result<(bool, &str)> {
     buffer.validate()?;

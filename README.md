@@ -332,6 +332,18 @@ kubectl -n apps get pods -l app=hello \
 The final command shows the admitted Pod's registry reference pinned by
 `@sha256:...`. The Deployment template keeps its symbolic selector.
 
+For build progress or a failed attempt, use:
+
+```sh
+kimage builds hello --namespace apps
+kimage logs hello --namespace apps --platform linux/arm64 --follow
+```
+
+Select the platform you need, or use `--attempt` with an ID from `builds`.
+The last five attempts per platform keep a private 64 KiB output tail after
+build Pod cleanup. See [build diagnostics and failure handling](docs/operations.md#build-diagnostics-in-050)
+for permissions, retries and retention limits.
+
 ### 5. Publish another version
 
 Update the source input and change `spec.version` in `examples/hello/image.yaml`
@@ -375,7 +387,8 @@ access are outside its current scope. External exports support verified HTTPS
 with Basic authentication or explicit anonymous access; Bearer/token-helper
 authentication is not implemented.
 
-The tested serving upgrade window is Distribution **3.1.1 ↔ 3.1.2** and
+Whole-installation upgrades support **0.4.1 ↔ 0.5.0** through the guarded CLI,
+including Helm installations. The earlier serving-only acceptance covered Distribution **3.1.1 ↔ 3.1.2** and
 gateway/proxy **0.1.0 / 0.2.0 / 0.3.0** (cluster scope requires 0.3.0) with the documented filesystem storage profile.
 High availability, arbitrary storage/schema migrations, hostile-tenant isolation,
 signing/attestations, and automatic retained-artifact
