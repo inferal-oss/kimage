@@ -613,7 +613,7 @@ spec:
               or publishing another matching version does not itself trigger a
               rollout. Managed ephemeral-container updates, image-backed volume
               references, static Pods, and execution outside Kubernetes Pod
-              admission are not supported in 0.3.0.
+              admission are currently unsupported.
             </p>
             <p>
               The application webhook is fail-closed. An outage can block other
@@ -1100,7 +1100,7 @@ cargo test --locked --workspace
 python3 scripts/check-docs.py
 python3 scripts/check-site.py</code></pre>
             <p>
-              CI runs Rust tests on macOS/arm64 and native Linux/amd64 and Linux/arm64 musl, plus eleven release-tooling tests,
+              CI runs Rust tests on macOS/arm64 and native Linux/amd64 and Linux/arm64 musl, plus legacy release-tooling and component/chart tests,
               formatting, Clippy, documentation/example checks, and package
               verification. These include parser/admission compatibility for
               readable colon and literal/encoded query ranges, native graph verification, placement and build policy. Native Kubernetes E2E tests CLI and Helm, both installation scopes, on each architecture before release.

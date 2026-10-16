@@ -51,6 +51,15 @@ jobs:
       - name: Build native components and fixture executable
         run: |
           cargo build --locked --release --workspace --bins --target ${{ matrix.target }}
+          python3 - <<'PYVERSION'
+          import subprocess,tomllib
+          from pathlib import Path
+          version=tomllib.loads(Path('Cargo.toml').read_text())['workspace']['package']['version']
+          for role in ['install','operator','admission','input','exporter','gateway','proxy']:
+              expected='0.3.0' if role in ['gateway','proxy'] else version
+              actual=subprocess.check_output(['target/${{ matrix.target }}/release/kimage-'+role,'--version'],text=True).strip()
+              assert actual=='kimage-'+role+' '+expected,actual
+          PYVERSION
           mkdir -p .local/e2e
           rustc --edition=2024 --target ${{ matrix.target }} -C opt-level=z -C strip=symbols -C panic=abort scripts/fixtures/build-probe.rs -o .local/e2e/probe
       - name: Fetch pinned native upstream components

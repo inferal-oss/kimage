@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise native packaging and complete multi-platform registry publication graphs."""
 import contextlib
+import argparse
 import importlib.util
 import io
 import json
@@ -73,6 +74,34 @@ class ImagesTests(unittest.TestCase):
             catalog['repository']='untrusted.invalid/mirror'
             (root/'images/component-images.json').write_text(json.dumps(catalog))
             with self.assertRaises(AssertionError):chart.package(root/'images/component-images.json',root/'bad')
+
+    def test_release_assets_check_all_four_installer_architectures_and_exact_chart_pins(self):
+        release=module('package-image-release');chart=module('package-chart')
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary);native=[fixture(root/arch,arch) for arch in ['amd64','arm64']]
+            with contextlib.redirect_stdout(io.StringIO()):
+                assemble.assemble(native,root/'images','ghcr.io/inferal-oss/kimage')
+                chart_path=chart.package(root/'images/component-images.json',root/'chart')
+            for system in ['linux','darwin']:
+                for arch in ['amd64','arm64']:
+                    directory=root/'installers'/(system+'-'+arch);directory.mkdir(parents=True)
+                    if system=='linux':data=(root/arch/'registry').read_bytes()
+                    else:
+                        data=bytearray(16);data[:4]=bytes([207,250,237,254]);data[4:8]=(0x1000000+({'amd64':7,'arm64':12}[arch])).to_bytes(4,'little');data[12:]=bytes([2,0,0,0])
+                    (directory/'kimage-install').write_bytes(data)
+            metadata=root/'metadata.json';metadata.write_text(json.dumps(dict(packages=[])))
+            args=argparse.Namespace(catalog=root/'images/component-images.json',chart=chart_path,installers=root/'installers',metadata=metadata,out=root/'release')
+            with contextlib.redirect_stdout(io.StringIO()):release.package(args)
+            names={p.name for p in args.out.iterdir()}
+            self.assertEqual(len(names),10) # Nine public assets plus release notes.
+            self.assertIn('component-images.json',names);self.assertFalse(any('bundle' in n for n in names))
+            for line in (args.out/'SHA256SUMS').read_text().splitlines():
+                digest,name=line.split('  ');self.assertEqual(digest,pack.oci.digest((args.out/name).read_bytes())[7:])
+            # A plausible ELF for the wrong ISA must not become an arm64 installer.
+            (root/'installers/linux-arm64/kimage-install').write_bytes((root/'amd64/registry').read_bytes())
+            args.out=root/'wrong'
+            with contextlib.redirect_stdout(io.StringIO()),self.assertRaises(ValueError):release.package(args)
+            self.assertFalse(args.out.exists())
 
     def test_missing_platform_or_wrong_native_executable_never_produces_catalog(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -284,7 +284,7 @@ For this CronJob, publish a `report` Image whose default command finishes after 
 
 The Image and generated Pod must be in the configured application namespace, even if the controller runs elsewhere. A custom resource's schema, validation webhooks, and controller must accept the selector unchanged. Controllers that parse image references themselves, inspect an external registry first, or rewrite image strings may need an adapter. kimage does not scan arbitrary custom-resource fields or strings in ConfigMaps, environment variables, build definitions, or container arguments.
 
-Update the workload template to select another image; its ordinary rollout or scheduling policy creates new Pods. Changing a channel or publishing another matching version does not itself trigger a rollout. Managed ephemeral-container updates, image-backed volume references, static Pods, and execution outside Kubernetes Pod admission are not supported in 0.3.0.
+Update the workload template to select another image; its ordinary rollout or scheduling policy creates new Pods. Changing a channel or publishing another matching version does not itself trigger a rollout. Managed ephemeral-container updates, image-backed volume references, static Pods, and execution outside Kubernetes Pod admission are currently unsupported.
 
 The application webhook is fail-closed. An outage can block other Pod creation in its namespace too. Direct internal registry references are denied in application scope, and an opt-in Pod label is not a bypass.
 
@@ -507,7 +507,7 @@ python3 scripts/check-docs.py
 python3 scripts/check-site.py
 ```
 
-CI runs Rust tests on macOS/arm64 and native Linux/amd64 and Linux/arm64 musl, plus eleven release-tooling tests, formatting, Clippy, documentation/example checks, and package verification. These include parser/admission compatibility for readable colon and literal/encoded query ranges, native graph verification, placement and build policy. Native Kubernetes E2E tests CLI and Helm, both installation scopes, on each architecture before release.
+CI runs Rust tests on macOS/arm64 and native Linux/amd64 and Linux/arm64 musl, plus legacy release-tooling and component/chart tests, formatting, Clippy, documentation/example checks, and package verification. These include parser/admission compatibility for readable colon and literal/encoded query ranges, native graph verification, placement and build policy. Native Kubernetes E2E tests CLI and Helm, both installation scopes, on each architecture before release.
 
 An [explicitly enabled mixed-cluster E2E](https://github.com/inferal-oss/kimage/blob/main/docs/mixed-cluster-e2e.md) uses fresh Images for unknown, amd64, and arm64 workload placement. It checks exact native variants and native consumption of an OCI index or manifest. Standard CI validates the harness and skips the live test; running it requires an approved real mixed cluster. [Two independent runs passed](https://github.com/inferal-oss/kimage/blob/main/docs/mixed-cluster-results.json) with the official 0.3.0 binaries on real RKE2 amd64/arm64 nodes. Each case used a fresh Image. Unknown placement built both variants and ran both architectures from one index; explicit placement built only the requested platform. Both runs removed their consumer Deployments and Pods.
 

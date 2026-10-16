@@ -12,6 +12,13 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+class PublicRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, request, file, code, message, headers, new_url):
+        redirected=super().redirect_request(request,file,code,message,headers,new_url)
+        if redirected is not None:redirected.remove_header('Authorization')
+        return redirected
+
+
 REPOSITORY='ghcr.io/inferal-oss/kimage'
 ACCEPT='application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json'
 
@@ -21,7 +28,7 @@ def public_json(role,kind,digest):
     url='https://ghcr.io/token?'+urllib.parse.urlencode(dict(service='ghcr.io',scope=scope))
     with urllib.request.urlopen(url,timeout=30) as response:token=json.load(response)['token']
     request=urllib.request.Request(f'https://ghcr.io/v2/inferal-oss/kimage/{role}/{kind}/{digest}',headers={'Authorization':'Bearer '+token,'Accept':ACCEPT})
-    with urllib.request.urlopen(request,timeout=30) as response:data=response.read(1024*1024+1)
+    with urllib.request.build_opener(PublicRedirect()).open(request,timeout=30) as response:data=response.read(1024*1024+1)
     assert len(data)<=1024*1024 and 'sha256:'+hashlib.sha256(data).hexdigest()==digest,'public component digest mismatch'
     return json.loads(data)
 
