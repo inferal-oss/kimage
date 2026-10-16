@@ -47,12 +47,16 @@ class Boundaries(unittest.TestCase):
 
     def test_predecessor_worker_retirement_checks_the_template_and_delete_preconditions(self):
         import copy,types
-        expected=dict(metadata=dict(name='fixture-builder-arm64',labels={'kimage.dev/installation':'fixture'}),spec=dict(nodeName='native',containers=[dict(name='builder',image='pinned')],automountServiceAccountToken=False))
-        for changed in ['none','image','owner','release']:
+        expected=dict(metadata=dict(name='fixture-builder-arm64',labels={'kimage.dev/installation':'fixture'}),spec=dict(nodeName='native',hostNetwork=False,containers=[dict(name='builder',image='pinned',volumeMounts=[dict(name='cache',mountPath='/cache',readOnly=False)])],automountServiceAccountToken=False))
+        for changed in ['none','defaults','image','owner','release','token','mount']:
             worker=copy.deepcopy(expected);worker['metadata'].update(uid='worker-uid',resourceVersion='17')
             if changed=='image':worker['spec']['containers'][0]['image']='foreign'
             if changed=='owner':worker['metadata']['ownerReferences']=[dict(apiVersion='v1',kind='ConfigMap',name='foreign',uid='foreign')]
             if changed=='release':worker['metadata']['annotations']={'meta.helm.sh/release-name':'foreign'}
+            if changed=='defaults':
+                del worker['spec']['hostNetwork'];del worker['spec']['containers'][0]['volumeMounts'][0]['readOnly']
+            if changed=='token':del worker['spec']['automountServiceAccountToken']
+            if changed=='mount':worker['spec']['containers'][0]['volumeMounts'][0]['readOnly']=True
             events=[]
             class API:
                 def get(self,kind,*args):
@@ -65,7 +69,7 @@ class Boundaries(unittest.TestCase):
                     events.append('delete');return types.SimpleNamespace(returncode=0)
                 def wait(self,predicate,message):assert predicate()
             fixture=upgrade.Upgrade.__new__(upgrade.Upgrade);fixture.api=API();fixture.system='system';fixture.id='fixture';fixture.check=lambda text:None
-            if changed!='none':
+            if changed not in ('none','defaults'):
                 with self.assertRaisesRegex(RuntimeError,'ownership or specification|foreign owner'):fixture.retire_previous_worker('arm64')
                 self.assertEqual(events,[])
             else:

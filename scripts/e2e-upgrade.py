@@ -264,9 +264,18 @@ class Upgrade:
         require(template and template['metadata'].get('labels',{}).get('kimage.dev/installation')==self.id,'Predecessor worker template ownership changed')
         expected=json.loads(template['data']['pod.json'])
         require(expected['metadata']['name']==name and expected['metadata'].get('labels',{}).get('kimage.dev/installation')==self.id,'Predecessor worker template identity changed')
-        def contains(actual,desired):
-            if isinstance(desired,dict):return isinstance(actual,dict) and all(k in actual and contains(actual[k],v) for k,v in desired.items())
-            if isinstance(desired,list):return isinstance(actual,list) and len(actual)==len(desired) and all(contains(a,d) for a,d in zip(actual,desired))
+        def contains(actual,desired,path='spec'):
+            if isinstance(desired,dict):
+                if not isinstance(actual,dict):return False
+                for key,value in desired.items():
+                    field=path+'.'+key
+                    # Match canonical Pod comparison: Kubernetes omits these
+                    # false defaults. Never default security/token settings.
+                    default_false=field=='spec.hostNetwork' or re.fullmatch(r'spec\.containers\[\d+\]\.volumeMounts\[\d+\]\.readOnly',field)
+                    if value is False and actual.get(key) is None and default_false:continue
+                    if key not in actual or not contains(actual[key],value,field):return False
+                return True
+            if isinstance(desired,list):return isinstance(actual,list) and len(actual)==len(desired) and all(contains(a,d,path+'['+str(i)+']') for i,(a,d) in enumerate(zip(actual,desired)))
             return actual==desired
         for attempt in range(3):
             worker=self.api.get('pod',name,self.system)
