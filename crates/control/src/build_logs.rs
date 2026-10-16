@@ -387,6 +387,7 @@ pub async fn read(
     let mut offset = 0;
     let startup_deadline = tokio::time::Instant::now() + Duration::from_secs(300);
     let mut waiting_reported = false;
+    let mut unavailable_since = None;
     loop {
         let mut variants = Vec::new();
         if image.spec.platform.is_automatic() {
@@ -512,12 +513,22 @@ pub async fn read(
                 continue;
             }
             match live(client.clone(), namespace, &pod.name_any()).await {
-                Ok(s) => s,
+                Ok(s) => {
+                    unavailable_since = None;
+                    s
+                }
                 Err(e) => {
                     if let Some((_, a)) = archived.iter().find(|(_, a)| a.snapshot_id == id) {
                         a.diagnostic.clone()
                     } else if let Some(secret) = secrets.get_opt(&name(id)?).await? {
                         validate_archive(&secret, &uid)?.diagnostic
+                    } else if follow && retryable_live_error(&e) {
+                        let since = unavailable_since.get_or_insert_with(tokio::time::Instant::now);
+                        if since.elapsed() >= Duration::from_secs(30) {
+                            return Err(e.context("BuildLogConnectionUnavailable"));
+                        }
+                        tokio::select! {_=tokio::signal::ctrl_c()=>return Ok(()),_=tokio::time::sleep(Duration::from_secs(1))=>{}}
+                        continue;
                     } else {
                         return Err(e);
                     }
@@ -555,6 +566,24 @@ pub async fn read(
         tokio::select! {_=tokio::signal::ctrl_c()=>return Ok(()),_=tokio::time::sleep(Duration::from_secs(1))=>{}}
     }
 }
+fn retryable_live_error(error: &anyhow::Error) -> bool {
+    match error.downcast_ref::<kube::Error>() {
+        Some(kube::Error::Api(status)) => matches!(status.code, 404 | 429 | 500..=599),
+        Some(kube::Error::UpgradeConnection(
+            kube::client::UpgradeConnectionError::ProtocolSwitch(status),
+        )) => status.as_u16() == 404 || status.as_u16() == 429 || status.is_server_error(),
+        Some(
+            kube::Error::UpgradeConnection(
+                kube::client::UpgradeConnectionError::GetPendingUpgrade(_),
+            )
+            | kube::Error::HyperError(_)
+            | kube::Error::Service(_),
+        ) => true,
+        _ => error
+            .downcast_ref::<tokio::time::error::Elapsed>()
+            .is_some(),
+    }
+}
 fn waiting_for_client(pod: &Pod) -> bool {
     pod.metadata.deletion_timestamp.is_none()
         && pod.status.as_ref().is_none_or(|status| {
@@ -578,6 +607,28 @@ fn delta(buffer: &Buffer, offset: u64) -> Result<(bool, &str)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn live_connection_retry_does_not_hide_authorization_or_invalid_output() {
+        for (code, expected) in [
+            (500, true),
+            (503, true),
+            (404, true),
+            (429, true),
+            (401, false),
+            (403, false),
+        ] {
+            let error = kube::Error::UpgradeConnection(
+                kube::client::UpgradeConnectionError::ProtocolSwitch(
+                    axum::http::StatusCode::from_u16(code).unwrap(),
+                ),
+            );
+            assert_eq!(retryable_live_error(&error.into()), expected);
+        }
+        assert!(!retryable_live_error(&anyhow::anyhow!("InvalidBuildLog")));
+        assert!(!retryable_live_error(&anyhow::anyhow!(
+            "BuildLogOwnershipConflict"
+        )));
+    }
     #[test]
     fn bounded_unicode_tail_and_follow_offsets_report_gaps_without_duplicates() {
         let mut log = Buffer::default();

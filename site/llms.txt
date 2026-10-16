@@ -311,6 +311,9 @@ Helm-managed installs require Helm on PATH. The same commands invoke Helm with
 exact target pins, retaining ownership/history; rollback renders the exact older chart against current placement as a new
 Helm revision. New charts reject unguarded cross-release upgrade.
 Old charts cannot add guards to raw helm rollback; use the guarded CLI path.
+Helm recovery history must match live credential and build-policy bytes. On
+HelmRecoveryCredentialDrift/HelmRecoveryPolicyDrift, reapply the current version's
+chart to record the live values, then repeat preflight. Never bypass this check.
 `kimage install` only resumes the same release. No bootstrap 0.3.x adoption.
 `kimage status --json` shows versions, operation phase, native workers and storage.
 `kimage doctor --json` also checks resource drift and current/30-day certificate

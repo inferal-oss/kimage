@@ -206,7 +206,7 @@ async fn save(client: Client, j: &Journal) -> Result<()> {
     let maps: Api<ConfigMap> = Api::namespaced(client, &j.options.namespace);
     let name = format!("{}-operation", j.options.installation);
     let mut desired: ConfigMap = serde_json::from_value(
-        json!({"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":name,"labels":{LABEL:j.options.installation}},"data":{"operation.json":serde_json::to_string(j)?}}),
+        json!({"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":name,"labels":{LABEL:j.options.installation},"ownerReferences":[{"apiVersion":"v1","kind":"ConfigMap","name":format!("{}-installation",j.options.installation),"uid":j.installation_uid,"controller":false,"blockOwnerDeletion":false}]},"data":{"operation.json":serde_json::to_string(j)?}}),
     )?;
     if let Some(existing) = maps.get_opt(&name).await? {
         owned(&existing, &j.options.installation)?;
@@ -548,6 +548,16 @@ pub async fn transition(
             pinned(&record.source) || resumed && pinned(&record.target),
             "HelmHistoryImageCatalogConflict"
         );
+        // Helm's supported pending-revision recovery replays a stable manifest.
+        // Refuse before quiescing if it would restore stale credential or policy
+        // bytes. Reapplying the current chart first records the live values.
+        let release_name = installed
+            .annotations()
+            .get("meta.helm.sh/release-name")
+            .context("MissingHelmReleaseIdentity")?;
+        let history = helm_history(release_name, ns).await?;
+        let revision = recovery_revision(&history)?;
+        verify_helm_recovery(&context, &record, release_name, revision).await?;
         ensure!(
             std::env::var_os("KIMAGE_API_SERVER").is_none()
                 && std::env::var_os("KIMAGE_TLS_SERVER_NAME").is_none(),
@@ -967,6 +977,99 @@ async fn helm_output(args: &[String]) -> Result<Vec<u8>> {
     ensure!(output.stdout.len() <= 4 * 1024 * 1024, "HelmOutputTooLarge");
     Ok(output.stdout)
 }
+async fn helm_history(name: &str, ns: &str) -> Result<Vec<Value>> {
+    let mut history: Vec<Value> = serde_json::from_slice(
+        &helm_output(&[
+            "history".into(),
+            name.into(),
+            "--namespace".into(),
+            ns.into(),
+            "--max".into(),
+            "256".into(),
+            "--output".into(),
+            "json".into(),
+        ])
+        .await?,
+    )?;
+    history.sort_by_key(|v| v["revision"].as_u64().unwrap_or(0));
+    Ok(history)
+}
+fn recovery_revision(history: &[Value]) -> Result<u64> {
+    history
+        .iter()
+        .rev()
+        .find(|v| matches!(v["status"].as_str(), Some("deployed" | "superseded")))
+        .context("NoRecoverableHelmRevision")?["revision"]
+        .as_u64()
+        .context("InvalidHelmRevision")
+}
+async fn verify_helm_recovery(
+    context: &Installer,
+    record: &Journal,
+    name: &str,
+    revision: u64,
+) -> Result<()> {
+    let bytes = helm_output(&[
+        "get".into(),
+        "manifest".into(),
+        name.into(),
+        "--namespace".into(),
+        record.options.namespace.clone(),
+        "--revision".into(),
+        revision.to_string(),
+    ])
+    .await?;
+    let raw = std::str::from_utf8(&bytes)?;
+    let mut checked = std::collections::BTreeSet::new();
+    for document in raw.split("\n---") {
+        let body = document
+            .lines()
+            .filter(|l| !l.trim().is_empty() && !l.starts_with('#') && l.trim() != "---")
+            .collect::<Vec<_>>()
+            .join("\n");
+        if body.is_empty() {
+            continue;
+        }
+        let value: Value = serde_json::from_str(&body)
+            .context("UnsupportedHelmRecoveryManifest: use the canonical release chart")?;
+        let resource_name = value["metadata"]["name"]
+            .as_str()
+            .context("InvalidHelmRecoveryManifest")?;
+        if value["kind"] == "Secret" {
+            let current = context
+                .api_at("Secret", Some(&record.options.namespace))?
+                .get(resource_name)
+                .await?;
+            ensure!(
+                current.labels().get(LABEL) == Some(&record.options.installation)
+                    && current.data["data"] == value["data"],
+                "HelmRecoveryCredentialDrift: reapply the current chart to record live credentials before upgrading"
+            );
+            checked.insert(resource_name.to_owned());
+        }
+        if value["kind"] == "ConfigMap"
+            && resource_name == format!("{}-config", record.options.installation)
+        {
+            ensure!(
+                value["data"]["configuration.json"] == record.configuration,
+                "HelmRecoveryPolicyDrift: reapply the current chart to record live build policy before upgrading"
+            );
+            checked.insert(resource_name.to_owned());
+        }
+    }
+    for suffix in [
+        "registry-credentials",
+        "admission-credentials",
+        "builder-credentials",
+        "config",
+    ] {
+        ensure!(
+            checked.contains(&format!("{}-{suffix}", record.options.installation)),
+            "IncompleteHelmRecoveryManifest"
+        );
+    }
+    Ok(())
+}
 async fn helm_transition(
     context: &Installer,
     record: &Journal,
@@ -982,17 +1085,7 @@ async fn helm_transition(
         .get("meta.helm.sh/release-name")
         .context("MissingHelmReleaseIdentity")?;
     let base = vec!["--namespace".into(), ns.clone()];
-    let mut history_args = vec![
-        "history".into(),
-        release_name.clone(),
-        "--max".into(),
-        "256".into(),
-        "--output".into(),
-        "json".into(),
-    ];
-    history_args.extend(base.clone());
-    let mut history: Vec<Value> = serde_json::from_slice(&helm_output(&history_args).await?)?;
-    history.sort_by_key(|v| v["revision"].as_u64().unwrap_or(0));
+    let history = helm_history(release_name, ns).await?;
     let values_match = |value: &Value| -> Result<()> {
         ensure!(
             value["images"]["repository"] == record.target.repository,
@@ -1030,13 +1123,8 @@ async fn helm_transition(
         .and_then(|v| v["status"].as_str())
         .is_some_and(|s| s.starts_with("pending-"))
     {
-        let revision = history
-            .iter()
-            .rev()
-            .find(|v| matches!(v["status"].as_str(), Some("deployed" | "superseded")))
-            .context("NoRecoverableHelmRevision")?["revision"]
-            .as_u64()
-            .context("InvalidHelmRevision")?;
+        let revision = recovery_revision(&history)?;
+        verify_helm_recovery(context, record, release_name, revision).await?;
         let mut args = vec![
             "rollback".into(),
             release_name.clone(),

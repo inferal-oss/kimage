@@ -213,6 +213,10 @@ Helm revision. New charts reject an unguarded
 cross-release upgrade. Use the guarded commands for compatibility checks and
 interrupt recovery; an old 0.4.1 chart cannot add guards to raw `helm rollback`.
 Review history with `helm history kimage --namespace kimage-system`.
+Preflight also checks that stable Helm history can recover an interrupted
+revision without restoring stale credentials or build-policy bytes. If it reports
+`HelmRecoveryCredentialDrift` or `HelmRecoveryPolicyDrift`, reapply the current
+version's chart first to record the live values, then repeat the upgrade check.
 
 The release's `release-compatibility.json` records supported exact edges and the
 API, installation/build/journal, serving and registry storage formats. Unknown

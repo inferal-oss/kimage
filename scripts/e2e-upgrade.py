@@ -91,7 +91,7 @@ class Upgrade:
         result=self.api.call(['config','view','--minify','--raw','-o','json'])
         config=json.loads(result.stdout)
         require(config['current-context']==self.config['context'],'Explicit kubeconfig context mismatch')
-        self.private_config=tempfile.NamedTempFile(prefix='kimage-lifecycle-kubeconfig-',delete=False)
+        self.private_config=tempfile.NamedTemporaryFile(prefix='kimage-lifecycle-kubeconfig-',delete=False)
         os.chmod(self.private_config.name,0o600);self.private_config.write(result.stdout.encode());self.private_config.close()
         self.environment['KUBECONFIG']=self.private_config.name
         self.environment.pop('KIMAGE_API_SERVER',None);self.environment.pop('KIMAGE_TLS_SERVER_NAME',None)
@@ -223,6 +223,13 @@ class Upgrade:
         value=self.api.get('configmap',self.id+'-operation',self.system)
         return json.loads(value['data']['operation.json']) if value else None
 
+    def assert_removed(self):
+        def absent():
+            for kind in ['pods','deployments','jobs','configmaps','secrets','services','networkpolicies','roles','rolebindings','serviceaccounts']:
+                if self.api.get(kind,namespace=self.system,selector='kimage.dev/installation='+self.id)['items']:return False
+            return True
+        self.api.wait(absent,'all disposable system resources removed, including controller-created resources and operation journal')
+
     def transition(self,version,interrupt=False):
         command='upgrade' if version=='0.5.0' else 'rollback'
         catalog=Path(self.config['catalog']) if version=='0.5.0' else self.previous/'component-images.json'
@@ -351,12 +358,14 @@ class Upgrade:
             else:self.run_command(['helm','uninstall',self.id,'--namespace',self.system,'--wait','--timeout','5m'])
             # Secrets are disposable; catalog and registry identities are retained.
             after=self.retained();require(all(after[k]==retained[k] for k in ['pvcUid','pvUid','images','releases']),'Uninstall changed retained data')
+            self.assert_removed()
             self.check('uninstall preserves registry data, Image identities and release contracts')
             self.install_previous()
             self.verify_graphs('after-uninstall-reinstall')
             if self.config['mode']=='cli':self.run_command([self.installer,'uninstall','--namespace',self.system,'--installation',self.id])
             else:self.run_command(['helm','uninstall',self.id,'--namespace',self.system,'--wait','--timeout','5m'])
             after=self.retained();require(all(after[k]==retained[k] for k in ['pvcUid','pvUid','images','releases']),'Final removal changed retained data')
+            self.assert_removed()
             self.report['complete']=True
         finally:
             self.restore_labels()

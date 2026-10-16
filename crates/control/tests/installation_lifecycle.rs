@@ -229,6 +229,11 @@ async fn read_only_preflight_interrupted_resume_and_reverse_preserve_retained_id
         .unwrap()
         .unwrap();
     assert_ne!(journal.phase, lifecycle::Phase::Complete);
+    assert_eq!(
+        store.lock().unwrap().objects["/api/v1/namespaces/system/configmaps/dev-operation"]["metadata"]
+            ["ownerReferences"][0]["uid"],
+        before["/api/v1/namespaces/system/configmaps/dev-installation"]["metadata"]["uid"]
+    );
     let resumed = lifecycle::transition(
         client.clone(),
         "system",

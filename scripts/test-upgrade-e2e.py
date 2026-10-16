@@ -21,8 +21,34 @@ def module(name):
 
 fetch=module('fetch-predecessor')
 publish=module('publish-component-images')
+upgrade=module('e2e-upgrade')
 
 class Boundaries(unittest.TestCase):
+    def test_fixture_preflight_creates_a_private_shared_minified_kubeconfig(self):
+        import types
+        node=dict(metadata=dict(name='native'),status=dict(nodeInfo=dict(operatingSystem='linux',architecture='amd64'),conditions=[dict(type='Ready',status='True')]))
+        configuration=json.dumps({'current-context':'fixture','contexts':[],'clusters':[],'users':[]})
+        class API:
+            def get(self,kind,name=None):return dict(items=[node]) if kind=='nodes' else None
+            def call(self,args,value=None):return types.SimpleNamespace(stdout=configuration)
+            def create(self,value):return value
+        with tempfile.TemporaryDirectory() as directory,patch.object(upgrade.mixed,'verify_probe',return_value=b'fixture-elf'),contextlib.redirect_stdout(io.StringIO()):
+            fixture=upgrade.Upgrade.__new__(upgrade.Upgrade)
+            fixture.config=dict(context='fixture',probes=directory)
+            fixture.api=API();fixture.app='app';fixture.system='system';fixture.id='install'
+            fixture.output=Path(directory);fixture.environment=dict(os.environ);fixture.report=dict(checks=[])
+            fixture.private_config=None
+            try:
+                fixture.preflight()
+                path=Path(fixture.private_config.name)
+                self.assertEqual(path.stat().st_mode & 0o777,0o600)
+                self.assertEqual(path.read_text(),configuration)
+                self.assertEqual(fixture.environment['KUBECONFIG'],str(path))
+                self.assertNotIn('KIMAGE_API_SERVER',fixture.environment)
+                self.assertNotIn('KIMAGE_TLS_SERVER_NAME',fixture.environment)
+            finally:
+                if fixture.private_config:Path(fixture.private_config.name).unlink(missing_ok=True)
+
     def test_real_cluster_acceptance_requires_opt_in_before_opening_configuration(self):
         result=subprocess.run([sys.executable,str(ROOT/'scripts/e2e-upgrade.py'),'--config','/nonexistent'],text=True,capture_output=True)
         self.assertNotEqual(result.returncode,0)

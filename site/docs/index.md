@@ -397,6 +397,8 @@ For Helm ownership, keep Helm on PATH. The commands invoke Helm with exact targe
 
 The release asset `release-compatibility.json` records exact tested transitions and persisted formats. Unknown edges are refused. Before returning to 0.4.1, restore an empty node selector; that operator cannot enforce the newer selection policy. Worker pins and build policy are preserved.
 
+Helm preflight checks that stable history can recover an interrupted revision without restoring stale credentials or build policy. If it reports `HelmRecoveryCredentialDrift` or `HelmRecoveryPolicyDrift`, reapply the current version's chart to record the live values before checking the upgrade again.
+
 ### Automatic node membership
 
 The operator registers eligible new nodes and native architectures automatically. Existing automatic workers stay in place while eligible. Removed membership revokes UID-bound serving approval, and worker replacement fences old clients before creating a replacement. A partitioned worker can leave fencing pending. Registry node identity and retained storage never move automatically.
