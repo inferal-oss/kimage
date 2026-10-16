@@ -389,7 +389,7 @@ kimage rollback --to 0.4.1 --check
 kimage rollback --to 0.4.1
 ```
 
-Add `--namespace` and `--installation` for a non-default system identity. Checks are read-only. The operation records exact catalogs and resumable phases, stops new reconciliation, terminates old clients and workers, and replaces components under an exclusive Lease. Completion verifies readiness and retained storage, CRD and credential identities. New builds and managed Pod admission may pause; running application containers remain under their workload controller.
+Add `--namespace` and `--installation` for a non-default system identity. Checks are read-only. The operation records exact catalogs and resumable phases, stops new reconciliation, terminates old clients and workers, and replaces components under an exclusive Lease. Completion verifies readiness and retained storage, CRD and credential identities. New builds, managed Pod admission and uncached pulls may pause; running application containers remain under their workload controller.
 
 If interrupted, repeat the exact command and catalog. A crashed process's Lease expires after 30 seconds. Do not delete the journal or switch targets. `status` shows the pending phase; `doctor` checks drift, native readiness and certificate validity and exits nonzero when attention is needed. A failed operation does not silently roll back.
 

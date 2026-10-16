@@ -195,9 +195,9 @@ are read-only. Actual transitions acquire a renewable installation Lease and
 persist exact source/target catalogs and phases. They stop new reconciliation,
 terminate old clients and workers before replacing component policy, preserve
 credentials and administrator build policy, then verify component readiness and
-retained PVC/PV/CRD/credential identity. Registry writes and new managed Pod
-admission can pause during the transition; running application containers remain
-under their workload controller.
+retained PVC/PV/CRD/credential identity. Registry writes, managed Pod admission
+and new uncached pulls can pause during the transition; running application
+containers remain under their workload controller.
 
 If interrupted, rerun the same exact command and catalog. A crashed process's
 Lease expires after 30 seconds. Do not delete the journal or switch targets while

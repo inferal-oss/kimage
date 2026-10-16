@@ -541,7 +541,7 @@ pub async fn transition(
                 .is_some_and(|v| v == ns),
             "HelmReleaseNamespaceConflict"
         );
-        helm_update_mode().await?;
+        helm_update_mode(false).await?;
         let values = helm_values.as_ref().context("MissingHelmReleaseValues")?;
         let pinned = |catalog: &ImageCatalog| {
             values["images"]["repository"] == catalog.repository
@@ -988,19 +988,39 @@ async fn quiesce(context: &Installer, options: &Options, lease: &OperationLease)
         crate::install::delete_foreground_snapshot(&api, &dynamic).await?;
         wait_deleted(&api, &pod.name_any()).await?;
     }
-    // Terminate every old worker before changing catalogs. A dead or partitioned
-    // kubelet leaves the operation pending rather than allowing an unsafe steal.
+    // Helm updates Pod images in place. A loopback proxy must release its host
+    // port before the next binary starts; fence those Pods under the same Lease.
+    // Native CLI application already replaces changed Pods by identity.
+    let roles: &[&str] = if operator
+        .annotations()
+        .get("kimage.dev/manager")
+        .is_some_and(|m| m == "helm")
+    {
+        &["builder", "node-proxy"]
+    } else {
+        &["builder"]
+    };
     let api = context.api_at("Pod", Some(&options.namespace))?;
-    let page = api
-        .list(&ListParams::default().labels(&format!(
-            "{LABEL}={},kimage.dev/role=builder",
-            options.installation
-        )))
-        .await?;
-    for pod in page {
-        lease.check().await?;
-        crate::install::delete_foreground_snapshot(&api, &pod).await?;
-        wait_deleted(&api, &pod.name_any()).await?;
+    for role in roles {
+        let page = api
+            .list(&ListParams::default().labels(&format!(
+                "{LABEL}={},kimage.dev/role={role}",
+                options.installation
+            )))
+            .await?;
+        for pod in page {
+            if *role == "node-proxy" {
+                ensure!(
+                    pod.annotations()
+                        .get("kimage.dev/manager")
+                        .is_some_and(|m| m == "helm"),
+                    "InstallationResourceOwnershipConflict"
+                );
+            }
+            lease.check().await?;
+            crate::install::delete_foreground_snapshot(&api, &pod).await?;
+            wait_deleted(&api, &pod.name_any()).await?;
+        }
     }
     Ok(())
 }
@@ -1056,27 +1076,36 @@ fn helm_failure_reason(stderr: &str) -> &'static str {
         "HelmResourceUpdateFailed"
     } else if stderr.contains("another operation") {
         "HelmOperationPending"
+    } else if stderr.contains("not ready") && stderr.contains("CrashLoop") {
+        "HelmComponentRestarting"
     } else if stderr.contains("timed out") || stderr.contains("deadline exceeded") {
         "HelmReadinessDeadline"
     } else {
         "HelmCommandFailed"
     }
 }
-async fn helm_update_mode() -> Result<Vec<String>> {
+async fn helm_update_mode(wait: bool) -> Result<Vec<String>> {
     let version = helm_output(&["version".into(), "--short".into()]).await?;
-    let version = std::str::from_utf8(&version)?.trim();
+    helm_flags(std::str::from_utf8(&version)?.trim(), wait)
+}
+fn helm_flags(version: &str, wait: bool) -> Result<Vec<String>> {
     ensure!(
         version.starts_with("v3.") || version.starts_with("v4."),
         "UnsupportedHelmVersion: use Helm 3 or 4"
     );
-    // Helm 4 defaults to SSA. Quiescing and native node reconciliation update
-    // fields outside Helm's apply manager, so use Helm's ordinary three-way
-    // update path rather than forcing ownership conflicts or replacing volumes.
-    Ok(if version.starts_with("v4.") {
-        vec!["--server-side=false".into()]
-    } else {
-        vec![]
-    })
+    let mut flags = Vec::new();
+    if version.starts_with("v4.") {
+        // Quiescing and node reconciliation share fields with Helm. Keep the
+        // ordinary update path, and allow transient container restart backoff
+        // instead of Helm 4's watcher immediately rejecting CrashLoop status.
+        flags.push("--server-side=false".into());
+        if wait {
+            flags.push("--wait=legacy".into());
+        }
+    } else if wait {
+        flags.push("--wait".into());
+    }
+    Ok(flags)
 }
 async fn helm_history(name: &str, ns: &str) -> Result<Vec<Value>> {
     let mut history: Vec<Value> = serde_json::from_slice(
@@ -1219,6 +1248,7 @@ async fn helm_transition(
         restore_helm_policy(context, record, &state, release_name, lease).await?;
         return Ok(());
     }
+    quiesce(context, &record.options, lease).await?;
     // Helm permits rollback out of an interrupted pending revision. Use a real
     // recorded revision, never edit Helm's Secret history to clear its lock.
     if history
@@ -1243,7 +1273,7 @@ async fn helm_transition(
             "10m".into(),
         ];
         args.extend(base.clone());
-        args.extend(helm_update_mode().await?);
+        args.extend(helm_update_mode(false).await?);
         lease.check().await?;
         // Clear Helm's pending revision without waiting for historical node
         // placement. The guarded target is rendered against current topology.
@@ -1264,7 +1294,6 @@ async fn helm_transition(
         release_name.clone(),
         path.to_str().context("InvalidHelmChartPath")?.into(),
         "--reuse-values".into(),
-        "--wait".into(),
         "--timeout".into(),
         "10m".into(),
         "--set-string".into(),
@@ -1277,7 +1306,7 @@ async fn helm_transition(
         ]);
     }
     args.extend(base);
-    args.extend(helm_update_mode().await?);
+    args.extend(helm_update_mode(true).await?);
     lease.check().await?;
     helm_output(&args).await?;
     restore_helm_policy(context, record, &state, release_name, lease).await?;
@@ -1323,6 +1352,20 @@ async fn restore_helm_policy(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn helm_waits_tolerate_restart_backoff_without_waiting_on_recovery_history() {
+        assert_eq!(
+            super::helm_flags("v4.4.0", true).unwrap(),
+            ["--server-side=false", "--wait=legacy"]
+        );
+        assert_eq!(
+            super::helm_flags("v4.4.0", false).unwrap(),
+            ["--server-side=false"]
+        );
+        assert_eq!(super::helm_flags("v3.20.0", true).unwrap(), ["--wait"]);
+        assert!(super::helm_flags("v3.20.0", false).unwrap().is_empty());
+        assert!(super::helm_flags("v5.0.0", true).is_err());
+    }
     #[tokio::test]
     async fn concurrent_worker_creation_accepts_only_the_exact_owned_nondeleting_spec() {
         use axum::{
@@ -1371,6 +1414,10 @@ mod tests {
     #[test]
     fn helm_errors_classify_safe_reasons_without_returning_rendered_credentials() {
         for (message, reason) in [
+            (
+                "resource Pod/proxy not ready. status: Failed, message: Containers in CrashLoop state: proxy PRIVATE",
+                "HelmComponentRestarting",
+            ),
             (
                 "failed to create resource: pods builder already exists; Secret data: PRIVATE",
                 "HelmResourceAlreadyExists",

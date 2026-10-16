@@ -191,8 +191,9 @@ kimage doctor
 kimage rollback --to 0.4.1
 ```
 
-An interrupted operation resumes with the same command. See
-[upgrades and retained data](docs/installation.md#upgrades-rollback-and-removal).
+An interrupted operation resumes with the same command. Running application
+containers continue; builds, admission and new uncached pulls can pause while
+components restart. See [upgrades and retained data](docs/installation.md#upgrades-rollback-and-removal).
 
 No source checkout is needed. With no flags, `kimage install` manages the current
 kubeconfig namespace. Components use public, digest-pinned amd64/arm64 images from
