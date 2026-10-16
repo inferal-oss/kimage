@@ -54,7 +54,7 @@ class Argo:
         value=self.application_state()
         if not value:return False
         status=value.get('status',{})
-        return status.get('health',{}).get('status')=='Healthy' and status.get('sync',{}).get('status')=='Synced' and status.get('operationState',{}).get('phase')=='Succeeded'
+        return status.get('sync',{}).get('comparedTo',{}).get('source')==value['spec']['source'] and status.get('health',{}).get('status')=='Healthy' and status.get('sync',{}).get('status')=='Synced' and status.get('operationState',{}).get('phase')=='Succeeded'
     def wait_ready(self):self.api.wait(self.ready,'Argo Application Healthy and Synced: '+self.id)
     def desired(self,changes):
         current=self.application_state();source=copy.deepcopy(current['spec']['source']);source['helm']['valuesObject'].update(changes)
@@ -73,6 +73,7 @@ class Argo:
         pods=self.api.get('pods',namespace=namespace,selector=selector)['items'];require(len(pods)==1,'Expected exactly one isolated controller Pod')
         pod=pods[0]
         self.raw('delete','/api/v1/namespaces/'+namespace+'/pods/'+pod['metadata']['name'],dict(apiVersion='v1',kind='DeleteOptions',preconditions=dict(uid=pod['metadata']['uid'])))
+        self.api.wait(lambda:any(p['metadata']['uid']!=pod['metadata']['uid'] and any(c['type']=='Ready' and c['status']=='True' for c in p['status'].get('conditions',[])) for p in self.api.get('pods',namespace=namespace,selector=selector)['items']),'new isolated controller Pod is Ready')
     def fingerprint(self):
         result={}
         for kind,name in [('configmap',self.id+'-installation'),('pvc',self.id+'-data')]+[('secret',self.id+'-'+role+'-credentials') for role in ['registry','admission','builder']]:
@@ -96,7 +97,8 @@ class Argo:
         pods=self.api.get('pods',namespace=self.system,selector='kimage.dev/installation='+self.id)['items']
         proxies={p['spec']['nodeName'] for p in pods if p['metadata'].get('labels',{}).get('kimage.dev/role')=='node-proxy' and p['status'].get('phase')=='Running' and any(c['type']=='Ready' and c['status']=='True' for c in p['status'].get('conditions',[]))}
         native={p['metadata']['labels'].get('kimage.dev/worker-architecture') for p in pods if p['metadata'].get('labels',{}).get('kimage.dev/role')=='builder' and any(c['type']=='Ready' and c['status']=='True' for c in p['status'].get('conditions',[]))}
-        return proxies==set(names) and native==set(workers)
+        bound=all(p['metadata'].get('annotations',{}).get('kimage.dev/node-uid')==self.nodes[p['spec']['nodeName']]['metadata']['uid'] for p in pods if p['metadata'].get('labels',{}).get('kimage.dev/role')=='node-proxy')
+        return bound and proxies==set(names) and native==set(workers)
     def label(self,node,value):
         self.patch('node',node,dict(metadata=dict(labels={self.label_key:value})))
     def node_changes(self):
@@ -219,6 +221,9 @@ class Argo:
             for name,value in self.labels.items():self.label(name,value)
             for name,uid in reversed(self.api.deployments):
                 self.api.call(['delete','--raw','/apis/apps/v1/namespaces/'+self.app+'/deployments/'+name,'-f','-'],dict(apiVersion='v1',kind='DeleteOptions',propagationPolicy='Foreground',preconditions=dict(uid=uid)),ok=False)
+            if self.api.deployments:
+                self.api.wait(lambda:not self.api.get('pods',namespace=self.app,selector=mixed.RUN_LABEL+'='+self.api.run_id)['items'],'all owned test consumers removed')
+            self.report['cleanupComplete']=True
             self.report['retainedNamespaces']=[self.app,self.system];self.save()
 
 def main():

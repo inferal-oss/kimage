@@ -185,7 +185,7 @@ only fixed GitHub metadata requests and is never forwarded to asset downloads.
 ## Upgrades, rollback and removal
 
 Install the new CLI first. Updating the Cargo package does not change cluster
-components. The initial supported release edge is **0.5.0 to 0.5.1 and back**:
+components. The current supported release edge is **0.5.0 to 0.5.1 and back**:
 
 ```sh
 kimage upgrade --to 0.5.1 --check

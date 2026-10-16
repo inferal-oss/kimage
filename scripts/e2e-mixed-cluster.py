@@ -95,7 +95,7 @@ def deployment_body(name, namespace, architecture=None):
         spec['affinity'] = dict(podAntiAffinity=dict(requiredDuringSchedulingIgnoredDuringExecution=[
             dict(labelSelector=dict(matchLabels=labels), topologyKey='kubernetes.io/arch')]))
     return dict(apiVersion='apps/v1', kind='Deployment', metadata=dict(name=name), spec=dict(
-        replicas=1 if architecture else 2, selector=dict(matchLabels=labels),
+        replicas=1 if architecture else len(ARCHITECTURES), selector=dict(matchLabels=labels),
         template=dict(metadata=dict(labels=labels), spec=spec)))
 
 

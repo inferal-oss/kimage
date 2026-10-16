@@ -23,6 +23,7 @@ python3 scripts/test-component-images.py
 python3 scripts/test-mixed-e2e.py
 python3 scripts/test-install-e2e.py
 python3 scripts/test-upgrade-e2e.py
+python3 scripts/test-argocd-e2e.py
 python3 scripts/test-helm-diagnostics.py
 python3 scripts/check-docs.py
 python3 scripts/check-site.py
