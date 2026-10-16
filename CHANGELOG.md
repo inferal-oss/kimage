@@ -22,6 +22,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 - Native readiness Jobs have distinct identities when placement or input images change, avoiding immutable Job update failures during Helm upgrades.
 - Resource checks compare JSON values across Helm and Rust serialization without treating key ordering as drift, while rejecting unexpected or changed fields.
 - Following build output waits through client initialization instead of failing when an attempt's Pod has just been created.
+- Build-log archive names retain the full attempt identity within valid DNS labels, allowing input authorization to consistently recognize and reject private diagnostic Secrets.
 - Live log following retries transient exec connection failures within a bounded window, while authentication and invalid-output errors fail immediately.
 - Lifecycle journals are owned by the installation record so Helm uninstall also removes completed operation metadata.
 - Pending Helm recovery fences partial components and recreates disposable readiness Jobs before replaying history, avoiding immutable Job-template conflicts.

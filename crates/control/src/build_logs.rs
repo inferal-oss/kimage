@@ -193,7 +193,14 @@ pub struct Attempt {
 }
 fn name(id: &str) -> Result<String> {
     crate::direct::client_name(id)?;
-    Ok(format!("buildlog-{id}"))
+    // Keep all 256 identity bits while respecting the input model's 63-byte DNS
+    // label bound. This also lets rollback tests reach reserved-input checks.
+    let name = format!("buildlog-{}.{}", &id[..32], &id[32..]);
+    ensure!(
+        kimage_core::selector::dns_subdomain(&name),
+        "InvalidBuildSnapshotId"
+    );
+    Ok(name)
 }
 /// Called before client cleanup. Unavailable workers must not prevent fencing.
 pub async fn archive(client: Client, namespace: &str, pod: &Pod, id: &str) -> Result<()> {
@@ -607,6 +614,14 @@ fn delta(buffer: &Buffer, offset: u64) -> Result<(bool, &str)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn archive_names_preserve_the_full_attempt_identity_and_pass_input_name_validation() {
+        let id = "a".repeat(64);
+        let key = name(&id).unwrap();
+        assert!(kimage_core::selector::dns_subdomain(&key));
+        assert_eq!(key.trim_start_matches("buildlog-").replace('.', ""), id);
+        assert_ne!(key, name(&("a".repeat(63) + "b")).unwrap());
+    }
     #[test]
     fn live_connection_retry_does_not_hide_authorization_or_invalid_output() {
         for (code, expected) in [

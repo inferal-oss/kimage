@@ -316,7 +316,11 @@ class Upgrade:
             image=self.api.create(body)
             def refused():
                 value=self.api.get('images.kimage.dev',name,self.app)
-                return any(c.get('reason')=='ReservedControllerInputDenied' for c in value.get('status',{}).get('conditions',[]))
+                conditions=value.get('status',{}).get('conditions',[])
+                reasons=[c.get('reason','') for c in conditions]
+                require(not any(r.startswith(('Invalid','Unsupported')) for r in reasons),'Reserved-input fixture failed validation before authorization: '+','.join(reasons))
+                require(not mixed.is_ready(value),'Private diagnostic input was incorrectly accepted')
+                return 'ReservedControllerInputDenied' in reasons
             self.api.wait(refused,'published predecessor rejects private log Secret as an input')
             require(not any(r['spec']['imageUid']==image['metadata']['uid'] for r in self.api.get('imagereleases.kimage.dev',namespace=self.app)['items']),'Predecessor exported private diagnostic data')
         self.check('published predecessor preserves private log input protection after rollback')
