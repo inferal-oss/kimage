@@ -48,10 +48,11 @@ class Boundaries(unittest.TestCase):
     def test_predecessor_worker_retirement_checks_the_template_and_delete_preconditions(self):
         import copy,types
         expected=dict(metadata=dict(name='fixture-builder-arm64',labels={'kimage.dev/installation':'fixture'}),spec=dict(nodeName='native',containers=[dict(name='builder',image='pinned')],automountServiceAccountToken=False))
-        for changed in ['none','image','owner']:
+        for changed in ['none','image','owner','release']:
             worker=copy.deepcopy(expected);worker['metadata'].update(uid='worker-uid',resourceVersion='17')
             if changed=='image':worker['spec']['containers'][0]['image']='foreign'
             if changed=='owner':worker['metadata']['ownerReferences']=[dict(apiVersion='v1',kind='ConfigMap',name='foreign',uid='foreign')]
+            if changed=='release':worker['metadata']['annotations']={'meta.helm.sh/release-name':'foreign'}
             events=[]
             class API:
                 def get(self,kind,*args):

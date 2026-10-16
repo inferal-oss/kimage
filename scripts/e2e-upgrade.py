@@ -274,6 +274,9 @@ class Upgrade:
             metadata=worker['metadata']
             require(metadata.get('labels',{}).get('kimage.dev/installation')==self.id
                     and metadata.get('annotations',{}).get('kimage.dev/manager') in (None,'helm')
+                    and metadata.get('labels',{}).get('app.kubernetes.io/managed-by') in (None,'Helm')
+                    and metadata.get('annotations',{}).get('meta.helm.sh/release-name') in (None,self.id)
+                    and metadata.get('annotations',{}).get('meta.helm.sh/release-namespace') in (None,self.system)
                     and contains(worker['spec'],expected['spec']),'Predecessor worker ownership or specification changed')
             if metadata.get('ownerReferences'):
                 state=self.api.get('configmap',self.id+'-installation',self.system)
