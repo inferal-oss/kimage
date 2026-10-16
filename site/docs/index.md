@@ -405,6 +405,8 @@ helm uninstall kimage --namespace kimage-system --wait
 
 Removal keeps PVCs, Images, ImageReleases and shared CRDs. Do not remove namespaces, release pins, finalizers or registry backends during ordinary cleanup. Running containers survive registry downtime; new uncached application starts wait or fail until serving returns. This remains a single-registry deployment, not HA.
 
+Published 0.4.0 CLI uninstall can occasionally stop with `CleanupIdentityConflict` during a Pod status update. Rerun the same uninstall command to resume. Do not bypass ownership checks or remove retained data. The LIST/GET type-metadata comparison fix is on main under Unreleased in the changelog.
+
 ## Credentials
 
 CLI installation generates registry, admission and worker credentials in process. Helm uses its standard certificate functions. Each service has a separate CA; registry read and publish passwords are independent, and admission has its own resolution key. CA private keys are not deployed. Worker endpoints use authenticated TLS.
@@ -510,6 +512,8 @@ python3 scripts/check-site.py
 CI runs Rust tests on macOS/arm64 and native Linux/amd64 and Linux/arm64 musl, plus legacy release-tooling and component/chart tests, formatting, Clippy, documentation/example checks, and package verification. These include parser/admission compatibility for readable colon and literal/encoded query ranges, native graph verification, placement and build policy. Native Kubernetes E2E tests CLI and Helm, both installation scopes, on each architecture before release.
 
 An [explicitly enabled mixed-cluster E2E](https://github.com/inferal-oss/kimage/blob/main/docs/mixed-cluster-e2e.md) uses fresh Images for unknown, amd64, and arm64 workload placement. It checks exact native variants and native consumption of an OCI index or manifest. Standard CI validates the harness and skips the live test; running it requires an approved real mixed cluster. [Two independent runs passed](https://github.com/inferal-oss/kimage/blob/main/docs/mixed-cluster-results.json) with the official 0.3.0 binaries on real RKE2 amd64/arm64 nodes. Each case used a fresh Image. Unknown placement built both variants and ran both architectures from one index; explicit placement built only the requested platform. Both runs removed their consumer Deployments and Pods.
+
+The published 0.4.0 CLI and public Helm chart also passed [real mixed-cluster acceptance](https://github.com/inferal-oss/kimage/blob/main/docs/mixed-install-results.json): fresh Images for all three placement cases, native GHCR component pulls, and full retained OCI graph readback after uninstall and reinstall. The receipt records the published CLI's uninstall retry and the cleanup fix on main.
 
 The separate owned two-node fixture passed installation, build/input matrices, normal uncached pulls, interruption and cold recovery, actual binary upgrade/rollback, and retained-release export. Those cluster harnesses are not ordinary CI jobs. Historical receipts predate later selector/CLI changes; they remain unchanged evidence for their recorded bundle.
 

@@ -7,7 +7,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
-## [0.4.0] - 2026-10-15
+### Added
+
+- Recorded [real mixed-cluster acceptance](docs/mixed-install-results.json) for the published 0.4.0 CLI and public Helm chart: native GHCR pulls, fresh unknown/amd64/arm64 placement cases, retained resource identities and complete OCI graph readback after uninstall/reinstall.
+
+### Fixed
+
+- CLI uninstall retries status-only resource-version conflicts when Kubernetes LIST items omit the type metadata included by GET. UID, specification and ownership checks remain enforced. This fixes an intermittent `CleanupIdentityConflict` observed while testing published 0.4.0 on a real mixed cluster.
+
+## [0.4.0] - 2026-10-16
 
 ### Added
 
@@ -20,7 +28,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 - `kimage install` now discovers nodes, generates credentials and applies ordinary Kubernetes resources. It fetches only a small verified image catalog; component executables and layers no longer travel through the Kubernetes API.
 - Installation defaults to the current kubeconfig application namespace, a dedicated system namespace and the default StorageClass. Reapplication preserves credentials, build policy and registry node identity.
 - Releases contain four installers, the image catalog and pinned chart instead of bootstrap bundles. Legacy bootstrap commands remain available for independently retained older installations.
+- CLI and Helm uninstall remove disposable installation resources while retaining the registry PVC, Images, ImageReleases and shared CRDs.
 - Updated installation guides, quickstarts, website and agent essentials for image-pull and Helm installation.
+
+### Fixed
+
+- Fresh installs use an explicit serving ServiceAccount, avoiding dependence on asynchronous creation of the namespace's default account.
+- Helm upgrades preserve administrator-owned build policy without taking ownership of its fields. Reapplication preserves the original policy JSON bytes.
 
 ## [0.3.1] - 2026-10-15
 

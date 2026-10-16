@@ -401,7 +401,11 @@ Fresh Images confirm unknown placement builds both variants and explicit placeme
 builds only the requested platform; native consumers pull the selected index or
 manifest. See the [recorded results](docs/mixed-cluster-results.json). Public CI
 validates this harness; the live mixed test is explicitly enabled against an
-approved cluster. Earlier two-node interruption/recovery, binary rollback and
+approved cluster. The published 0.4.0 CLI and public Helm chart also passed
+[real mixed-cluster checks](docs/mixed-install-results.json), including native
+GHCR component pulls and full retained image graph readback after
+uninstall/reinstall. The receipt records an intermittent CLI uninstall race,
+its successful retry and the fix on main. Earlier two-node interruption/recovery, binary rollback and
 external-export harnesses remain separately recorded acceptance evidence.
 
 Contributions are welcome through [issues](https://github.com/inferal-oss/kimage/issues)

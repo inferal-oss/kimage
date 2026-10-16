@@ -1,0 +1,594 @@
+{
+  "schema": 1,
+  "test": "published-mixed-cluster-install-and-retention",
+  "date": "2026-10-16",
+  "testedPackageVersion": "0.4.0",
+  "testedRelease": "https://github.com/inferal-oss/kimage/releases/tag/v0.4.0",
+  "testedReleaseCommit": "ba88f0c697c751b1922c0751926a5a91574db9f3",
+  "installerSha256": "21ecb7730001c2a8f489e96c6ae171734f98aabac9b1891fe79bdcbb72a886be",
+  "chart": {
+    "repository": "https://kimage.dev/charts",
+    "version": "0.4.0",
+    "sha256": "7e37f8e08c51ce22e31d3c178e5d8f2fd947f4c5d03433c0162fb3e9f15bd705"
+  },
+  "harnessSha256": "2c33a4690de8b943a9e6621152fb9447546b3e1e8bc0d02ad3df7c7d2b5e081d",
+  "profile": {
+    "operatingSystem": "linux",
+    "nodeCounts": {
+      "amd64": 3,
+      "arm64": 1
+    },
+    "kubeletVersion": "v1.36.5+rke2r1",
+    "containerRuntimeVersion": "containerd://2.3.4-k3s1",
+    "installScope": "namespace",
+    "buildPolicy": "OnDemand"
+  },
+  "nativeGhcrVerification": {
+    "repository": "ghcr.io/inferal-oss/kimage",
+    "initialKubeletImageReportsContainedNoKimageGhcrReferences": true,
+    "note": "Normal kubelet pulls and native execution; no component imports, API binary/layer uploads or cache clearing. The installations share nodes, so later pulls can use the earlier installation cache. Kubelet imageID reports the OCI index, not the selected child; native child descriptors/configs were verified independently against GHCR.",
+    "platformDescriptors": {
+      "admission": {
+        "amd64": {
+          "index": "sha256:384e3e8e511fc4a3c4680b36d84515c981ecd67deaa537a8b2a78d568f13d27f",
+          "nativeManifest": "sha256:bba5b3d9c148ab3825d349d0a35f6e0531df51e51084c529b1f1c0b9fb7446d4",
+          "config": "sha256:a1dc21d67c62bd4778cb3cf49f38620e3d39504b7d7a56dbc65dde490fc4dede"
+        },
+        "arm64": {
+          "index": "sha256:384e3e8e511fc4a3c4680b36d84515c981ecd67deaa537a8b2a78d568f13d27f",
+          "nativeManifest": "sha256:bd28d5b35681885e482ed6936069688b287c410a526983e56cb1c50bf71e056c",
+          "config": "sha256:44a90f94b35b4364e83fd6d311f4b01fca446524a844628adda9dc2f9ec3e26f"
+        }
+      },
+      "builder": {
+        "amd64": {
+          "index": "sha256:57f75c5d0a87d437fc43bef8abcfcf2bd443bc84c502ec3cef1fd76e808146db",
+          "nativeManifest": "sha256:a7ec8d36de73f84d3e823339895f3544cbd782f54c2c9d7c747019bf0a81942f",
+          "config": "sha256:926a78e36087944013fcfe69c7f53c36eec8381e19f85401cf33f41ad0fbd021"
+        },
+        "arm64": {
+          "index": "sha256:57f75c5d0a87d437fc43bef8abcfcf2bd443bc84c502ec3cef1fd76e808146db",
+          "nativeManifest": "sha256:bac0102047bc721b3a20c69fe30b12d917a22d9b0b35b02fe6de1aaf252b4629",
+          "config": "sha256:477d72d4776b5d562d49894f0f043fd6d0b03577650b6ea45643f4bd377ecd3c"
+        }
+      },
+      "gateway": {
+        "amd64": {
+          "index": "sha256:df4ff5b80fb139f322622810afc660d3d8b92407449b5ed68fbbdb74f2b63d96",
+          "nativeManifest": "sha256:d082f5f0d00936a69767d8bafab7079c4e32e35e41f2582be61910f3d2768632",
+          "config": "sha256:7ea2d82eb748b4a35c7f97d579b0cf3e60184907ea7ceebe7aaa809489440741"
+        },
+        "arm64": {
+          "index": "sha256:df4ff5b80fb139f322622810afc660d3d8b92407449b5ed68fbbdb74f2b63d96",
+          "nativeManifest": "sha256:1652fe657c38525f719a6bdff65654151965cc6f07776aeb1a59c2e4b396bbff",
+          "config": "sha256:6aeb4aec4ae0534d308c478bea59e491cd995f1c80d29ace9ebf2f385b896206"
+        }
+      },
+      "input": {
+        "amd64": {
+          "index": "sha256:67838aba98d9b563639e6f1ec00a5a808acabd648305354efb55c4df29fbc059",
+          "nativeManifest": "sha256:e0e854dd3329943526b2bcf11920b9360c7d6436096c3342db2649b056072620",
+          "config": "sha256:cf373f39661f4c194ec04eee9dddde84117d088b97ec1d5b6c45087b51c07950"
+        },
+        "arm64": {
+          "index": "sha256:67838aba98d9b563639e6f1ec00a5a808acabd648305354efb55c4df29fbc059",
+          "nativeManifest": "sha256:e3b0f82bcd88e5a9eaa58e81bce16de34c743f46de07f6b2daa05eccbd7fd0f4",
+          "config": "sha256:9c547b9a5c5b5b4e3e110338a7b2bf68da11e977d22fbc3785015d122c9b8648"
+        }
+      },
+      "operator": {
+        "amd64": {
+          "index": "sha256:4cfb51e36fa95b0dc708b69a9366a0203f60f99f4e823482d34751c97b2a9097",
+          "nativeManifest": "sha256:f5468aa457f5cc116b0e22e38364d2e8180038042b1ec9f3cd65ae6f5da3b3c7",
+          "config": "sha256:761aef7f1c00549a2576811a62f5d585a3da04290e9a85725e4958097a2d5456"
+        },
+        "arm64": {
+          "index": "sha256:4cfb51e36fa95b0dc708b69a9366a0203f60f99f4e823482d34751c97b2a9097",
+          "nativeManifest": "sha256:c7362fffa7b5121a3d127c356ce4efb3a610d3b1ca86c72cd34e71b5dcd619c1",
+          "config": "sha256:be7cbfadf721fa4f04974876ceca60305b5f4aead16833018d0c06b2dd8f83e7"
+        }
+      },
+      "proxy": {
+        "amd64": {
+          "index": "sha256:b366ecd55ef0baac4f46d91cdc5ca78f598e62606c949cba01765a4545f46509",
+          "nativeManifest": "sha256:d347ba825f26ac21d0623798e6e1914b8f85307ae709a44f38a217fa6cc6e74f",
+          "config": "sha256:c61552a3d23f3e4c99d970c2ade04bc8f1b07a04daa08d6e2c6e7809b0d6b0c0"
+        },
+        "arm64": {
+          "index": "sha256:b366ecd55ef0baac4f46d91cdc5ca78f598e62606c949cba01765a4545f46509",
+          "nativeManifest": "sha256:5d0d8f0004610159c2b9e23e0804ca130aaf38b7fa6cc9ded0d13129309a8a03",
+          "config": "sha256:ce9aad691b257483705500d9eae20e7cc9e3ae3d1d6ccf1ca84ac3ef4e0b9fc8"
+        }
+      },
+      "registry": {
+        "amd64": {
+          "index": "sha256:5fd481b3575583709d455d11c4683e7c01487c40385714de2cbcfde445537697",
+          "nativeManifest": "sha256:2ea645b6c25ef89d8bdedf2015ec27ec58aaa760e20c9db1333343f5cd6a0673",
+          "config": "sha256:b36bb6c5aa946b5a0565f3412834d3e50e4c7dbe5949c4636818211b4ad9102f"
+        },
+        "arm64": {
+          "index": "sha256:5fd481b3575583709d455d11c4683e7c01487c40385714de2cbcfde445537697",
+          "nativeManifest": "sha256:548fe17f974d1e73ae03885fafcd61b4dad1fc938ff3ae53d4aabd489880d8ab",
+          "config": "sha256:e75f90ae960b80576675d5a4b85b9860af10503a8f83ad4f5b743d36675211aa"
+        }
+      }
+    },
+    "optionalExporterDeployed": false
+  },
+  "installations": [
+    {
+      "mode": "cli",
+      "complete": true,
+      "controlPlanePlatform": "linux/arm64",
+      "runId": "0a35a77a458c",
+      "consumerCleanupComplete": true,
+      "cases": [
+        {
+          "placement": "unknown",
+          "imageUid": "0541e8a5-0257-4c15-8a8e-9a7ca084cc6c",
+          "nativeImageUids": [
+            "b671f033-fecd-4ddc-a29e-ec6237f6955e",
+            "fd6c5381-941a-4868-958f-c1062b5216e8"
+          ],
+          "builtPlatforms": [
+            "amd64",
+            "arm64"
+          ],
+          "consumerPlatforms": [
+            "amd64",
+            "arm64"
+          ],
+          "selectedRoot": "sha256:99ecb3b9cece5e8c0b513b9e4ec5d4696e4ff55ab1042b877b5eb0dad00f0205",
+          "selectedMediaType": "application/vnd.oci.image.index.v1+json"
+        },
+        {
+          "placement": "amd64",
+          "imageUid": "4ec2796c-bf46-48d2-96ee-a2fb1e91a378",
+          "nativeImageUids": [
+            "7152ed5d-e58d-4aef-bcfe-11151174f4d2"
+          ],
+          "builtPlatforms": [
+            "amd64"
+          ],
+          "consumerPlatforms": [
+            "amd64"
+          ],
+          "selectedRoot": "sha256:3174699d7a84b687abc83efbe4fe6d4a06aaf4b14b0604e9f8df3dad8f893fa9",
+          "selectedMediaType": "application/vnd.oci.image.manifest.v1+json"
+        },
+        {
+          "placement": "arm64",
+          "imageUid": "4eff3d62-f65f-4294-8993-481b383a2e68",
+          "nativeImageUids": [
+            "a84ebea3-a972-47b9-a322-b456e6cb7b42"
+          ],
+          "builtPlatforms": [
+            "arm64"
+          ],
+          "consumerPlatforms": [
+            "arm64"
+          ],
+          "selectedRoot": "sha256:5b2e2d69ff8a146e49b12f6369589342824c60810c6c18ffe5dd4032559194b9",
+          "selectedMediaType": "application/vnd.oci.image.manifest.v1+json"
+        }
+      ],
+      "nativeGhcrPullEvents": [
+        {
+          "role": "input",
+          "platform": "linux/amd64",
+          "pull": "cache-hit"
+        },
+        {
+          "role": "builder",
+          "platform": "linux/amd64",
+          "pull": "cache-hit"
+        },
+        {
+          "role": "input",
+          "platform": "linux/arm64",
+          "pull": "network-pull"
+        },
+        {
+          "role": "builder",
+          "platform": "linux/arm64",
+          "pull": "cache-hit"
+        },
+        {
+          "role": "input",
+          "platform": "linux/amd64",
+          "pull": "network-pull"
+        },
+        {
+          "role": "input",
+          "platform": "linux/arm64",
+          "pull": "cache-hit"
+        },
+        {
+          "role": "admission",
+          "platform": "linux/arm64",
+          "pull": "network-pull"
+        },
+        {
+          "role": "builder",
+          "platform": "linux/amd64",
+          "pull": "network-pull"
+        },
+        {
+          "role": "builder",
+          "platform": "linux/arm64",
+          "pull": "network-pull"
+        },
+        {
+          "role": "proxy",
+          "platform": "linux/amd64",
+          "pull": "network-pull"
+        },
+        {
+          "role": "proxy",
+          "platform": "linux/arm64",
+          "pull": "network-pull"
+        },
+        {
+          "role": "operator",
+          "platform": "linux/arm64",
+          "pull": "network-pull"
+        },
+        {
+          "role": "registry",
+          "platform": "linux/arm64",
+          "pull": "network-pull"
+        },
+        {
+          "role": "gateway",
+          "platform": "linux/arm64",
+          "pull": "network-pull"
+        }
+      ],
+      "retention": {
+        "pvcUid": "75a516c8-80f3-4f08-b6c6-f1fd17cd10fe",
+        "pvUid": "bf5a481f-3fa0-4068-aa78-2ddf4f9ce397",
+        "pvcCapacity": {
+          "storage": "1Gi"
+        },
+        "pvcRemainedBound": true,
+        "unchangedImages": 7,
+        "unchangedVerifiedReleases": 9,
+        "uidsSpecificationsAndPinsUnchanged": true,
+        "sharedCrdUidsUnchanged": true,
+        "reinstallUsedSamePvcAndOriginalRegistryNode": true,
+        "fullRegistryReadback": {
+          "complete": true,
+          "verifiedReleases": 9,
+          "manifests": 9,
+          "blobs": 31,
+          "bytesRead": 1589241,
+          "verification": "Authenticated TLS full OCI graph SHA-256 and descriptor size readback after uninstall and reinstall with the retained PVC; no rebuild inputs or new demand submitted"
+        },
+        "releaseIdentities": [
+          {
+            "uid": "09e6a774-f8b0-4e32-8457-585eef64aa03",
+            "imageUid": "7152ed5d-e58d-4aef-bcfe-11151174f4d2",
+            "root": "sha256:3174699d7a84b687abc83efbe4fe6d4a06aaf4b14b0604e9f8df3dad8f893fa9",
+            "platform": {
+              "architecture": "amd64",
+              "os": "linux"
+            }
+          },
+          {
+            "uid": "d66e7a62-9221-4174-9fca-31dd9dcd1a9f",
+            "imageUid": "0541e8a5-0257-4c15-8a8e-9a7ca084cc6c",
+            "root": "sha256:90733d95cfe02a81dd659fd8cebb41dfb1e760bd3e1feaaa12300ebaec758a9d",
+            "platform": {
+              "architecture": "arm64",
+              "os": "linux"
+            }
+          },
+          {
+            "uid": "fc36a1e7-0e54-45bc-a224-62ed963c561d",
+            "imageUid": "4ec2796c-bf46-48d2-96ee-a2fb1e91a378",
+            "root": "sha256:3174699d7a84b687abc83efbe4fe6d4a06aaf4b14b0604e9f8df3dad8f893fa9",
+            "platform": {
+              "architecture": "amd64",
+              "os": "linux"
+            }
+          },
+          {
+            "uid": "314d300d-ea28-445c-953b-cf9aae9c47ad",
+            "imageUid": "0541e8a5-0257-4c15-8a8e-9a7ca084cc6c",
+            "root": "sha256:c7f3a3474b6e2dc8b85fcb2c5784c19f1696a57d3f394b97359b34655c7a2adc",
+            "platform": {
+              "architecture": "amd64",
+              "os": "linux"
+            }
+          },
+          {
+            "uid": "f546307e-2dbb-4f1c-a15d-4c4d13564176",
+            "imageUid": "4eff3d62-f65f-4294-8993-481b383a2e68",
+            "root": "sha256:5b2e2d69ff8a146e49b12f6369589342824c60810c6c18ffe5dd4032559194b9",
+            "platform": {
+              "architecture": "arm64",
+              "os": "linux"
+            }
+          },
+          {
+            "uid": "e0e52bb9-17f5-4a92-bd25-6dc953de6062",
+            "imageUid": "0541e8a5-0257-4c15-8a8e-9a7ca084cc6c",
+            "root": "sha256:99ecb3b9cece5e8c0b513b9e4ec5d4696e4ff55ab1042b877b5eb0dad00f0205",
+            "platform": {
+              "architecture": "auto",
+              "os": "linux"
+            }
+          },
+          {
+            "uid": "47b183ed-ee72-4ed0-9453-20f9b914f9a3",
+            "imageUid": "a84ebea3-a972-47b9-a322-b456e6cb7b42",
+            "root": "sha256:5b2e2d69ff8a146e49b12f6369589342824c60810c6c18ffe5dd4032559194b9",
+            "platform": {
+              "architecture": "arm64",
+              "os": "linux"
+            }
+          },
+          {
+            "uid": "148f3a40-c620-413f-a80b-722da7f97588",
+            "imageUid": "b671f033-fecd-4ddc-a29e-ec6237f6955e",
+            "root": "sha256:c7f3a3474b6e2dc8b85fcb2c5784c19f1696a57d3f394b97359b34655c7a2adc",
+            "platform": {
+              "architecture": "amd64",
+              "os": "linux"
+            }
+          },
+          {
+            "uid": "3cad35fb-442e-4ffb-bace-a2a12223fc57",
+            "imageUid": "fd6c5381-941a-4868-958f-c1062b5216e8",
+            "root": "sha256:90733d95cfe02a81dd659fd8cebb41dfb1e760bd3e1feaaa12300ebaec758a9d",
+            "platform": {
+              "architecture": "arm64",
+              "os": "linux"
+            }
+          }
+        ]
+      },
+      "fixtureDisposition": {
+        "installedComponentsRemoved": true,
+        "ownedPodsDeploymentsJobsServicesCredentialsConfigurationAndRbacRemoved": true,
+        "registryPvcImagesReleasesInputConfigMapsDemandsAndNamespacesRetained": true,
+        "noOtherInstallationsOrRetainedFixturesRemoved": true
+      },
+      "uninstall": {
+        "published040FirstAttempt": "CleanupIdentityConflict during status race",
+        "published040Retry": "Succeeded using the same normal uninstall command",
+        "fix": "Ignore the optional LIST/GET apiVersion/kind envelope during resource identity comparison; retain UID, spec and ownership checks",
+        "regression": "Failed before the fix and passed afterward; replacement UID, spec/ownership edits and continual conflicts still rejected",
+        "fixedCliLiveUninstall": "Succeeded after reinstall and full retained graph readback",
+        "fixStatus": "Unreleased on main; published 0.4.0 artifacts were not changed"
+      }
+    },
+    {
+      "mode": "helm",
+      "complete": true,
+      "controlPlanePlatform": "linux/amd64",
+      "runId": "5d6bedbf265f",
+      "consumerCleanupComplete": true,
+      "cases": [
+        {
+          "placement": "unknown",
+          "imageUid": "c52aad38-3776-4cad-a998-84f674c76c95",
+          "nativeImageUids": [
+            "cc52c5ed-328b-46f9-9a11-aca3a1955355",
+            "f35433d7-e2f6-4287-9236-2a85d536270b"
+          ],
+          "builtPlatforms": [
+            "amd64",
+            "arm64"
+          ],
+          "consumerPlatforms": [
+            "amd64",
+            "arm64"
+          ],
+          "selectedRoot": "sha256:a1c3d989d0d04ecdd5135da298e6337283149651fa8c8d7a33c6f55d1978317e",
+          "selectedMediaType": "application/vnd.oci.image.index.v1+json"
+        },
+        {
+          "placement": "amd64",
+          "imageUid": "e11756d5-2841-4ab6-b624-469562901785",
+          "nativeImageUids": [
+            "839e725f-20d2-453b-947e-eec23ccb32bc"
+          ],
+          "builtPlatforms": [
+            "amd64"
+          ],
+          "consumerPlatforms": [
+            "amd64"
+          ],
+          "selectedRoot": "sha256:2166b4fcc5a3114e85680f9009acc3807678abaef9798217ef6af6d3b6f50f13",
+          "selectedMediaType": "application/vnd.oci.image.manifest.v1+json"
+        },
+        {
+          "placement": "arm64",
+          "imageUid": "f6b2d99e-be61-4ccc-bac7-c675135109c6",
+          "nativeImageUids": [
+            "1be7ee7c-5165-4735-99ec-17f157e68f4d"
+          ],
+          "builtPlatforms": [
+            "arm64"
+          ],
+          "consumerPlatforms": [
+            "arm64"
+          ],
+          "selectedRoot": "sha256:876e9fc2be758394fcbf66c76de91cd8ca5790ae76e2362b5fa846549f97dedd",
+          "selectedMediaType": "application/vnd.oci.image.manifest.v1+json"
+        }
+      ],
+      "nativeGhcrPullEvents": [
+        {
+          "role": "input",
+          "platform": "linux/arm64",
+          "pull": "cache-hit"
+        },
+        {
+          "role": "builder",
+          "platform": "linux/arm64",
+          "pull": "cache-hit"
+        },
+        {
+          "role": "input",
+          "platform": "linux/amd64",
+          "pull": "cache-hit"
+        },
+        {
+          "role": "builder",
+          "platform": "linux/amd64",
+          "pull": "cache-hit"
+        },
+        {
+          "role": "admission",
+          "platform": "linux/amd64",
+          "pull": "network-pull"
+        },
+        {
+          "role": "proxy",
+          "platform": "linux/amd64",
+          "pull": "cache-hit"
+        },
+        {
+          "role": "proxy",
+          "platform": "linux/arm64",
+          "pull": "cache-hit"
+        },
+        {
+          "role": "operator",
+          "platform": "linux/amd64",
+          "pull": "network-pull"
+        },
+        {
+          "role": "registry",
+          "platform": "linux/amd64",
+          "pull": "network-pull"
+        },
+        {
+          "role": "gateway",
+          "platform": "linux/amd64",
+          "pull": "network-pull"
+        }
+      ],
+      "retention": {
+        "pvcUid": "871a773f-2885-4a73-b0dd-7322f42f350a",
+        "pvUid": "23a9c426-2b1b-4f45-a69c-d5835b500eed",
+        "pvcCapacity": {
+          "storage": "1Gi"
+        },
+        "pvcRemainedBound": true,
+        "unchangedImages": 7,
+        "unchangedVerifiedReleases": 9,
+        "uidsSpecificationsAndPinsUnchanged": true,
+        "sharedCrdUidsUnchanged": true,
+        "reinstallUsedSamePvcAndOriginalRegistryNode": true,
+        "fullRegistryReadback": {
+          "complete": true,
+          "verifiedReleases": 9,
+          "manifests": 9,
+          "blobs": 32,
+          "bytesRead": 1589375,
+          "verification": "Authenticated TLS full OCI graph SHA-256 and descriptor size readback after uninstall and reinstall with the retained PVC; no rebuild inputs or new demand submitted"
+        },
+        "releaseIdentities": [
+          {
+            "uid": "90d8dca9-3dc9-4af4-a55c-2e70f6eecc5a",
+            "imageUid": "e11756d5-2841-4ab6-b624-469562901785",
+            "root": "sha256:2166b4fcc5a3114e85680f9009acc3807678abaef9798217ef6af6d3b6f50f13",
+            "platform": {
+              "architecture": "amd64",
+              "os": "linux"
+            }
+          },
+          {
+            "uid": "b27f6302-795a-4c25-9d9c-4aa9cab74ffb",
+            "imageUid": "f35433d7-e2f6-4287-9236-2a85d536270b",
+            "root": "sha256:5d0a72a9bcc7579e7df276bb3a4b89889c8e5a116fa3f3c5e35f283f9b904122",
+            "platform": {
+              "architecture": "arm64",
+              "os": "linux"
+            }
+          },
+          {
+            "uid": "e4c20b44-3c38-40ac-90e0-24f9241efe43",
+            "imageUid": "f6b2d99e-be61-4ccc-bac7-c675135109c6",
+            "root": "sha256:876e9fc2be758394fcbf66c76de91cd8ca5790ae76e2362b5fa846549f97dedd",
+            "platform": {
+              "architecture": "arm64",
+              "os": "linux"
+            }
+          },
+          {
+            "uid": "251a0972-3eb7-4ea9-a5d4-53536fd3f303",
+            "imageUid": "c52aad38-3776-4cad-a998-84f674c76c95",
+            "root": "sha256:5d0a72a9bcc7579e7df276bb3a4b89889c8e5a116fa3f3c5e35f283f9b904122",
+            "platform": {
+              "architecture": "arm64",
+              "os": "linux"
+            }
+          },
+          {
+            "uid": "f0c1e67b-42d7-42df-86bc-39e68f0c6f93",
+            "imageUid": "cc52c5ed-328b-46f9-9a11-aca3a1955355",
+            "root": "sha256:bf1a8da27724e4c51c2958658f83926e8c470d18bcc52700363358d6550b8a8f",
+            "platform": {
+              "architecture": "amd64",
+              "os": "linux"
+            }
+          },
+          {
+            "uid": "98422e38-b8cc-4dbf-b886-4a1dcac45400",
+            "imageUid": "839e725f-20d2-453b-947e-eec23ccb32bc",
+            "root": "sha256:2166b4fcc5a3114e85680f9009acc3807678abaef9798217ef6af6d3b6f50f13",
+            "platform": {
+              "architecture": "amd64",
+              "os": "linux"
+            }
+          },
+          {
+            "uid": "75a5f8b7-9922-45ec-a007-fe507ed05f82",
+            "imageUid": "c52aad38-3776-4cad-a998-84f674c76c95",
+            "root": "sha256:bf1a8da27724e4c51c2958658f83926e8c470d18bcc52700363358d6550b8a8f",
+            "platform": {
+              "architecture": "amd64",
+              "os": "linux"
+            }
+          },
+          {
+            "uid": "2fc65e43-2c65-42bf-a5a6-ae38e4f8bb17",
+            "imageUid": "c52aad38-3776-4cad-a998-84f674c76c95",
+            "root": "sha256:a1c3d989d0d04ecdd5135da298e6337283149651fa8c8d7a33c6f55d1978317e",
+            "platform": {
+              "architecture": "auto",
+              "os": "linux"
+            }
+          },
+          {
+            "uid": "937cd71d-16be-4a07-8ece-824156587e1d",
+            "imageUid": "1be7ee7c-5165-4735-99ec-17f157e68f4d",
+            "root": "sha256:876e9fc2be758394fcbf66c76de91cd8ca5790ae76e2362b5fa846549f97dedd",
+            "platform": {
+              "architecture": "arm64",
+              "os": "linux"
+            }
+          }
+        ]
+      },
+      "fixtureDisposition": {
+        "installedComponentsRemoved": true,
+        "ownedPodsDeploymentsJobsServicesCredentialsConfigurationAndRbacRemoved": true,
+        "registryPvcImagesReleasesInputConfigMapsDemandsAndNamespacesRetained": true,
+        "noOtherInstallationsOrRetainedFixturesRemoved": true
+      },
+      "uninstall": {
+        "published040": "Both normal Helm uninstalls succeeded and retained the registry PVC"
+      }
+    }
+  ],
+  "validation": {
+    "workspace": "91 tests passed; live tagged Rust test remains ignored in the default suite and was run through the same Python harness explicitly for each installation",
+    "mixedHarnessUnitTests": 5,
+    "changelog": "Keep a Changelog structure and current-version validation passed"
+  }
+}

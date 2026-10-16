@@ -310,6 +310,12 @@ Never remove retained namespaces/backends/finalizers as normal cleanup. Back up
 whole registry backend plus release UIDs, roots and schema coordination state.
 No automatic retained-artifact GC or purge. Generated leaves last ten years;
 reapply preserves them and does not perform automatic renewal/CA rotation.
+Published 0.4.0 CLI uninstall may stop with CleanupIdentityConflict during a Pod
+status race. Rerun the same command to resume; never bypass ownership guards or
+remove retained data. The LIST/GET type-metadata fix is on main under Unreleased.
+Published CLI and public Helm mixed-cluster checks cover native GHCR pulls, all
+three fresh-Image placement cases, and complete retained OCI graph readback after
+uninstall/reinstall: https://github.com/inferal-oss/kimage/blob/main/docs/mixed-install-results.json
 
 **Optional export.** Enable at CLI install with repeated --export-origin
 https://registry.example/ flags, or Helm exporter.approvedOrigins list. Empty

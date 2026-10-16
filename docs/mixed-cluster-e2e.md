@@ -7,6 +7,26 @@ mixed cluster or require access to a private cluster.
 
 ## Recorded acceptance
 
+Published 0.4.0 was tested on 2026-10-16 through both `kimage install` and the
+public Helm repository. Each dedicated namespace-scoped installation passed
+all three fresh-Image placement cases on the same real mixed cluster. Components
+used the official GHCR pins, with the CLI control plane on arm64 and the Helm
+control plane on amd64. Kubelet pull events and public native OCI configs were
+checked; the second installation reused some node caches from the first.
+
+Both fixtures were uninstalled, reinstalled onto their original registry PVCs,
+and every retained release graph was read back over authenticated TLS with
+descriptor-size and SHA-256 checks. Each retained seven Images and nine verified
+ImageReleases, including their original UIDs, specifications and pins, plus the
+same PVC/PV and shared CRDs. The [0.4.0 receipt](mixed-install-results.json)
+records the platform, pull and retention evidence.
+
+The published CLI's first uninstall encountered a status-race
+`CleanupIdentityConflict`; rerunning the same command succeeded. The regression
+reproduces Kubernetes LIST items without type metadata followed by GET objects
+with it. The fix preserves UID/spec/ownership checks and is recorded under
+Unreleased in the changelog. Final fixture cleanup also exercises the fixed CLI.
+
 Two independent runs passed on 2026-10-15 using the official 0.3.0 binaries, real
 Linux/amd64 and Linux/arm64 nodes, RKE2 `v1.36.5+rke2r1`, and containerd
 `2.3.4-k3s1`. Both used namespace scope and `OnDemand` policy. Across six fresh

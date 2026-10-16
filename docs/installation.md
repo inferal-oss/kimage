@@ -196,6 +196,11 @@ cleanup. Back up the entire registry backend together with release metadata,
 UIDs and schema state. Generated leaf certificates last ten years. Reapplication
 preserves them; it does not implement automatic certificate renewal or CA rotation.
 
+Published 0.4.0 CLI uninstall can occasionally stop with
+`CleanupIdentityConflict` during a Pod status update. Rerun the same uninstall
+command to resume; do not remove ownership checks or retained resources. The
+LIST/GET type-metadata comparison fix is on main under Unreleased.
+
 ## Acceptance evidence
 
 All eight [recorded native cases](native-install-results.json) passed for 0.4.0:
@@ -206,3 +211,9 @@ application builds/pulls, workload controllers, demand/eager policy, scope/RBAC,
 overlap refusal, reapplication preserving credentials/policy/storage, and retained
 artifacts after removal. Source and package checks also pass on Linux amd64/arm64
 and macOS arm64.
+
+The published CLI and public Helm chart also passed the
+[real mixed-cluster acceptance](mixed-install-results.json): fresh Images for
+unknown, amd64-only and arm64-only placement, ordinary native GHCR component
+pulls, and uninstall/reinstall with complete retained OCI graph readback. The
+receipt records the published CLI's retry and the subsequent cleanup fix.

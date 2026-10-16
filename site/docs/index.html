@@ -806,6 +806,7 @@ helm rollback kimage &lt;compatible-revision&gt; \
 # For a Helm-managed installation:
 helm uninstall kimage --namespace kimage-system --wait</code></pre>
 <p>Removal keeps PVCs, Images, ImageReleases and shared CRDs. Do not remove namespaces, release pins, finalizers or registry backends during ordinary cleanup. Running containers survive registry downtime; new uncached application starts wait or fail until serving returns. This remains a single-registry deployment, not HA.</p>
+<p>Published 0.4.0 CLI uninstall can occasionally stop with <code>CleanupIdentityConflict</code> during a Pod status update. Rerun the same uninstall command to resume. Do not bypass ownership checks or remove retained data. The LIST/GET type-metadata comparison fix is on main under Unreleased in the changelog.</p>
           </section>
 
           <section id="credentials">
@@ -1117,6 +1118,12 @@ python3 scripts/check-site.py</code></pre>
               and ran both architectures from one index; explicit placement
               built only the requested platform. Both runs removed their
               consumer Deployments and Pods.
+            </p>
+            <p>The published 0.4.0 CLI and public Helm chart also passed
+              <a href="https://github.com/inferal-oss/kimage/blob/main/docs/mixed-install-results.json">real mixed-cluster acceptance</a>:
+              fresh Images for all three placement cases, native GHCR component pulls,
+              and full retained OCI graph readback after uninstall and reinstall.
+              The receipt records the published CLI's uninstall retry and the cleanup fix on main.
             </p>
             <p>
               The separate owned two-node fixture passed installation,

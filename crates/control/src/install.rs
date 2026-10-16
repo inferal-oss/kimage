@@ -986,6 +986,10 @@ fn normalize_pod_defaults(actual: &mut Value, expected: &Value) {
 }
 fn cleanup_identity(object: &DynamicObject) -> Result<Value> {
     let mut value = serde_json::to_value(object)?;
+    // LIST items can omit TypeMeta while GET includes it. The API endpoint
+    // already fixes the resource type; preserve its UID, spec and ownership.
+    value.as_object_mut().unwrap().remove("apiVersion");
+    value.as_object_mut().unwrap().remove("kind");
     value.as_object_mut().unwrap().remove("status");
     if let Some(metadata) = value["metadata"].as_object_mut() {
         metadata.remove("resourceVersion");
@@ -1169,8 +1173,19 @@ mod tests {
     async fn cleanup_retries_status_races_but_refuses_replacements_and_spec_or_ownership_edits() {
         use axum::{Json, Router, http::StatusCode, response::IntoResponse};
         use std::sync::{Arc, Mutex};
-        for mode in ["status", "replacement", "spec", "ownership", "continual"] {
-            let original: DynamicObject = serde_json::from_value(json!({"apiVersion":"v1","kind":"Pod","metadata":{"name":"dev-registry","namespace":"system","uid":"original","resourceVersion":"1","labels":{LABEL:"dev"}},"spec":{"nodeName":"native"},"status":{"phase":"Pending"}})).unwrap();
+        for mode in [
+            "status",
+            "list_status",
+            "replacement",
+            "spec",
+            "ownership",
+            "continual",
+        ] {
+            let mut original: DynamicObject = serde_json::from_value(json!({"apiVersion":"v1","kind":"Pod","metadata":{"name":"dev-registry","namespace":"system","uid":"original","resourceVersion":"1","labels":{LABEL:"dev"}},"spec":{"nodeName":"native"},"status":{"phase":"Pending"}})).unwrap();
+            if mode == "list_status" {
+                // Kubernetes LIST items omit TypeMeta; a subsequent GET includes it.
+                original.types = None;
+            }
             let counts = Arc::new(Mutex::new((0, 0)));
             let shared = counts.clone();
             let object = original.clone();
@@ -1196,6 +1211,8 @@ mod tests {
                         assert_eq!(method,"GET");
                         counts.1 += 1;
                         let mut value = serde_json::to_value(original).unwrap();
+                        value["apiVersion"] = json!("v1");
+                        value["kind"] = json!("Pod");
                         value["metadata"]["resourceVersion"] = json!((counts.1+1).to_string());
                         value["status"]["phase"] = json!("Running");
                         match mode {
@@ -1222,7 +1239,7 @@ mod tests {
                 &ApiResource::erase::<Pod>(&()),
             );
             let result = delete_snapshot(&api, &original).await;
-            if mode == "status" {
+            if mode == "status" || mode == "list_status" {
                 result.unwrap();
                 assert_eq!(*counts.lock().unwrap(), (2, 1));
             } else if mode == "continual" {
