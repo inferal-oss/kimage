@@ -24,6 +24,26 @@ publish=module('publish-component-images')
 upgrade=module('e2e-upgrade')
 
 class Boundaries(unittest.TestCase):
+    def test_published_predecessor_is_drained_before_helm_can_delete_workers(self):
+        import types
+        events=[]
+        class API:
+            def get(self,kind,*args,**kwargs):
+                if kind=='deployment':return dict(metadata=dict(uid='operator',resourceVersion='11',labels={'kimage.dev/installation':'fixture'},annotations={'kimage.dev/manager':'helm'}))
+                assert events==['scale'];events.append('pods-gone');return dict(items=[])
+            def call(self,args,**kwargs):
+                patch=json.loads(args[-1]);assert patch==dict(metadata=dict(uid='operator',resourceVersion='11'),spec=dict(replicas=0))
+                events.append('scale');return types.SimpleNamespace(returncode=0)
+            def wait(self,predicate,message):assert predicate()
+        fixture=upgrade.Upgrade.__new__(upgrade.Upgrade)
+        fixture.api=API();fixture.config=dict(mode='helm');fixture.system='system';fixture.id='fixture'
+        fixture.check=lambda message:None
+        def command(args):
+            self.assertEqual(events,['scale','pods-gone']);self.assertEqual(args[:3],['helm','uninstall','fixture']);events.append('helm-uninstall')
+        fixture.run_command=command
+        fixture.uninstall_previous()
+        self.assertEqual(events,['scale','pods-gone','helm-uninstall'])
+
     def test_uninstall_timeout_inventory_excludes_secret_values(self):
         class API:
             def get(self,kind,**kwargs):

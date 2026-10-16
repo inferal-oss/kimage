@@ -231,6 +231,24 @@ class Upgrade:
         value=self.api.get('configmap',self.id+'-operation',self.system)
         return json.loads(value['data']['operation.json']) if value else None
 
+    def uninstall_previous(self):
+        if self.config['mode']=='cli':
+            self.run_command([self.installer,'uninstall','--namespace',self.system,'--installation',self.id])
+            return
+        # The immutable published 0.4.1 operator can recreate an ownerless
+        # worker while Helm deletes resources. Drain it before chart removal.
+        for attempt in range(3):
+            operator=self.api.get('deployment',self.id+'-operator',self.system)
+            require(operator and operator['metadata'].get('labels',{}).get('kimage.dev/installation')==self.id
+                    and operator['metadata'].get('annotations',{}).get('kimage.dev/manager')=='helm','Predecessor operator ownership changed')
+            patch=dict(metadata=dict(uid=operator['metadata']['uid'],resourceVersion=operator['metadata']['resourceVersion']),spec=dict(replicas=0))
+            result=self.api.call(['patch','deployment',self.id+'-operator','-n',self.system,'--type=merge','--patch',json.dumps(patch)],ok=False)
+            if result.returncode==0:break
+            require('Conflict' in result.stderr and attempt<2,'Predecessor operator shutdown failed')
+        self.api.wait(lambda:not self.api.get('pods',namespace=self.system,selector='kimage.dev/installation='+self.id+',kimage.dev/role=operator')['items'],'published predecessor operator stops before Helm removal')
+        self.check('published 0.4.1 operator drained before Helm uninstall')
+        self.run_command(['helm','uninstall',self.id,'--namespace',self.system,'--wait','--timeout','5m'])
+
     def assert_removed(self):
         remaining={}
         last_inventory=None
@@ -386,16 +404,14 @@ class Upgrade:
             self.verify_graphs('after-rollback')
             retained=self.retained()
             for name in self.consumers:self.api.call(['delete','deployment',name,'-n',self.app,'--wait=true'])
-            if self.config['mode']=='cli':self.run_command([self.installer,'uninstall','--namespace',self.system,'--installation',self.id])
-            else:self.run_command(['helm','uninstall',self.id,'--namespace',self.system,'--wait','--timeout','5m'])
+            self.uninstall_previous()
             # Secrets are disposable; catalog and registry identities are retained.
             after=self.retained();require(all(after[k]==retained[k] for k in ['pvcUid','pvUid','images','releases']),'Uninstall changed retained data')
             self.assert_removed()
             self.check('uninstall preserves registry data, Image identities and release contracts')
             self.install_previous()
             self.verify_graphs('after-uninstall-reinstall')
-            if self.config['mode']=='cli':self.run_command([self.installer,'uninstall','--namespace',self.system,'--installation',self.id])
-            else:self.run_command(['helm','uninstall',self.id,'--namespace',self.system,'--wait','--timeout','5m'])
+            self.uninstall_previous()
             after=self.retained();require(all(after[k]==retained[k] for k in ['pvcUid','pvUid','images','releases']),'Final removal changed retained data')
             self.assert_removed()
             self.report['complete']=True

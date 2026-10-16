@@ -641,6 +641,11 @@ get/list permission; live output also requires Pod list/get and exec access.
 Raw output never enters Image status, ImageRelease provenance, operator logs or
 metrics. Controller-owned log Secrets cannot be used as build inputs.
 
+The build adapter separately limits raw progress to 16 MiB per solve and 256 KiB
+per progress record. Exceeding these limits fails the attempt with
+`BuildProgressLimit` or `BuildProgressLineLimit`; the retained diagnostic tail
+remains bounded to 64 KiB. BuildKit may also clip a step's output upstream.
+
 Image conditions keep stable failure reasons. Transient prerequisite and registry
 errors retry with persisted backoff, up to 120 seconds. Invalid definitions and
 permanent engine errors wait for the declaration or referenced inputs to change;

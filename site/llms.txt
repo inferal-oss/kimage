@@ -343,6 +343,12 @@ ordinary external pulls independently of the included registry.
 
 kimage uninstall --namespace kimage-system --installation kimage, or helm uninstall
 kimage --namespace kimage-system --wait, preserves PVCs, CRDs, Images and releases.
+After rollback to 0.4.1, first scale deployment/INSTALLATION-operator to zero and
+wait for its operator Pods to be deleted, then helm uninstall. The published
+0.4.1 operator can otherwise recreate an ownerless worker during Helm deletion.
+Use the installation label plus kimage.dev/role=operator for the Pod wait.
+CLI uninstall already stops supervisors first. Fresh 0.5.0 Helm removal is
+tested directly; predecessor removal uses the documented shutdown procedure.
 Never remove retained namespaces/backends/finalizers as normal cleanup. Back up
 whole registry backend plus release UIDs, roots and schema coordination state.
 No automatic retained-artifact GC or purge. Generated leaves last ten years;
@@ -395,5 +401,6 @@ acceptance harnesses cover lifecycle/recovery/binary rollback/export and remain 
 - `kimage builds IMAGE -n apps`: JSON listing active/retained attempt IDs, version, platform, phase, truncation and Image conditions. Use the parent Image name for multi-platform builds.
 - `kimage logs IMAGE -n apps --platform linux/arm64 --follow`; use `--attempt FULL_ID` for a specific retry. Follow never switches attempts.
 - Logs are bounded 64 KiB tails, latest five attempts per Image/platform in immutable namespace Secrets. They survive build Pod cleanup and controller restarts, but are lost with their owning Image. Collection after worker/API loss can be unavailable; 0.4.1 attempts have no output.
+- Raw progress is separately limited to 16 MiB per solve and 256 KiB per record; exceeding it fails with BuildProgressLimit/BuildProgressLineLimit. BuildKit can clip step output upstream. The retained tail is not a complete log archive.
 - Build output can contain printed secrets. Require namespace Secret get/list for retained output and Pod get/list/exec for live output. Do not copy raw logs into public releases, status or issues without review. No arbitrary-output redaction is promised.
 - Read Image conditions for stable errors. Transient failures use persisted backoff; permanent failures await changed declarations/inputs. An operator restart does not reset them. VersionConflict means use a new exact version. Solve completion precedes publication and verified release readiness.

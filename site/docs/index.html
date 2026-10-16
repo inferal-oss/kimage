@@ -811,6 +811,10 @@ kimage rollback --to 0.4.1</code></pre>
 <pre><code>kimage uninstall --namespace kimage-system --installation kimage
 # For a Helm-managed installation:
 helm uninstall kimage --namespace kimage-system --wait</code></pre>
+<p>After rollback to 0.4.1, stop its operator before Helm removal. That published controller can recreate an ownerless worker while Helm deletes resources. The CLI uninstall command already stops supervisors first. Use your installation name and namespace:</p>
+<pre><code>kubectl -n kimage-system scale deployment/kimage-operator --replicas=0
+kubectl -n kimage-system wait --for=delete pod -l kimage.dev/installation=kimage,kimage.dev/role=operator --timeout=180s
+helm uninstall kimage --namespace kimage-system --wait</code></pre>
 <p>Removal keeps PVCs, Images, ImageReleases and shared CRDs. Do not remove namespaces, release pins, finalizers or registry backends during ordinary cleanup. Running containers survive registry downtime; new uncached application starts wait or fail until serving returns. This remains a single-registry deployment, not HA.</p>
 <p>Version 0.4.1 fixes intermittent <code>CleanupIdentityConflict</code> errors during CLI uninstall when Pod status changes between LIST and DELETE. UID, specification and ownership checks remain enforced. For an existing 0.4.0 installation, update the CLI with the Cargo command above, then run the same uninstall command. This cleanup fix requires no component reinstallation or data migration.</p>
           </section>
@@ -830,6 +834,7 @@ kimage logs hello --namespace apps --platform linux/arm64 --follow
 kimage logs hello --namespace apps --attempt &lt;full-attempt-id&gt;</code></pre>
             <p><code>builds</code> lists active and retained attempts as JSON. Use the original Image name for automatic multi-platform builds. Select a platform or attempt when needed. Follow stays with that attempt through completion or failure.</p>
             <p>Each attempt keeps a 64 KiB text tail with an explicit truncation marker. Cleanup archives output in a namespace Secret before removing the client Pod. The latest five attempts per Image and platform survive retries and operator restarts. Deleting the Image removes its logs. Collection can be unavailable after worker or API loss; 0.4.1 attempts have no captured output.</p>
+            <p>The adapter also limits raw progress to 16 MiB per solve and 256 KiB per progress record. Exceeding either fails the attempt with <code>BuildProgressLimit</code> or <code>BuildProgressLineLimit</code>; its retained tail stays bounded to 64 KiB. BuildKit may clip step output upstream.</p>
             <p>Recipes can print secrets. Retained logs require Secret get/list permission; live output also requires Pod get/list and exec. Raw output stays separate from status, release metadata, operator logs and metrics. Arbitrary user output is not automatically redacted.</p>
             <p>Image conditions report stable failure reasons. Transient failures retry with persisted backoff. Permanent definition or solve failures wait for changed declarations or inputs. Restarting the operator does not reset them. <code>VersionConflict</code> needs a new version, and a successful solve still needs publication and readback.</p>
 

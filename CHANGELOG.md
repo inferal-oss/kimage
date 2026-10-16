@@ -14,10 +14,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 - Explicit installation upgrade and compatible rollback commands, with read-only checks, an exclusive Lease, resumable phases and retained storage/credential identity verification. The initial supported transition is 0.4.1 to 0.5.0 and back, without storage or API migration.
 - Automatic node membership and native worker reconciliation, with UID-bound serving approvals, administrator node selection and worker pins, and fencing before replacement.
 - Read-only `kimage status` and `kimage doctor`, including JSON output, pending operations, component readiness, native platforms, retained storage, certificate validity and resource drift.
-- Private build diagnostics through `kimage logs IMAGE --follow` and `kimage builds IMAGE`, with platform and attempt selection. Completed attempt logs survive build Pod cleanup; each platform retains the latest five attempts with a bounded 64 KiB output tail per attempt.
+- Private build diagnostics through `kimage logs IMAGE --follow` and `kimage builds IMAGE`, with platform and attempt selection. Completed attempt logs survive build Pod cleanup; each platform retains the latest five attempts with a bounded 64 KiB output tail per attempt. Guides explain access permissions, retry policy, output clipping and progress limits.
 
 ### Fixed
 
+- Documented and tested operator shutdown before Helm removal after rollback to the published 0.4.1 controller, which can otherwise recreate an ownerless worker during deletion. Fresh 0.5.0 Helm removal remains directly tested.
 - Node reconciliation adds missing installation ownership even when a resource's specification already matches. It updates metadata with UID/resource-version guards, without restarting unchanged workers or taking over a different owner or Helm release.
 - Native diagnostic acceptance checks the final stdout line without assuming ordering between stdout and stderr. Failure summaries report bounded metadata without exposing build output; cleanup progress and uninstall timeouts identify remaining resources using metadata only. Focused lifecycle diagnostics cover both native architectures and scopes.
 - Readiness Job names fit Kubernetes label limits for every supported installation name, including 31- and 32-character names. Rust and Helm render the same bounded names.

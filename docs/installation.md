@@ -238,6 +238,20 @@ kimage uninstall --namespace kimage-system --installation kimage
 helm uninstall kimage --namespace kimage-system --wait
 ```
 
+After a rollback to 0.4.1, stop its operator before Helm removal. That published
+controller can recreate an ownerless worker while Helm deletes resources:
+
+```sh
+kubectl -n kimage-system scale deployment/kimage-operator --replicas=0
+kubectl -n kimage-system wait --for=delete pod -l kimage.dev/installation=kimage,kimage.dev/role=operator --timeout=180s
+helm uninstall kimage --namespace kimage-system --wait
+```
+
+Use your installation name and system namespace. The CLI uninstall command
+already stops the operator before removing workers. Native acceptance tests fresh
+0.5.0 Helm removal directly and uses this shutdown procedure after rollback to
+the published predecessor.
+
 Both preserve the registry PVC, Images, ImageReleases and shared CRDs. Do not delete
 retained namespaces, PVCs, finalizers or schema coordination records as ordinary
 cleanup. Back up the entire registry backend together with release metadata,

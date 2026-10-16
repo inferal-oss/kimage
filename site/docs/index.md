@@ -423,6 +423,14 @@ kimage uninstall --namespace kimage-system --installation kimage
 helm uninstall kimage --namespace kimage-system --wait
 ```
 
+After rollback to 0.4.1, stop its operator before Helm removal. That published controller can recreate an ownerless worker while Helm deletes resources. The CLI uninstall command already stops supervisors first. Use your installation name and namespace:
+
+```
+kubectl -n kimage-system scale deployment/kimage-operator --replicas=0
+kubectl -n kimage-system wait --for=delete pod -l kimage.dev/installation=kimage,kimage.dev/role=operator --timeout=180s
+helm uninstall kimage --namespace kimage-system --wait
+```
+
 Removal keeps PVCs, Images, ImageReleases and shared CRDs. Do not remove namespaces, release pins, finalizers or registry backends during ordinary cleanup. Running containers survive registry downtime; new uncached application starts wait or fail until serving returns. This remains a single-registry deployment, not HA.
 
 Version 0.4.1 fixes intermittent `CleanupIdentityConflict` errors during CLI uninstall when Pod status changes between LIST and DELETE. UID, specification and ownership checks remain enforced. For an existing 0.4.0 installation, update the CLI with the Cargo command above, then run the same uninstall command. This cleanup fix requires no component reinstallation or data migration.
@@ -448,6 +456,8 @@ kimage logs hello --namespace apps --attempt <full-attempt-id>
 `builds` lists active and retained attempts as JSON. Use the original Image name for automatic multi-platform builds. Select a platform or attempt when needed. Follow stays with that attempt through completion or failure.
 
 Each attempt keeps a 64 KiB text tail with an explicit truncation marker. Cleanup archives output in a namespace Secret before removing the client Pod. The latest five attempts per Image and platform survive retries and operator restarts. Deleting the Image removes its logs. Collection can be unavailable after worker or API loss; 0.4.1 attempts have no captured output.
+
+The adapter also limits raw progress to 16 MiB per solve and 256 KiB per progress record. Exceeding either fails the attempt with `BuildProgressLimit` or `BuildProgressLineLimit`; its retained tail stays bounded to 64 KiB. BuildKit may clip step output upstream.
 
 Recipes can print secrets. Retained logs require Secret get/list permission; live output also requires Pod get/list and exec. Raw output stays separate from status, release metadata, operator logs and metrics. Arbitrary user output is not automatically redacted.
 

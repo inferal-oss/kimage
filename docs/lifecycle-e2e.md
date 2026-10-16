@@ -5,6 +5,13 @@ physical amd64 and arm64 runners, with CLI/Helm and namespace/cluster scope. Eac
 case uses a disposable, single-node K3s cluster. It does not emulate a mixed
 cluster with QEMU or nested multi-platform Docker.
 
+Fresh 0.5.0 Helm removal is tested directly. After rollback, the test drains the
+published 0.4.1 operator before Helm removal, following the
+[documented predecessor shutdown procedure](installation.md). That older
+controller can otherwise recreate an ownerless worker during deletion. Cleanup
+still requires every disposable system resource to disappear; retained PVC/PV,
+Image and release identities and complete OCI readback remain required.
+
 The separate mixed-cluster test is explicitly enabled against an existing cluster.
 It needs a [supported runtime](installation.md#prerequisites), administrator access,
 Ready Linux amd64 and arm64 nodes, and fresh, dedicated application and system
