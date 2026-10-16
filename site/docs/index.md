@@ -23,9 +23,11 @@ A release belongs to an Image UID and exact version. Once published, different c
 With Rust 1.99.0 or newer and Cargo's bin directory on your PATH:
 
 ```
-cargo install kimage-control --version 0.3.0 --locked
+cargo install kimage-control --version 0.3.1 --locked
 kimage install --help
 ```
+
+Version 0.3.1 fixes Kubernetes watches expiring after a quiet 30-second interval. Connection limits and kube-runtime's watch inactivity handling remain in place.
 
 No source checkout is needed. The package is `kimage-control`; the unrelated `kimage` crate belongs to another project. Add `--bin kimage` if you only want the installer.
 
@@ -52,7 +54,7 @@ The fetch command prints JSON containing `bundle` (the verified directory) and `
 
 | Option | Behavior |
 | --- | --- |
-| `--release 0.3.0` | Select an exact official release. Default: the installed CLI package version. Keep the same selection when resuming a phase. |
+| `--release 0.3.1` | Select an exact official release. Default: the installed CLI package version. Keep the same selection when resuming a phase. |
 | `--bundle-cache <directory>` | Override the cache. Default: XDG_CACHE_HOME/kimage/bundles when set; otherwise ~/Library/Caches/kimage/bundles on macOS or ~/.cache/kimage/bundles on Linux. |
 | `--offline` | Prevent bundle downloads. A cache miss fails with guidance; cached content is still reverified. Cluster commands still require access to Kubernetes. |
 | `--bundle <directory>` | Use local bytes with a required independently trusted `--trusted-inventory sha256:<64-hex-digits>`. Cannot be combined with `--release`. |
@@ -400,7 +402,7 @@ ki() {
     --carrier <cached-image@sha256:digest> \
     --storage-class <class> --port <loopback-port> \
     --credentials <registry-credential-directory> \
-    --release 0.3.0
+    --release 0.3.1
 }
 ki bootstrap
 ki seed

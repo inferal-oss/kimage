@@ -10,7 +10,7 @@ workload delivery.
 Requires Rust 1.99.0 or newer. No source checkout is needed:
 
 ```sh
-cargo install kimage-control --version 0.3.0 --locked
+cargo install kimage-control --version 0.3.1 --locked
 kimage install --help
 ```
 

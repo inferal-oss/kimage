@@ -175,7 +175,7 @@ Install [Rust 1.99.0 or newer](https://www.rust-lang.org/tools/install), then in
 the native commands directly from crates.io. No source checkout is needed:
 
 ```sh
-cargo install kimage-control --version 0.3.0 --locked
+cargo install kimage-control --version 0.3.1 --locked
 kimage install --help
 ```
 
@@ -220,7 +220,7 @@ storage, an approved carrier image already cached on the selected node, and
 kernel/runtime support for the builder's Kubernetes user namespace. The default
 builder uses BuildKit 0.33.0. Setup remains an explicit administrator workflow;
 there is no Helm chart yet.
-The release workflow builds and publishes the component bundle and four native installers (Linux and macOS, amd64 and arm64). Select `--release 0.3.0` to pin a release explicitly, `--bundle-cache`
+The release workflow builds and publishes the component bundle and four native installers (Linux and macOS, amd64 and arm64). Select `--release 0.3.1` to pin a release explicitly, `--bundle-cache`
 to choose a cache directory, and `--offline` to require cached/local bytes. For
 air-gapped delivery, transfer the fetched bundle directory and use `--bundle` with
 its independently trusted `--trusted-inventory sha256:...`. See the

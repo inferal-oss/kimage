@@ -51,9 +51,9 @@ amd64/arm64 installers, downloads pinned upstream inputs, verifies
 the full inventory/OCI graphs, and uploads `release-assets` to the Actions run.
 The assets are:
 
-- `kimage-bundle-v0.3.0-linux-<amd64|arm64>.tar.gz`, a complete flat offline bundle.
-- `kimage-bundle-v0.3.0-linux-<amd64|arm64>.inventory.json`, also inside the bundle.
-- Four installers: `kimage-v0.3.0-<linux|darwin>-<amd64|arm64>`.
+- `kimage-bundle-v0.3.1-linux-<amd64|arm64>.tar.gz`, a complete flat offline bundle.
+- `kimage-bundle-v0.3.1-linux-<amd64|arm64>.inventory.json`, also inside the bundle.
+- Four installers: `kimage-v0.3.1-<linux|darwin>-<amd64|arm64>`.
 - `LICENSE`, `THIRD-PARTY-NOTICES.txt`, and `SHA256SUMS`.
 
 The input downloader checks pinned archive sizes/SHA-256 for Distribution 3.1.2
@@ -68,9 +68,9 @@ binary version output and natively verifies the complete bundle before upload.
 Create the version tag on the reviewed main commit, then dispatch a dry run:
 
 ```sh
-git tag -a v0.3.0 -m 'kimage 0.3.0'
-git push origin v0.3.0
-gh workflow run publish.yml --ref v0.3.0 -f dry_run=true
+git tag -a v0.3.1 -m 'kimage 0.3.1'
+git push origin v0.3.1
+gh workflow run publish.yml --ref v0.3.1 -f dry_run=true
 ```
 
 Both crates trust only `inferal-oss/kimage`, workflow filename `publish.yml`, and
@@ -84,7 +84,7 @@ crates.io token is stored in GitHub secrets.
 After inspecting the dry run, publish the same tag:
 
 ```sh
-gh workflow run publish.yml --ref v0.3.0 -f dry_run=false
+gh workflow run publish.yml --ref v0.3.1 -f dry_run=false
 ```
 
 The job stages and hashes assets in a draft GitHub release, publishes core then
@@ -106,7 +106,7 @@ Published release assets are treated as immutable. Do not move a published tag.
 Verify the consumer path on macOS as well as the workflow's Linux check:
 
 ```sh
-cargo install kimage-control --version 0.3.0 --locked --root .local/release-install
+cargo install kimage-control --version 0.3.1 --locked --root .local/release-install
 .local/release-install/bin/kimage bundle-fetch --bundle-cache .local/release-cache
 .local/release-install/bin/kimage bundle-check --bundle-cache .local/release-cache --offline
 ```

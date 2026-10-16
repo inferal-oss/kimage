@@ -3,7 +3,11 @@
 > kimage declares immutable, versioned container images as Kubernetes resources,
 > manages their production and verified publication to a retained cluster-local
 > registry, and resolves workload image selectors to digest-pinned pulls. Apache
-> 2.0. Alpha. Public Cargo packages: kimage-core and kimage-control, version 0.3.0.
+> 2.0. Alpha. Public Cargo packages: kimage-core and kimage-control, version 0.3.1.
+
+0.3.1 fixes quiet Kubernetes watches and long-lived API streams being cut off by
+a 30-second socket read timeout. Connection limits and kube-runtime watch
+inactivity handling remain in place. Use 0.3.1 for new installations.
 
 **When to use it.** Use kimage when inputs are already provisioned in Kubernetes,
 when images should remain available independently of source/build cache, or when
@@ -33,7 +37,7 @@ Administrator-managed builder isolation is not a hostile tenant security claim.
 1.99.0 or newer; ensure Cargo's bin directory is on PATH:
 
 ```sh
-cargo install kimage-control --version 0.3.0 --locked
+cargo install kimage-control --version 0.3.1 --locked
 kimage install --help
 ```
 
@@ -41,17 +45,17 @@ This installs kimage, its compatible kimage-install alias, kimage-operator, kima
 kimage-proxy, kimage-input, and kimage-exporter. Add --bin kimage for only
 the installer. The unrelated crate named `kimage` belongs to another project.
 Gateway/proxy report serving compatibility version 0.3.0, separately from Cargo
-package version 0.3.0. kimage-bootstrap is an unpublished internal bundle helper.
+package version 0.3.1. kimage-bootstrap is an unpublished internal bundle helper.
 
 **Official bundles and offline use.** No source checkout or packaging script is
 needed. `kimage install` automatically fetches, verifies, and caches the bundle,
 then runs bootstrap, seed, handover, control plane, and default builder setup.
 No separate fetch, check, or phase commands are required.
 Optional `kimage bundle-fetch` downloads and verifies the exact official
-GitHub release matching this CLI package version (0.3.0), never latest, without
+GitHub release matching this CLI package version (0.3.1), never latest, without
 kubeconfig or cluster writes. It prints JSON {bundle: <verified-directory>,
 trustedInventory: <sha256-digest>}. All bundle-using phases use the same automatic
-selection and reverify cached files before reuse. `--release 0.3.0` pins an exact
+selection and reverify cached files before reuse. `--release 0.3.1` pins an exact
 release; `--bundle-cache <directory>` overrides the private cache. Default cache:
 XDG_CACHE_HOME/kimage/bundles if set, otherwise ~/Library/Caches/kimage/bundles on
 macOS or ~/.cache/kimage/bundles on Linux. `--offline` prevents bundle downloads only (cluster commands still need Kubernetes) and
@@ -97,7 +101,7 @@ Required installation arguments are --runtime-profile, --namespace (system),
 --application-namespace (distinct, namespace scope only), --installation, --node, --carrier (approved
 digest already cached on that node), --storage-class, --port (at least 1024),
 --credentials (registry directory). Bundle selection is automatic; optionally add
---release 0.3.0, or the local bundle/pin pair described above. Use an
+--release 0.3.1, or the local bundle/pin pair described above. Use an
 administrator kubeconfig. The standard command is:
 
 ```sh

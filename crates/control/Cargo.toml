@@ -14,7 +14,7 @@ categories = ["command-line-utilities", "development-tools::build-utils"]
 include = ["src/**", "schemas/**", "examples/**", "tests/**", "Cargo.toml", "README.md", "LICENSE"]
 
 [dependencies]
-kimage-core = { version = "=0.3.0", path = "../core" }
+kimage-core = { version = "=0.3.1", path = "../core" }
 anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true

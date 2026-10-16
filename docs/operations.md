@@ -17,13 +17,13 @@ gates. Consult the
 Install the native CLI without a checkout or packaging script:
 
 ```sh
-cargo install kimage-control --version 0.3.0 --locked
+cargo install kimage-control --version 0.3.1 --locked
 kimage install --help
 ```
 
 Bundle-using phases default to the exact release matching the CLI's package
 version, never `latest`. They reuse a verified private cache on later runs.
-`--release 0.3.0` pins a different exact selection, `--bundle-cache <directory>`
+`--release 0.3.1` pins a different exact selection, `--bundle-cache <directory>`
 overrides the cache, and `--offline` prevents bundle downloads and fails on a cache miss. Fetching
 requires no kubeconfig and performs no cluster writes. GitHub Actions publishes
 complete Linux/amd64 and Linux/arm64 bundles, inventories, all four native
@@ -124,7 +124,7 @@ namespace/name and nonprivileged loopback port. Preserve the same arguments for
 resume. Config changes or foreign resource collisions are refused.
 
 ```sh
-kimage-install bootstrap --release 0.3.0 \
+kimage-install bootstrap --release 0.3.1 \
   --namespace <system-namespace> --application-namespace <application-namespace> \
   --installation <unique-name> \
   --node <approved-node> --carrier <cached-image@sha256:digest> \

@@ -126,8 +126,13 @@
             <p>
               With Rust 1.99.0 or newer and Cargo's bin directory on your PATH:
             </p>
-            <pre><code>cargo install kimage-control --version 0.3.0 --locked
+            <pre><code>cargo install kimage-control --version 0.3.1 --locked
 kimage install --help</code></pre>
+            <p>
+              Version 0.3.1 fixes Kubernetes watches expiring after a quiet
+              30-second interval. Connection limits and kube-runtime's watch
+              inactivity handling remain in place.
+            </p>
             <p>
               No source checkout is needed. The package is
               <code>kimage-control</code>; the unrelated
@@ -223,7 +228,7 @@ kimage bundle-check --offline</code></pre>
               </thead>
               <tbody>
                 <tr>
-                  <td><code>--release 0.3.0</code></td>
+                  <td><code>--release 0.3.1</code></td>
                   <td>
                     Select an exact official release. Default: the installed CLI
                     package version. Keep the same selection when resuming a
@@ -992,7 +997,7 @@ kimage-install bundle-check --bundle dist/complete-linux-amd64 \
     --carrier &lt;cached-image@sha256:digest&gt; \
     --storage-class &lt;class&gt; --port &lt;loopback-port&gt; \
     --credentials &lt;registry-credential-directory&gt; \
-    --release 0.3.0
+    --release 0.3.1
 }
 ki bootstrap
 ki seed
@@ -1542,7 +1547,7 @@ python3 scripts/check-site.py</code></pre>
           </section>
         </article>
         <div class="docs-end">
-          <span>kimage 0.3.0 handbook</span><a href="#main">Back to top ↑</a>
+          <span>kimage 0.3.1 handbook</span><a href="#main">Back to top ↑</a>
         </div>
       </main>
     </div>
