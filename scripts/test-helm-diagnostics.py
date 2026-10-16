@@ -8,7 +8,7 @@ class Diagnostics(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root=Path(temp);key=root/'key.pem';cert=root/'cert.pem'
             subprocess.run(['openssl','req','-x509','-newkey','rsa:2048','-nodes','-keyout',str(key),'-out',str(cert),'-days','1','-subj','/CN=kimage-test'],check=True,capture_output=True)
-            helm=root/'real-helm';helm.write_text('#!'+sys.executable+'\nimport sys\nprint("PRIVATE_STDOUT" if sys.argv[1]=="upgrade" else "OK")\nprint("PRIVATE_STDERR" if sys.argv[1]=="upgrade" else "WARNING",file=sys.stderr)\nraise SystemExit(9 if sys.argv[1]=="upgrade" else 0)\n');helm.chmod(0o700)
+            helm=root/'real-helm';helm.write_text('#!'+sys.executable+'\nimport sys\nprint("PRIVATE_STDOUT" if sys.argv[1] in ("upgrade","install") else "OK")\nprint(("InstallationScopeOverlap: " if sys.argv[1]=="install" else "")+"PRIVATE_STDERR" if sys.argv[1] in ("upgrade","install") else "WARNING",file=sys.stderr)\nraise SystemExit(9 if sys.argv[1] in ("upgrade","install") else 0)\n');helm.chmod(0o700)
             directory=root/'capture'
             subprocess.run([sys.executable,str(SCRIPT),'--setup',str(directory),'--helm',str(helm)],env=dict(os.environ,KIMAGE_HELM_DIAGNOSTIC_CERT=cert.read_text()),check=True,capture_output=True)
             failed=subprocess.run([str(directory/'bin/helm'),'upgrade','fixture'],capture_output=True)
@@ -19,4 +19,7 @@ class Diagnostics(unittest.TestCase):
             payload=json.loads(decoded.stdout);self.assertEqual(payload['stderr'],'PRIVATE_STDERR\n');self.assertEqual(payload['stdout'],'PRIVATE_STDOUT\n')
             successful=subprocess.run([str(directory/'bin/helm'),'version'],capture_output=True)
             self.assertEqual(successful.returncode,0);self.assertEqual(successful.stdout,b'OK\n');self.assertEqual(successful.stderr,b'WARNING\n');self.assertEqual(list((directory/'output').iterdir()),encrypted)
+            overlap=subprocess.run([str(directory/'bin/helm'),'install'],capture_output=True)
+            self.assertEqual(overlap.returncode,9);self.assertIn(b'InstallationScopeOverlap',overlap.stderr);self.assertNotIn(b'PRIVATE_',overlap.stdout+overlap.stderr)
+            self.assertEqual(len(list((directory/'output').iterdir())),2)
 if __name__=='__main__':unittest.main()

@@ -36,7 +36,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ### Security
 
-- Optional candidate-workflow diagnostics encrypt failing Helm output to a maintainer-provided certificate; the private decryption key remains outside CI.
+- Optional candidate and focused native workflows encrypt failing Helm output to a maintainer-provided certificate; the private decryption key remains outside CI. Focused runs can reuse unchanged native component artifacts.
 - Diagnostic Secrets carry the predecessor's reserved input marker, so rolling back to 0.4.1 cannot make private build output eligible as an ordinary build input.
 - Helm upgrade checks reject recovery history that would replay stale credential or build-policy bytes, before stopping components.
 

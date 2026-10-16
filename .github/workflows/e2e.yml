@@ -177,13 +177,6 @@ jobs:
           mkdir -p .local/components
           tar -xzf .local/component-layouts.tar.gz -C .local/components
           python3 scripts/prepare-image-pull-fixture.py --images .local/components --registry .local/e2e/registry --directory .local/e2e-registry
-      - name: Configure optional encrypted Helm diagnostics
-        if: inputs.diagnostic_certificate != '' && matrix.mode == 'helm'
-        env:
-          KIMAGE_HELM_DIAGNOSTIC_CERT: ${{ inputs.diagnostic_certificate }}
-        run: |
-          python3 scripts/helm-diagnostics.py --setup .local/e2e/helm-diagnostics --helm /usr/local/bin/helm
-          printf '%s\n' "$GITHUB_WORKSPACE/.local/e2e/helm-diagnostics/bin" >> "$GITHUB_PATH"
       - name: Start pinned disposable Kubernetes fixture
         run: python3 scripts/prepare-e2e-cluster.py --directory .local/e2e-cluster
       - name: Exercise registry pulls, native builds, controllers and scope boundaries
@@ -191,6 +184,13 @@ jobs:
           python3 scripts/e2e-install.py --scope ${{ matrix.scope }} --mode ${{ matrix.mode }} \
             --image-catalog "$KIMAGE_E2E_IMAGE_CATALOG" --chart .local/chart/kimage-*.tgz \
             --installer .local/e2e/kimage-install --probe .local/e2e/probe --output .local/e2e/results
+      - name: Configure optional encrypted Helm diagnostics
+        if: inputs.diagnostic_certificate != '' && matrix.mode == 'helm'
+        env:
+          KIMAGE_HELM_DIAGNOSTIC_CERT: ${{ inputs.diagnostic_certificate }}
+        run: |
+          python3 scripts/helm-diagnostics.py --setup .local/e2e/helm-diagnostics --helm /usr/local/bin/helm
+          printf '%s\n' "$GITHUB_WORKSPACE/.local/e2e/helm-diagnostics/bin" >> "$GITHUB_PATH"
       - name: Exercise published predecessor upgrades, interruptions and rollback
         run: |
           python3 - <<'PYCONFIG'

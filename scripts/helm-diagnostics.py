@@ -26,7 +26,8 @@ def invoke(helm,certificate,output,args):
         encrypted.unlink(missing_ok=True)
         sys.stderr.write('PrivateHelmDiagnosticEncryptionFailed\n')
     else:
-        sys.stderr.write('HelmTestCommandFailed: '+action+'; encrypted diagnostic '+encrypted.name+'\n')
+        reason='InstallationScopeOverlap' if b'InstallationScopeOverlap' in result.stderr else 'HelmTestCommandFailed'
+        sys.stderr.write(reason+': '+action+'; encrypted diagnostic '+encrypted.name+'\n')
     return result.returncode
 
 

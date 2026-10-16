@@ -157,3 +157,10 @@ captures failed Helm output directly into CMS/AES-256 ciphertext; artifacts cont
 only `.p7m` files. Decrypt locally with the recipient key and review privately.
 Ordinary CI and publication do not enable this capture. Never upload plaintext
 Helm failure output or the recipient private key as acceptance evidence.
+
+The manual `Focused Helm lifecycle diagnostics` workflow can reuse a prior native
+component build run when `Cargo.toml`, `Cargo.lock` and `crates/` are unchanged.
+Supply its exact run ID and source commit plus the public recipient certificate.
+It checks source identity and ancestry, recreates disposable amd64 fixtures for
+both scopes, and runs the same fresh-install and lifecycle sequence without
+rebuilding components. It has no publication permissions.
