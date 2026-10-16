@@ -104,6 +104,27 @@ impl OperationLease {
         });
         Ok(result)
     }
+    pub async fn acquire_wait(
+        client: kube::Client,
+        namespace: &str,
+        installation: &str,
+        name: &str,
+        holder: &str,
+    ) -> Result<Self> {
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(35);
+        loop {
+            match Self::acquire(client.clone(), namespace, installation, name, holder).await {
+                Ok(lease) => return Ok(lease),
+                Err(error)
+                    if error.to_string() == "OperationBusy"
+                        && tokio::time::Instant::now() < deadline =>
+                {
+                    tokio::time::sleep(Duration::from_millis(250)).await
+                }
+                Err(error) => return Err(error),
+            }
+        }
+    }
     pub async fn check(&self) -> Result<()> {
         ensure!(!self.lost.is_cancelled(), "OperationLeaseLost");
         renew(&self.api, &self.name, &self.holder).await

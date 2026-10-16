@@ -120,6 +120,9 @@ and the [website comparison](https://kimage.dev/docs/#comparison).
 
 - **Native amd64 and arm64:** workload placement selects native builds; unconstrained
   mixed-cluster Pods use a fully verified OCI index.
+- **Resumable upgrades:** explicit compatibility checks and rollback preserve registry data, credentials and the installation's CLI or Helm ownership.
+- **Automatic node membership:** register native workers and UID-bound serving proxies as eligible nodes change, with administrator placement controls.
+- **Build diagnostics:** follow per-platform output and inspect bounded private attempt logs after build Pod cleanup; use status and doctor for installation health.
 - **On-demand or eager builds:** automatic Images wait for consumers by default;
   an administrator ConfigMap can prebuild available platforms.
 - **Namespace or cluster scope:** manage one application namespace or all ordinary
@@ -173,13 +176,23 @@ component boundaries and trust assumptions.
 Install [Rust 1.99.0 or newer](https://www.rust-lang.org/tools/install), then:
 
 ```sh
-cargo install kimage-control --version 0.4.1 --locked --bin kimage --bin kimage-install
+cargo install kimage-control --version 0.5.0 --locked --bin kimage --bin kimage-install
 kimage install --application-namespace apps
 ```
 
-Version 0.4.1 fixes an intermittent CLI uninstall identity conflict. For an existing
-0.4.0 installation, updating the CLI is sufficient to use the cleanup fix; its
-UID, specification and ownership guards remain enforced.
+For an existing 0.4.1 installation, update the CLI, then use the guarded release
+transition. Helm installations keep their Helm ownership and history:
+
+```sh
+kimage upgrade --to 0.5.0 --check
+kimage upgrade --to 0.5.0
+kimage doctor
+# Compatible reversal, when needed:
+kimage rollback --to 0.4.1
+```
+
+An interrupted operation resumes with the same command. See
+[upgrades and retained data](docs/installation.md#upgrades-rollback-and-removal).
 
 No source checkout is needed. With no flags, `kimage install` manages the current
 kubeconfig namespace. Components use public, digest-pinned amd64/arm64 images from
@@ -200,7 +213,7 @@ exact runtime checks; see [prerequisites](docs/installation.md#prerequisites).
 helm repo add kimage https://kimage.dev/charts
 helm repo update
 kubectl create namespace apps
-helm install kimage kimage/kimage --version 0.4.1 \
+helm install kimage kimage/kimage --version 0.5.0 \
   --namespace kimage-system --create-namespace \
   --set applicationNamespace=apps --wait --wait-for-jobs
 ```

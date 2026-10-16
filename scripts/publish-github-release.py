@@ -84,6 +84,7 @@ def main():
     expected = {'LICENSE', 'THIRD-PARTY-NOTICES.txt', 'SHA256SUMS'}
     if tuple(map(int,args.tag.removeprefix('v').split('-')[0].split('.'))) >= (0,4,0):
         expected.update(['component-images.json',f'kimage-{args.tag.removeprefix("v")}.tgz'])
+        if tuple(map(int,args.tag.removeprefix('v').split('-')[0].split('.'))) >= (0,5,0):expected.add('release-compatibility.json')
     else:
         expected.update(f'kimage-bundle-{args.tag}-linux-{arch}{suffix}' for arch in architectures for suffix in ['.tar.gz', '.inventory.json'])
     platforms = ['linux-amd64', 'linux-arm64', 'darwin-amd64', 'darwin-arm64'] if len(architectures) == 2 else ['linux-amd64', 'darwin-arm64']

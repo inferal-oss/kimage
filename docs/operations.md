@@ -254,7 +254,8 @@ ConfigMap definitions mount below `/workspace/inputs`; Secret definitions mount
 below `/run/kimage-build-secrets`. Definition placement never changes the COPY/ADD
 context root. Secret definition bytes and their fingerprints stay out of normal
 status, release provenance and logs. The worker disables build history and normal
-recipe-bearing daemon logging; client progress is bounded and discarded privately.
+recipe-bearing daemon logging. Client progress is captured in a bounded private
+attempt log, separate from normal Pod output and public resource metadata.
 Definition literals can still enter OCI image history, worker cache or deliberate
 build output. Supply credentials through secret mounts rather than recipe literals.
 
@@ -607,3 +608,42 @@ check `kimage_node_sample_timestamp_seconds` for freshness. It does not continuo
 reschedule existing Pods. Existing reconcile/admission counters retain their
 fixed decision/error labels. Structured publication and transition logs carry
 identities and operation/digest fields where useful, with sanitized reasons.
+
+## Build diagnostics in 0.5.0
+
+Inspect the Image's conditions first, then select the platform or attempt you need:
+
+```sh
+kimage builds hello --namespace apps
+kimage logs hello --namespace apps --platform linux/arm64 --follow
+kimage logs hello --namespace apps --attempt <full-attempt-id>
+```
+
+`builds` prints JSON with active and retained attempt IDs, versions, platforms,
+phases and truncation markers. An automatic multi-platform Image collects output
+from its internal native variants under the original Image name. `logs` defaults
+to the newest active attempt, or the newest retained one. Follow stays attached to
+that attempt instead of silently switching to a later retry.
+
+BuildKit step output, compiler messages and engine errors are captured privately.
+Each attempt retains the last 64 KiB of text; truncation is explicit. Cleanup saves
+an immutable Secret in the application's namespace before removing the client
+Pod. The latest five attempts per Image and platform are retained across retries
+and controller restarts. They are separate from immutable ImageRelease data and
+are garbage-collected when their owning Image is deleted. This is bounded
+troubleshooting storage, not a durable logging service. If a worker or API is lost
+before collection, diagnostics report `Unavailable`; cleanup and fencing still
+proceed. Old attempts created by 0.4.1 have no captured build output.
+
+Raw output can contain secrets printed by a recipe. There is no promise of
+redacting arbitrary user output. Reading retained logs requires namespace Secret
+get/list permission; live output also requires Pod list/get and exec access.
+Raw output never enters Image status, ImageRelease provenance, operator logs or
+metrics. Controller-owned log Secrets cannot be used as build inputs.
+
+Image conditions keep stable failure reasons. Transient prerequisite and registry
+errors retry with persisted backoff, up to 120 seconds. Invalid definitions and
+permanent engine errors wait for the declaration or referenced inputs to change;
+restarting the operator does not bypass the failure checkpoint. A `VersionConflict`
+requires a new image version. Successful compilation does not itself imply a Ready
+release: publication and registry readback must also succeed.

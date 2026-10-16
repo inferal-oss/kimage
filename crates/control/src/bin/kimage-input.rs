@@ -18,6 +18,16 @@ enum Command {
     BuildSession,
     BuildCaptureReceipt,
     BuildPhase,
+    BuildLogs,
+    #[command(hide = true)]
+    VerifyRegistry {
+        #[arg(long)]
+        request: PathBuf,
+        #[arg(long)]
+        origin: reqwest::Url,
+        #[arg(long)]
+        credentials: PathBuf,
+    },
     BuildStart {
         #[arg(long)]
         snapshot_id: String,
@@ -35,6 +45,17 @@ enum Command {
 #[tokio::main]
 async fn main() -> Result<()> {
     match Args::parse().command {
+        Command::VerifyRegistry {
+            request,
+            origin,
+            credentials,
+        } => {
+            println!(
+                "{}",
+                kimage_control::registry_check::run(&request, origin, &credentials).await?
+            );
+            Ok(())
+        }
         Command::PrepareBuild => kimage_control::build_session::prepare(),
         Command::BuildSession => kimage_control::build_session::run().await,
         Command::BuildCaptureReceipt => {
@@ -43,6 +64,13 @@ async fn main() -> Result<()> {
         }
         Command::BuildPhase => {
             println!("{}", kimage_control::build_session::inspect()?);
+            Ok(())
+        }
+        Command::BuildLogs => {
+            println!(
+                "{}",
+                serde_json::to_string(&kimage_control::build_logs::snapshot()?)?
+            );
             Ok(())
         }
         Command::BuildStart { snapshot_id } => kimage_control::build_session::start(&snapshot_id),

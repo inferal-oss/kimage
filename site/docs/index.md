@@ -23,7 +23,7 @@ A release belongs to an Image UID and exact version. Once published, different c
 Use Rust 1.99.0 or newer. No source checkout is needed:
 
 ```
-cargo install kimage-control --version 0.4.1 --locked --bin kimage --bin kimage-install
+cargo install kimage-control --version 0.5.0 --locked --bin kimage --bin kimage-install
 kimage install --application-namespace apps
 ```
 
@@ -31,7 +31,7 @@ kimage install --application-namespace apps
 
 With no flags, `kimage install` manages the current kubeconfig namespace, uses `kimage-system` for components, a 1Gi retained PVC and the cluster's default StorageClass. It discovers native workers, generates credentials and waits for authenticated readiness. Use administrator kubeconfig and the [supported runtime](https://kimage.dev/docs/#compatibility). For the tested K3s profile, add `--runtime-profile k3s`.
 
-Server binaries are also available from `kimage-control` if needed. Gateway and proxy retain serving protocol version 0.3.0 independently of package version 0.4.1.
+Server binaries are also available from `kimage-control` if needed. Gateway and proxy retain serving protocol version 0.3.0 independently of package version 0.5.0.
 
 ## Release images and mirrors
 
@@ -43,7 +43,7 @@ GHCR supplies kimage's components. The included cluster-local registry still ret
 
 | Option | Purpose |
 | --- | --- |
-| `--release 0.4.1` | Exact official release; defaults to the CLI package version. |
+| `--release 0.5.0` | Exact official release; defaults to the CLI package version. |
 | `--image-catalog <path>` | Explicit administrator-trusted local catalog, including a registry mirror. |
 | `images.repository` | Helm registry mirror override; retain all published digest pins. |
 
@@ -351,7 +351,7 @@ The installer creates missing requested namespaces, generates separate service i
 helm repo add kimage https://kimage.dev/charts
 helm repo update
 kubectl create namespace apps
-helm install kimage kimage/kimage --version 0.4.1 \
+helm install kimage kimage/kimage --version 0.5.0 \
   --namespace kimage-system --create-namespace \
   --set applicationNamespace=apps --wait --wait-for-jobs
 ```
@@ -370,28 +370,46 @@ Use Helm 3.14 or newer. Helm queries live Ready Nodes during install/upgrade, an
 | `port` | `17701`; distinct for installations sharing nodes |
 | `images.repository`, `images.digests` | Official GHCR repository and eight release-pinned indexes |
 | `exporter.approvedOrigins` | Empty disables export; explicit HTTPS origins enable the separate exporter |
-| `workerNodes` | Optional architecture-to-node placement map |
+| `workerNodes` | Optional initial architecture-to-node pins |
+| `nodePolicy` | Node label selection and worker pins; null preserves administrator edits |
 | `nodes` | Full Node objects only for offline rendering; normally discovered live |
 
 The operator owns shared CRD compatibility checks; the chart does not delete those CRDs. The source chart has empty image pins until release packaging verifies both native graphs. Published charts are ready to install.
 
 ## Reapply, upgrade and rollback
 
-After adding nodes, repeat the identical CLI installation or Helm upgrade with your retained values. This registers new node proxies and any new native architecture. The registry node and UID remain pinned; moving storage or replacing that node requires explicit recovery. Keep scope, port, storage and installation identity consistent.
+Install the new CLI first; this changes no cluster components. The supported release edge is **0.4.1 to 0.5.0 and back**. Use the same guarded commands for CLI and Helm installations:
 
 ```
-helm upgrade kimage kimage/kimage --version 0.4.1 \
-  --namespace kimage-system --reset-then-reuse-values --wait --wait-for-jobs
-helm history kimage --namespace kimage-system
-helm rollback kimage <compatible-revision> \
-  --namespace kimage-system --wait --wait-for-jobs
+kimage upgrade --to 0.5.0 --check
+kimage upgrade --to 0.5.0
+kimage status --json
+kimage doctor --json
+kimage rollback --to 0.4.1 --check
+kimage rollback --to 0.4.1
 ```
 
-Use the manager that owns the installation. Helm history retains pinned resources and credentials. The upgrade command takes new chart defaults while preserving explicit overrides; plain `--reuse-values` can retain old image pins. A rollback must preserve schema and Distribution storage compatibility; it never downgrades shared CRDs. 0.4.0 is the first image-pull chart. Reapplying its CLI resumes the same resources and refuses implicit whole-release changes.
+Add `--namespace` and `--installation` for a non-default system identity. Checks are read-only. The operation records exact catalogs and resumable phases, stops new reconciliation, terminates old clients and workers, and replaces components under an exclusive Lease. Completion verifies readiness and retained storage, CRD and credential identities. New builds and managed Pod admission may pause; running application containers remain under their workload controller.
 
-There is no supported automatic adoption of a 0.3.x bootstrap installation. Keep its original installer and independently trusted bundles. The older guarded serving-binary transitions remain in the [legacy operations reference](https://github.com/inferal-oss/kimage/blob/main/docs/operations.md), with their tested version windows.
+If interrupted, repeat the exact command and catalog. A crashed process's Lease expires after 30 seconds. Do not delete the journal or switch targets. `status` shows the pending phase; `doctor` checks drift, native readiness and certificate validity and exits nonzero when attention is needed. A failed operation does not silently roll back.
 
-The serving-only updater requires identical non-serving component versions and roots. Whole 0.1.0 and 0.2.0 release bundles differ there; automatic fetching does not turn them into a general operator/schema upgrade or downgrade path. Use matching independently retained bundles for recovery.
+For Helm ownership, keep Helm on PATH. The commands invoke Helm with exact target image pins and preserve revision history. Rollback records a new Helm revision from the exact older chart and current node placement. New charts reject unguarded cross-release upgrades. Old charts cannot add guards to raw Helm rollback, so use the guarded path for compatibility checks and interrupt recovery. Inspect history with `helm history kimage --namespace kimage-system`.
+
+The release asset `release-compatibility.json` records exact tested transitions and persisted formats. Unknown edges are refused. Before returning to 0.4.1, restore an empty node selector; that operator cannot enforce the newer selection policy. Worker pins and build policy are preserved.
+
+### Automatic node membership
+
+The operator registers eligible new nodes and native architectures automatically. Existing automatic workers stay in place while eligible. Removed membership revokes UID-bound serving approval, and worker replacement fences old clients before creating a replacement. A partitioned worker can leave fencing pending. Registry node identity and retained storage never move automatically.
+
+The administrator ConfigMap `<installation>-node-policy` uses label `kimage.dev/installation: <installation>` and the following `policy.json`:
+
+```
+{"schema":1,"nodeSelector":{"kimage.dev/pool":"images"},"workerPins":{"arm64":"arm-worker"}}
+```
+
+Empty selection includes all eligible nodes. Pins require the named eligible node instead of silently moving work. The registry node must remain selected. Helm's `nodePolicy` value sets this policy; null preserves administrator edits. On first install, explicit `workerNodes` values become pins.
+
+Release transitions keep scope, storage, ports and installation identity. They do not skip releases, downgrade shared CRDs, migrate storage or adopt 0.3.x bootstrap installations. `kimage install` remains a same-release resume command. Retain original installers and trusted bundles for [legacy recovery](https://github.com/inferal-oss/kimage/blob/main/docs/operations.md).
 
 ## Recovery and retained storage
 
@@ -416,6 +434,22 @@ The complete base Secrets are created before their derived views, so interrupted
 Generated leaf certificates last ten years. Reapplication preserves them and is not automatic renewal. Plan certificate maintenance before expiry. CA/password/key rotation needs an explicit maintenance and storage-recovery plan; legacy `renew-tls` applies to older bootstrap installations, not the new default.
 
 ## Observe and troubleshoot
+
+### Build logs and failed attempts
+
+```
+kimage builds hello --namespace apps
+kimage logs hello --namespace apps --platform linux/arm64 --follow
+kimage logs hello --namespace apps --attempt <full-attempt-id>
+```
+
+`builds` lists active and retained attempts as JSON. Use the original Image name for automatic multi-platform builds. Select a platform or attempt when needed. Follow stays with that attempt through completion or failure.
+
+Each attempt keeps a 64 KiB text tail with an explicit truncation marker. Cleanup archives output in a namespace Secret before removing the client Pod. The latest five attempts per Image and platform survive retries and operator restarts. Deleting the Image removes its logs. Collection can be unavailable after worker or API loss; 0.4.1 attempts have no captured output.
+
+Recipes can print secrets. Retained logs require Secret get/list permission; live output also requires Pod get/list and exec. Raw output stays separate from status, release metadata, operator logs and metrics. Arbitrary user output is not automatically redacted.
+
+Image conditions report stable failure reasons. Transient failures retry with persisted backoff. Permanent definition or solve failures wait for changed declarations or inputs. Restarting the operator does not reset them. `VersionConflict` needs a new version, and a successful solve still needs publication and readback.
 
 Start with the resource condition, the installer phase, and normal Kubernetes events. Avoid changing storage, deleting release metadata, or bypassing TLS to work around a failed prerequisite.
 

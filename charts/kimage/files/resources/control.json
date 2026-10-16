@@ -270,6 +270,115 @@
           "${installation}-direct-worker-amd64",
           "${installation}-direct-worker-arm64"
         ]
+      },
+      {
+        "apiGroups": [
+          "coordination.k8s.io"
+        ],
+        "resources": [
+          "leases"
+        ],
+        "resourceNames": [
+          "${installation}-lifecycle"
+        ],
+        "verbs": [
+          "get",
+          "update",
+          "patch"
+        ]
+      },
+      {
+        "apiGroups": [
+          ""
+        ],
+        "resources": [
+          "configmaps"
+        ],
+        "verbs": [
+          "delete",
+          "update",
+          "patch"
+        ]
+      },
+      {
+        "apiGroups": [
+          ""
+        ],
+        "resources": [
+          "secrets"
+        ],
+        "resourceNames": [
+          "${installation}-builder-credentials",
+          "${installation}-builder-server-amd64",
+          "${installation}-builder-server-arm64"
+        ],
+        "verbs": [
+          "get"
+        ]
+      },
+      {
+        "apiGroups": [
+          ""
+        ],
+        "resources": [
+          "secrets"
+        ],
+        "verbs": [
+          "create"
+        ]
+      },
+      {
+        "apiGroups": [
+          ""
+        ],
+        "resources": [
+          "pods"
+        ],
+        "verbs": [
+          "get",
+          "list",
+          "delete"
+        ]
+      },
+      {
+        "apiGroups": [
+          ""
+        ],
+        "resources": [
+          "services"
+        ],
+        "verbs": [
+          "get",
+          "create",
+          "patch"
+        ]
+      },
+      {
+        "apiGroups": [
+          "networking.k8s.io"
+        ],
+        "resources": [
+          "networkpolicies"
+        ],
+        "verbs": [
+          "get",
+          "create",
+          "patch"
+        ]
+      },
+      {
+        "apiGroups": [
+          "batch"
+        ],
+        "resources": [
+          "jobs"
+        ],
+        "verbs": [
+          "get",
+          "create",
+          "delete",
+          "list"
+        ]
       }
     ]
   },

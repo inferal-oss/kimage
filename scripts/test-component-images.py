@@ -95,8 +95,8 @@ class ImagesTests(unittest.TestCase):
             args=argparse.Namespace(catalog=root/'images/component-images.json',chart=chart_path,installers=root/'installers',metadata=metadata,out=root/'release')
             with contextlib.redirect_stdout(io.StringIO()):release.package(args)
             names={p.name for p in args.out.iterdir()}
-            self.assertEqual(len(names),10) # Nine public assets plus release notes.
-            self.assertIn('component-images.json',names);self.assertFalse(any('bundle' in n for n in names))
+            self.assertEqual(len(names),11) # Ten public assets plus release notes.
+            self.assertIn('component-images.json',names);self.assertIn('release-compatibility.json',names);self.assertFalse(any('bundle' in n for n in names))
             for line in (args.out/'SHA256SUMS').read_text().splitlines():
                 digest,name=line.split('  ');self.assertEqual(digest,pack.oci.digest((args.out/name).read_bytes())[7:])
             # A plausible ELF for the wrong ISA must not become an arm64 installer.

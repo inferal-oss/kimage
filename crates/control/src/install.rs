@@ -114,6 +114,7 @@ impl Installer {
             "ServiceAccount" => ("", "v1", "serviceaccounts"),
             "NetworkPolicy" => ("networking.k8s.io", "v1", "networkpolicies"),
             "PersistentVolumeClaim" => ("", "v1", "persistentvolumeclaims"),
+            "PersistentVolume" => ("", "v1", "persistentvolumes"),
             "Role" => ("rbac.authorization.k8s.io", "v1", "roles"),
             "RoleBinding" => ("rbac.authorization.k8s.io", "v1", "rolebindings"),
             "ClusterRole" => ("rbac.authorization.k8s.io", "v1", "clusterroles"),
@@ -152,40 +153,7 @@ impl Installer {
                 existing.labels().get(LABEL) == Some(&self.options.installation),
                 "ForeignResourceConflict: {kind}/{name}"
             );
-            let mut actual = serde_json::to_value(existing)?;
-            if kind == "Pod" {
-                normalize_serviceaccount_projection(&mut actual["spec"], &v["spec"])?;
-                normalize_pod_defaults(&mut actual["spec"], &v["spec"]);
-            } else if kind == "Deployment" || kind == "Job" {
-                normalize_pod_defaults(
-                    &mut actual["spec"]["template"]["spec"],
-                    &v["spec"]["template"]["spec"],
-                );
-            }
-            if kind == "NetworkPolicy" {
-                normalize_empty_network_rules(&mut actual["spec"], &v["spec"]);
-            }
-            for field in [
-                "spec",
-                "data",
-                "binaryData",
-                "immutable",
-                "type",
-                "rules",
-                "subjects",
-                "roleRef",
-                "webhooks",
-                "automountServiceAccountToken",
-            ] {
-                if let Some(expected) = v.get(field) {
-                    ensure!(
-                        contains(&actual[field], expected),
-                        "ExistingResourceConflict: {kind}/{name} {}",
-                        difference(&actual[field], expected, &format!("/{field}"))
-                            .unwrap_or_default()
-                    );
-                }
-            }
+            verify_declared(&v, &existing)?;
         } else {
             let desired: DynamicObject = serde_json::from_value(v)?;
             api.create(
@@ -999,7 +967,10 @@ fn cleanup_identity(object: &DynamicObject) -> Result<Value> {
 }
 /// A kubelet status update must not defeat uninstall, but a replacement UID or
 /// a concurrent spec/ownership edit must never inherit a stale delete decision.
-async fn delete_snapshot(api: &Api<DynamicObject>, original: &DynamicObject) -> Result<()> {
+pub(crate) async fn delete_snapshot(
+    api: &Api<DynamicObject>,
+    original: &DynamicObject,
+) -> Result<()> {
     delete_snapshot_policy(api, original, None).await
 }
 pub(crate) async fn delete_foreground_snapshot(
@@ -1166,8 +1137,84 @@ fn contains(actual: &Value, expected: &Value) -> bool {
         _ => actual == expected,
     }
 }
+/// Compare desired fields without writes, accounting for Kubernetes defaults.
+pub(crate) fn verify_declared(v: &Value, existing: &DynamicObject) -> Result<()> {
+    let kind = v["kind"].as_str().context("MissingKind")?;
+    let name = v["metadata"]["name"].as_str().context("MissingName")?;
+    let mut actual = serde_json::to_value(existing)?;
+    if kind == "Pod" {
+        normalize_serviceaccount_projection(&mut actual["spec"], &v["spec"])?;
+        normalize_pod_defaults(&mut actual["spec"], &v["spec"]);
+    } else if kind == "Deployment" || kind == "Job" {
+        normalize_pod_defaults(
+            &mut actual["spec"]["template"]["spec"],
+            &v["spec"]["template"]["spec"],
+        );
+    }
+    if kind == "NetworkPolicy" {
+        normalize_empty_network_rules(&mut actual["spec"], &v["spec"]);
+    }
+    if kind == "ConfigMap" {
+        for (key, expected) in v["data"].as_object().into_iter().flatten() {
+            if key.ends_with(".json")
+                && let Some(text) = expected.as_str()
+                && let Ok(parsed) = serde_json::from_str::<Value>(text)
+            {
+                let actual_text = actual["data"][key]
+                    .as_str()
+                    .context("InvalidStoredInstallationJson")?;
+                let observed: Value =
+                    serde_json::from_str(actual_text).context("InvalidStoredInstallationJson")?;
+                ensure!(
+                    observed == parsed,
+                    "ExistingResourceConflict: {kind}/{name} /data/{key}"
+                );
+                // JSON object ordering/whitespace differs between Helm and Rust.
+                // Values must match exactly, including all nested fields.
+                actual["data"][key] = expected.clone();
+            }
+        }
+    }
+    for field in [
+        "spec",
+        "data",
+        "binaryData",
+        "immutable",
+        "type",
+        "rules",
+        "subjects",
+        "roleRef",
+        "webhooks",
+        "automountServiceAccountToken",
+    ] {
+        if let Some(expected) = v.get(field) {
+            ensure!(
+                contains(&actual[field], expected),
+                "ExistingResourceConflict: {kind}/{name} {}",
+                difference(&actual[field], expected, &format!("/{field}")).unwrap_or_default()
+            );
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn json_configuration_comparison_accepts_helm_ordering_but_not_extra_or_changed_fields() {
+        let expected = serde_json::json!({"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"catalog"},"data":{"images.json":"{\"schema\":1,\"images\":{\"operator\":\"pinned\"}}"}});
+        let mut actual = expected.clone();
+        actual["data"]["images.json"] =
+            serde_json::json!("{ \"images\": { \"operator\": \"pinned\" }, \"schema\": 1 }");
+        let resource: kube::api::DynamicObject = serde_json::from_value(actual.clone()).unwrap();
+        super::verify_declared(&expected, &resource).unwrap();
+        actual["data"]["images.json"] =
+            serde_json::json!("{\"schema\":1,\"images\":{\"operator\":\"pinned\"},\"extra\":true}");
+        assert!(
+            super::verify_declared(&expected, &serde_json::from_value(actual).unwrap()).is_err()
+        );
+    }
+
     use super::*;
     #[tokio::test]
     async fn cleanup_retries_status_races_but_refuses_replacements_and_spec_or_ownership_edits() {

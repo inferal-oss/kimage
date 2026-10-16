@@ -50,7 +50,12 @@ pub async fn native_context(image: &crate::api::Image, config: &Config) -> Resul
         .get_opt(&format!("{}-builders-{arch}", settings.installation))
         .await?
     else {
-        if arch != "amd64" {
+        if arch != "amd64"
+            || maps
+                .get_opt(&format!("{}-builders", settings.installation))
+                .await?
+                .is_none()
+        {
             settings.architecture = Some(arch.clone());
         }
         return Ok(config);
@@ -471,6 +476,13 @@ pub async fn remove_client(config: &Config, id: &str) -> Result<()> {
             "BuildClientOwnershipConflict"
         );
         if pod.metadata.deletion_timestamp.is_none() {
+            if let Err(error) =
+                crate::build_logs::archive(config.client.clone(), &config.namespace, &pod, id).await
+            {
+                // Cleanup and worker fencing must still proceed if diagnostics fail.
+                let _ = error;
+                tracing::warn!(reason = "BuildLogArchiveUnavailable", attempt = id);
+            }
             match pods
                 .delete(
                     &name,
@@ -527,6 +539,8 @@ pub async fn fence(config: &Config, settings: &Settings, expected_uid: &str) -> 
     replacement.metadata = ObjectMeta {
         name: Some(name.clone()),
         labels: current.metadata.labels.clone(),
+        annotations: current.metadata.annotations.clone(),
+        owner_references: current.metadata.owner_references.clone(),
         ..Default::default()
     };
     replacement.status = None;

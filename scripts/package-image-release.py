@@ -34,6 +34,11 @@ def package(a):
         target=a.out/f'kimage-v{v}-{platform}';shutil.copyfile(source,target);target.chmod(0o755)
     shutil.copyfile(a.catalog,a.out/'component-images.json');shutil.copyfile(a.chart,a.out/a.chart.name);shutil.copyfile(ROOT/'LICENSE',a.out/'LICENSE')
     (a.out/'THIRD-PARTY-NOTICES.txt').write_bytes(images.notices(a.metadata))
+    contract=ROOT/'crates/control/src/release-compatibility.json'
+    compatibility=json.loads(contract.read_bytes())
+    assert compatibility['schema']==1 and compatibility['release']==v and compatibility['formats']['apiSchemaRevision']==catalog['apiSchemaRevision']
+    assert not compatibility['migratesStorage'] and not compatibility['downgradesSharedSchema']
+    shutil.copyfile(contract,a.out/'release-compatibility.json')
     (a.out/'SHA256SUMS').write_text(''.join(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.name+'\n' for p in sorted(a.out.iterdir())))
     section=re.search(r'(?ms)^## \['+re.escape(v)+r'\][^\n]*\n(.*?)(?=^## |^\[Unreleased\]:|\Z)',(ROOT/'CHANGELOG.md').read_text());assert section
     (a.out/'RELEASE_NOTES.md').write_text(section[1].strip()+'\n\n[Install guide](https://kimage.dev/docs/#install) · [Helm repository](https://kimage.dev/charts/index.yaml) · [Agent essentials](https://kimage.dev/llms.txt)\n')

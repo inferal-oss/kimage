@@ -1,0 +1,43 @@
+name: Release candidate images
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kimage-candidate-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  acceptance:
+    if: github.repository == 'inferal-oss/kimage' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/e2e.yml
+
+  images:
+    name: Publish immutable candidate images
+    needs: acceptance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: component-layouts
+          path: .local
+      - name: Publish and verify public native indexes
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends skopeo
+          mkdir -p .local/components
+          tar -xzf .local/component-layouts.tar.gz -C .local/components
+          python3 scripts/publish-component-images.py --images .local/components \
+            --candidate-tag candidate-${{ github.sha }} --public-wait 1800

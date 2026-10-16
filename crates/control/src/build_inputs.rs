@@ -214,7 +214,9 @@ impl Original {
             Self::Secret(object) => object.labels(),
         };
         ensure!(
-            !labels.contains_key(SNAPSHOT_LABEL) && !labels.contains_key("kimage.dev/build-state"),
+            !labels.contains_key(SNAPSHOT_LABEL)
+                && !labels.contains_key("kimage.dev/build-state")
+                && !labels.contains_key("kimage.dev/build-log"),
             "ReservedControllerInputDenied"
         );
         match self {
@@ -453,4 +455,21 @@ pub async fn capture_quiescent(config: &Config, frozen: &Frozen) -> Result<()> {
         crate::reconcile::ensure_no_writers(config, &binding.claim).await?;
     }
     unchanged(config, frozen).await
+}
+
+#[cfg(test)]
+mod diagnostics_tests {
+    use super::*;
+    #[test]
+    fn private_diagnostics_cannot_be_reused_as_build_inputs() {
+        let secret:Secret=serde_json::from_value(json!({"metadata":{"name":"buildlog-private","uid":"uid","resourceVersion":"1","labels":{"kimage.dev/build-log":"image-uid"}},"data":{}})).unwrap();
+        assert_eq!(
+            Original::Secret(secret)
+                .reference()
+                .err()
+                .unwrap()
+                .to_string(),
+            "ReservedControllerInputDenied"
+        );
+    }
 }

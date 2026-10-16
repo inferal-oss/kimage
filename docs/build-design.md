@@ -60,8 +60,8 @@ non-sensitive invalidation token is part of the logical request when needed.
 Use the provisioned BuildKit 0.33.0 worker and built-in dockerfile.v0 frontend
 1.27.0, authenticated with its dedicated mTLS client identity. Invoke pinned
 buildctl using argument arrays in a bounded non-root client/session process.
-Capture/discard recipe-bearing progress privately rather than forwarding it to
-Pod logs. The default daemon log configuration must also prevent ordinary recipe
+Capture recipe-bearing progress in bounded private attempt logs rather than
+forwarding it to Pod logs. The default daemon log configuration must also prevent ordinary recipe
 errors from leaking Secret-sourced definitions before that feature is enabled.
 
 The pinned [buildctl source](https://github.com/moby/buildkit/blob/v0.33.0/cmd/buildctl/build.go)

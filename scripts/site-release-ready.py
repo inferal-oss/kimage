@@ -37,6 +37,7 @@ def ready(version):
     if tuple(map(int,version.split('-')[0].split('.'))) >= (0,4,0):
         required={'component-images.json',f'kimage-{version}.tgz','SHA256SUMS','LICENSE','THIRD-PARTY-NOTICES.txt'}
         required.update(f'kimage-v{version}-{system}-{arch}' for system in ['linux','darwin'] for arch in ['amd64','arm64'])
+        if tuple(map(int,version.split('-')[0].split('.'))) >= (0,5,0):required.add('release-compatibility.json')
         return required.issubset(names)
     architectures = ['amd64', 'arm64'] if tuple(map(int, version.split('-')[0].split('.'))) >= (0, 3, 0) else ['amd64']
     required = {f'kimage-bundle-v{version}-linux-{arch}{suffix}' for arch in architectures for suffix in ['.tar.gz', '.inventory.json']}

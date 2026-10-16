@@ -177,6 +177,34 @@ def main():
         running = [v for v in get('pods')['items'] if v['metadata'].get('labels', {}).get('app')=='consumer']
         assert running and all(v['spec']['containers'][0]['image'].endswith('@'+release['spec']['root']['digest']) and v['spec']['nodeName']=='kimage-e2e' for v in running)
         check('only requested native platform built and pulled by Deployment')
+        # Build output is private attempt data, not disposable Pod stdout or
+        # public release metadata. Exercise the real native BuildKit path.
+        failing=image('diagnostic-failure')
+        failing['spec']['platforms']=[dict(os='linux',architecture=arch)]
+        failing['spec']['source']['build']['definition']['inline']='FROM scratch\nARG TARGETARCH\nCOPY hello-${TARGETARCH} /probe\nRUN ["/probe", "diagnose"]\n'
+        create(failing)
+        def attempts():
+            result=run([args.installer.resolve(),'builds','diagnostic-failure','--namespace',app],ok=False)
+            return json.loads(result.stdout) if result.returncode==0 else {}
+        active=wait(lambda: attempts().get('active'), 'diagnostic client starts', 120)
+        attempt=active[0]['attempt']
+        followed=run([args.installer.resolve(),'logs','diagnostic-failure','--namespace',app,'--platform','linux/'+arch,'--attempt',attempt,'--follow'],timeout=180)
+        assert 'kimage-diagnostic-failure-end' in followed.stdout, followed.stderr
+        retained=wait(lambda: attempts().get('retained'), 'private log archived before cleanup', 180)
+        assert len(retained)==1 and retained[0]['attempt']==attempt and retained[0]['truncated']
+        assert retained[0]['phase']=='Failed:ContainerfileSolveFailed'
+        archived=run([args.installer.resolve(),'logs','diagnostic-failure','--namespace',app,'--attempt',attempt])
+        assert '[earlier output truncated]' in archived.stdout and 'kimage-diagnostic-failure-end' in archived.stdout
+        assert len(archived.stdout.encode())<66000
+        public=json.dumps(get('images.kimage.dev'))+json.dumps(get('imagereleases.kimage.dev'))
+        assert 'kimage-diagnostic-output-' not in public and 'kimage-diagnostic-failure-end' not in public
+        logs=[v for v in get('secrets')['items'] if v['metadata'].get('labels',{}).get('kimage.dev/build-log')==get('images.kimage.dev','diagnostic-failure')['metadata']['uid']]
+        assert len(logs)==1 and logs[0]['immutable'] and not logs[0]['metadata']['labels'].get('kimage.dev/build-snapshot')
+        assert logs[0]['metadata']['labels'].get('kimage.dev/build-state')==get('images.kimage.dev','diagnostic-failure')['metadata']['uid']
+        denied=kubectl(['auth','can-i','get','secrets','-n',app,'--as=system:serviceaccount:e2e-system:e2e-admission'],ok=False)
+        assert denied.stdout.strip()=='no'
+        check('native failed build streams output and archives a bounded private tail after Pod cleanup')
+
         encoded = create(pod('platform://'+app+'/service?version=%5E1.0.0', 'encoded'), dry_run=True)
         assert json.loads(encoded.stdout)['spec']['containers'][0]['image'].endswith('@'+release['spec']['root']['digest'])
         check('readable and percent-encoded selectors resolve the same native digest')

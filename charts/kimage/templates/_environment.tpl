@@ -7,6 +7,20 @@
 {{- $app := default "default" .Values.applicationNamespace -}}
 {{- if and $cluster .Values.applicationNamespace -}}{{- fail "applicationNamespace must be empty for cluster scope" -}}{{- end -}}
 {{- if and (not $cluster) .Values.excludedNamespaces -}}{{- fail "excludedNamespaces requires cluster scope" -}}{{- end -}}
+{{- $nodePolicy := .Values.nodePolicy -}}
+{{- $nodePolicyRaw := "" -}}
+{{- if not $nodePolicy -}}
+  {{- $oldPolicy := lookup "v1" "ConfigMap" $ns (printf "%s-node-policy" $install) -}}
+  {{- if $oldPolicy -}}
+    {{- if ne (get $oldPolicy.metadata.labels "kimage.dev/installation") $install -}}{{- fail "NodePolicyOwnershipConflict" -}}{{- end -}}
+    {{- $nodePolicyRaw = get $oldPolicy.data "policy.json" -}}
+    {{- $nodePolicy = $nodePolicyRaw | mustFromJson -}}
+  {{- else -}}
+    {{- $nodePolicy = dict "schema" 1 "nodeSelector" (dict) "workerPins" (.Values.workerNodes | default dict) -}}
+  {{- end -}}
+{{- end -}}
+{{- if or (ne (int $nodePolicy.schema) 1) (gt (len (without (keys $nodePolicy) "schema" "nodeSelector" "workerPins")) 0) -}}{{- fail "InvalidNodePolicy" -}}{{- end -}}
+{{- if not $nodePolicyRaw -}}{{- $nodePolicyRaw = $nodePolicy | toJson -}}{{- end -}}
 {{- $exclusions := concat (list $ns "kube-system" "kube-public" "kube-node-lease") .Values.excludedNamespaces | uniq | sortAlpha -}}
 {{- if and (not $cluster) (or (has $app $exclusions) (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" $app))) -}}{{- fail "applicationNamespace must name an ordinary namespace distinct from the system namespace" -}}{{- end -}}
 {{- $scope := dict "systemNamespace" $ns "applicationNamespace" (ternary nil $app $cluster) "clusterWide" $cluster "excludedNamespaces" (.Values.excludedNamespaces | uniq | sortAlpha) -}}
@@ -46,7 +60,8 @@
   {{- $status := $node.status | default dict -}}{{- $spec := $node.spec | default dict -}}
   {{- $ready := false -}}{{- range $condition := ($status.conditions | default list) -}}{{- if and (eq $condition.type "Ready") (eq $condition.status "True") -}}{{- $ready = true -}}{{- end -}}{{- end -}}
   {{- $info := $status.nodeInfo | default dict -}}
-  {{- if and $ready (not $node.metadata.deletionTimestamp) (not $spec.unschedulable) (eq $info.operatingSystem "linux") (has $info.architecture (list "amd64" "arm64")) -}}
+  {{- $selected := true -}}{{- range $key, $value := $nodePolicy.nodeSelector -}}{{- if ne (get $node.metadata.labels $key) $value -}}{{- $selected = false -}}{{- end -}}{{- end -}}
+  {{- if and $selected $ready (not $node.metadata.deletionTimestamp) (not $spec.unschedulable) (eq $info.operatingSystem "linux") (has $info.architecture (list "amd64" "arm64")) -}}
     {{- if or (ne (get $node.metadata.labels "kubernetes.io/os") $info.operatingSystem) (ne (get $node.metadata.labels "kubernetes.io/arch") $info.architecture) -}}{{- fail "NodePlatformLabelsMismatch" -}}{{- end -}}
     {{- $runtimeOK := or (and (eq $root.Values.runtimeProfile "inferal") (eq $info.kubeletVersion "v1.36.5+rke2r1") (eq $info.containerRuntimeVersion "containerd://2.3.4-k3s1")) (and (eq $root.Values.runtimeProfile "k3s") (eq $info.kubeletVersion "v1.36.5+k3s1") (eq $info.containerRuntimeVersion "containerd://2.3.4-k3s1.36")) -}}
     {{- if not $runtimeOK -}}{{- fail "UntestedRuntime: select the documented runtimeProfile" -}}{{- end -}}
@@ -62,6 +77,13 @@
 {{- if $prior -}}
   {{- if or (ne (get $prior.metadata.labels "kimage.dev/installation") $install) (ne (get $prior.metadata.annotations "kimage.dev/manager") "helm") -}}{{- fail "InstallationManagerConflict" -}}{{- end -}}
   {{- $priorRecord = get $prior.data "installation.json" | fromJson -}}
+{{- end -}}
+{{- if and $priorRecord (ne $priorRecord.release .Chart.AppVersion) -}}
+  {{- $operationMap := lookup "v1" "ConfigMap" $ns (printf "%s-operation" $install) -}}
+  {{- if not $operationMap -}}{{- fail "ExplicitUpgradeRequired: use kimage upgrade or rollback for compatibility checks and resumable Helm history" -}}{{- end -}}
+  {{- if ne (get $operationMap.metadata.labels "kimage.dev/installation") $install -}}{{- fail "InstallationOperationOwnershipConflict" -}}{{- end -}}
+  {{- $operation := get $operationMap.data "operation.json" | mustFromJson -}}
+  {{- if or (ne (int $operation.schema) 1) (eq $operation.phase "Complete") (not (has .Chart.AppVersion (list $operation.source.release $operation.target.release))) (ne $operation.installationUid $prior.metadata.uid) -}}{{- fail "ExplicitUpgradeRequired: the operation does not authorize this release transition" -}}{{- end -}}
 {{- end -}}
 {{- $priorNode := "" -}}{{- if $priorRecord -}}{{- $priorNode = $priorRecord.options.registryNode -}}{{- end -}}
 {{- $primary := default (default (first $names) $priorNode) .Values.registryNode -}}
@@ -125,6 +147,10 @@
 {{- if $priorRecord -}}
   {{- if ne ((omit $options "workerNodes" "exportOrigins") | toJson) ((omit $priorRecord.options "workerNodes" "exportOrigins") | toJson) -}}{{- fail "InstallationConfigurationChanged: preserve scope, storage, port and registry placement" -}}{{- end -}}
 {{- end -}}
+{{- range $arch, $name := $nodePolicy.workerPins -}}
+  {{- if or (not (hasKey $byName $name)) (ne (get $byName $name).status.nodeInfo.architecture $arch) -}}{{- fail "PinnedWorkerUnavailable" -}}{{- end -}}
+  {{- $_ := set $workers $arch $name -}}
+{{- end -}}
 {{- $buildPolicy := .Values.buildPolicy -}}
 {{- $existingBuildRaw := "" -}}
 {{- if not $buildPolicy -}}
@@ -140,7 +166,7 @@
 {{- $buildConfiguration := dict "schema" 1 "buildPolicy" $buildPolicy | toJson -}}
 {{- if $existingBuildRaw -}}{{- $buildConfiguration = $existingBuildRaw -}}{{- end -}}
 {{- $origin := printf "https://%s-registry.%s.svc:5443/" $install $ns -}}
-{{- $b := dict "manager" "helm" "namespace" $ns "installation" $install "applicationNamespace" (ternary nil $app $cluster) "primaryNode" $primary "port" .Values.port "registryOrigin" $origin "allowedNamespaces" (join "," $allowed) "scopeSelector" $selector "scopeJson" ($scope | toJson) "storageClass" $storageClass "storageSize" .Values.persistence.size "claimName" (default (printf "%s-data" $install) .Values.persistence.existingClaim) "registryConfiguration" "version: 0.1\nlog:\n  level: warn\nstorage:\n  filesystem:\n    rootdirectory: /data\n  delete:\n    enabled: false\nhttp:\n  addr: 127.0.0.1:5000\n  host: http://127.0.0.1:5000\n" "buildConfiguration" $buildConfiguration "imageCatalog" ($catalog | toJson) "installationConfiguration" (dict "schema" 1 "delivery" "ImagePull" "options" $options "registryNodeUid" (get $byName $primary).metadata.uid "release" .Chart.AppVersion | toJson) "registryCredentials" $registry "admissionCredentials" $admission "builderCredentials" $builder "proxyCredentials" (pick $registry "ca.crt" "reader-password") "publisherCredentials" (pick $registry "ca.crt" "publisher-password") "builderServerCredentials" (pick $builder "ca.crt" "server.crt" "server.key") "builderClientCredentials" (pick $builder "ca.crt" "client.crt" "client.key") "admissionCa" (get $admission "ca.crt") "workerCapabilities" (.Files.Get "files/resources/worker-capabilities.json" | fromJsonArray) -}}
+{{- $b := dict "manager" "helm" "namespace" $ns "installation" $install "applicationNamespace" (ternary nil $app $cluster) "primaryNode" $primary "port" .Values.port "registryOrigin" $origin "allowedNamespaces" (join "," $allowed) "scopeSelector" $selector "scopeJson" ($scope | toJson) "storageClass" $storageClass "storageSize" .Values.persistence.size "claimName" (default (printf "%s-data" $install) .Values.persistence.existingClaim) "registryConfiguration" "version: 0.1\nlog:\n  level: warn\nstorage:\n  filesystem:\n    rootdirectory: /data\n  delete:\n    enabled: false\nhttp:\n  addr: 127.0.0.1:5000\n  host: http://127.0.0.1:5000\n" "nodePolicy" $nodePolicyRaw "buildConfiguration" $buildConfiguration "imageCatalog" ($catalog | toJson) "installationConfiguration" (dict "schema" 1 "delivery" "ImagePull" "options" $options "registryNodeUid" (get $byName $primary).metadata.uid "release" .Chart.AppVersion | toJson) "registryCredentials" $registry "admissionCredentials" $admission "builderCredentials" $builder "proxyCredentials" (pick $registry "ca.crt" "reader-password") "publisherCredentials" (pick $registry "ca.crt" "publisher-password") "builderServerCredentials" (pick $builder "ca.crt" "server.crt" "server.key") "builderClientCredentials" (pick $builder "ca.crt" "client.crt" "client.key") "admissionCa" (get $admission "ca.crt") "workerCapabilities" (.Files.Get "files/resources/worker-capabilities.json" | fromJsonArray) -}}
 {{- range $role, $image := $images -}}{{- $_ := set $b (printf "%sImage" $role) $image -}}{{- end -}}
 {{- $op := list "--system-namespace" $ns "--node" $primary "--input-image" (get $images "input") "--registry-origin" $origin "--registry-ca" "/credentials/ca.crt" "--publisher-password" "/credentials/publisher-password" "--installation" $install "--builder-image" (get $images "builder") -}}
 {{- $ad := list "--system-namespace" $ns "--installation" $install "--endpoint" (printf "127.0.0.1:%v" .Values.port) "--nodes" $primary "--cert" "/credentials/tls.crt" "--key" "/credentials/tls.key" "--resolution-key" "/credentials/resolution-key" "--operator-identity" (printf "system:serviceaccount:%s:%s-operator" $ns $install) "--input-image" (get $images "input") "--builder-image" (get $images "builder") -}}
@@ -159,5 +185,6 @@
 {{- $_ := set $b "exporterBindingKind" (ternary "ClusterRoleBinding" "RoleBinding" $cluster) -}}
 {{- $_ := set $b "exporterApplicationNamespace" (ternary nil $app $cluster) -}}
 {{- $_ := set $b "exporterApplicationName" (printf "%s-%s" $install (ternary "application-exporter" "exporter" $cluster)) -}}
-{{- dict "bindings" $b "nodes" $byName "nodeNames" $names "workers" $workers "scope" $scope "options" $options "catalog" $catalog | toJson -}}
+{{- $stateOwner := dict -}}{{- if $prior -}}{{- $stateOwner = dict "apiVersion" "v1" "kind" "ConfigMap" "name" $prior.metadata.name "uid" $prior.metadata.uid "controller" false "blockOwnerDeletion" false -}}{{- end -}}
+{{- dict "stateOwner" $stateOwner "bindings" $b "nodes" $byName "nodeNames" $names "workers" $workers "scope" $scope "options" $options "catalog" $catalog | toJson -}}
 {{- end -}}

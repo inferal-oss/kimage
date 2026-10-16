@@ -87,7 +87,8 @@ impl Options {
     }
 }
 
-pub const TEMPLATE_NAMES: [&str; 11] = [
+pub const TEMPLATE_NAMES: [&str; 12] = [
+    "node-policy.json",
     "exporter.json",
     "base.json",
     "storage.json",
@@ -102,6 +103,7 @@ pub const TEMPLATE_NAMES: [&str; 11] = [
 ];
 pub fn template(name: &str) -> Result<&'static str> {
     Ok(match name {
+        "node-policy.json" => include_str!("templates/node-policy.json"),
         "exporter.json" => include_str!("templates/exporter.json"),
         "base.json" => include_str!("templates/base.json"),
         "storage.json" => include_str!("templates/storage.json"),
@@ -115,6 +117,28 @@ pub fn template(name: &str) -> Result<&'static str> {
         "webhooks.json" => include_str!("templates/webhooks.json"),
         _ => anyhow::bail!("UnknownInstallTemplate"),
     })
+}
+
+// Published predecessor templates are part of the rollback contract. Rendering
+// an old binary against current RBAC or recovery templates is not a rollback.
+fn selected_template(name: &str, bindings: &BTreeMap<String, Value>) -> Result<&'static str> {
+    if bindings.get("release").and_then(Value::as_str) == Some("0.4.1") {
+        return Ok(match name {
+            "base.json" => include_str!("templates/v0.4.1/base.json"),
+            "builder-check.json" => include_str!("templates/v0.4.1/builder-check.json"),
+            "builder-pod.json" => include_str!("templates/v0.4.1/builder-pod.json"),
+            "builder.json" => include_str!("templates/v0.4.1/builder.json"),
+            "control.json" => include_str!("templates/v0.4.1/control.json"),
+            "exporter.json" => include_str!("templates/v0.4.1/exporter.json"),
+            "proxy.json" => include_str!("templates/v0.4.1/proxy.json"),
+            "scope-cluster.json" => include_str!("templates/v0.4.1/scope-cluster.json"),
+            "scope-namespace.json" => include_str!("templates/v0.4.1/scope-namespace.json"),
+            "storage.json" => include_str!("templates/v0.4.1/storage.json"),
+            "webhooks.json" => include_str!("templates/v0.4.1/webhooks.json"),
+            _ => anyhow::bail!("UnknownPredecessorTemplate"),
+        });
+    }
+    template(name)
 }
 
 pub fn render(value: &Value, bindings: &BTreeMap<String, Value>) -> Result<Value> {
@@ -176,7 +200,10 @@ fn append(
     name: &str,
     bindings: &BTreeMap<String, Value>,
 ) -> Result<()> {
-    let value = render(&serde_json::from_str(template(name)?)?, bindings)?;
+    let value = render(
+        &serde_json::from_str(selected_template(name, bindings)?)?,
+        bindings,
+    )?;
     resources.extend(
         value
             .as_array()
@@ -312,6 +339,7 @@ impl Plan {
             .find(|node| node.name_any() == primary)
             .and_then(ResourceExt::uid)
             .context("MissingRegistryNodeUid")?;
+        b.insert("release".into(), json!(catalog.release));
         b.insert("manager".into(), json!("cli"));
         for (key, value) in [
             ("namespace", json!(options.namespace)),
@@ -459,6 +487,15 @@ impl Plan {
             append(&mut resources, "storage.json", &b)?;
         }
         append(&mut resources, "base.json", &b)?;
+        if catalog.release == "0.5.0" {
+            b.insert(
+                "nodePolicy".into(),
+                json!(serde_json::to_string(
+                    &crate::node_reconcile::Policy::default()
+                )?),
+            );
+            append(&mut resources, "node-policy.json", &b)?;
+        }
         append(
             &mut resources,
             if scope.cluster_wide {
@@ -532,55 +569,7 @@ impl Plan {
             append(&mut resources, "exporter.json", &b)?;
         }
 
-        for node in &nodes {
-            let uid = node.uid().context("MissingNodeUid")?;
-            b.insert("node".into(), json!(node.name_any()));
-            b.insert("nodeUid".into(), json!(uid));
-            b.insert(
-                "nodeScope".into(),
-                json!(crate::node_install::scope(&options.installation, &uid)),
-            );
-            let endpoint = crate::node_install::Endpoint {
-                schema: 1,
-                node: node.name_any(),
-                node_uid: uid,
-                port: options.port,
-                origin: origin.clone(),
-                namespaces: scope.registry_namespaces(),
-                proxy_images: BTreeSet::from([catalog.reference("proxy")?]),
-            };
-            b.insert(
-                "nodeEndpoint".into(),
-                json!(serde_json::to_string(&endpoint)?),
-            );
-            append(&mut resources, "proxy.json", &b)?;
-        }
-        for (arch, node) in &workers {
-            b.insert("architecture".into(), json!(arch));
-            b.insert("node".into(), json!(node));
-            b.insert(
-                "workerConfiguration".into(),
-                json!(crate::builder_install::configuration(arch)),
-            );
-            let pod = render(&serde_json::from_str(template("builder-pod.json")?)?, &b)?;
-            b.insert("builderPodJson".into(), json!(serde_json::to_string(&pod)?));
-            let worker = json!({"schema":2,"builders":{"default":{"engine":"BuildKit","image":builder,"inputImage":input,"version":"0.33.0","frontendVersion":"1.27.0","endpoint":format!("tcp://{}-builder-{arch}.{}.svc:1234",options.installation,options.namespace),"tlsServerName":format!("{}-builder.{}.svc",options.installation,options.namespace),"clientSecret":format!("{}-builder-client-{arch}",options.installation),"formats":["Containerfile"],"strategies":["Direct"],"platforms":[format!("linux/{arch}")],"node":node,"isolation":"PodUserNamespace","trustScope":options.application_namespace.as_deref().unwrap_or("*"),"cache":{"modes":["Local","Disabled"],"maxUsedBytes":2147483648_u64,"volumeLimitBytes":4294967296_u64},"maxParallelism":1,"offline":true}}});
-            b.insert(
-                "builderCatalog".into(),
-                json!(serde_json::to_string(&worker)?),
-            );
-            append(&mut resources, "builder.json", &b)?;
-            resources.push(pod);
-            b.insert(
-                "workerCheckName".into(),
-                json!(format!(
-                    "{}-builder-check-{arch}-{}",
-                    options.installation,
-                    &catalog.components["builder"].digest[7..15]
-                )),
-            );
-            append(&mut resources, "builder-check.json", &b)?;
-        }
+        append_native(&mut resources, &mut b, options, catalog, &nodes, &workers)?;
         let mut webhooks = Vec::new();
         append(&mut webhooks, "webhooks.json", &b)?;
         Ok(Self {
@@ -591,6 +580,164 @@ impl Plan {
             workers,
         })
     }
+}
+
+fn append_native(
+    resources: &mut Vec<Value>,
+    b: &mut BTreeMap<String, Value>,
+    options: &Options,
+    catalog: &ImageCatalog,
+    nodes: &[Node],
+    workers: &BTreeMap<String, String>,
+) -> Result<()> {
+    let scope = options.scope();
+    let origin = format!(
+        "https://{}-registry.{}.svc:5443/",
+        options.installation, options.namespace
+    );
+    let builder = catalog.reference("builder")?;
+    let input = catalog.reference("input")?;
+    for node in nodes {
+        let uid = node.uid().context("MissingNodeUid")?;
+        b.insert("node".into(), json!(node.name_any()));
+        b.insert("nodeUid".into(), json!(uid));
+        b.insert(
+            "nodeScope".into(),
+            json!(crate::node_install::scope(&options.installation, &uid)),
+        );
+        let endpoint = crate::node_install::Endpoint {
+            schema: 1,
+            node: node.name_any(),
+            node_uid: uid,
+            port: options.port,
+            origin: origin.clone(),
+            namespaces: scope.registry_namespaces(),
+            proxy_images: BTreeSet::from([catalog.reference("proxy")?]),
+        };
+        b.insert(
+            "nodeEndpoint".into(),
+            json!(serde_json::to_string(&endpoint)?),
+        );
+        append(resources, "proxy.json", b)?;
+    }
+    for (arch, node) in workers {
+        b.insert(
+            "nodeUid".into(),
+            json!(
+                nodes
+                    .iter()
+                    .find(|n| n.name_any() == *node)
+                    .and_then(ResourceExt::uid)
+                    .context("MissingWorkerNodeUid")?
+            ),
+        );
+        b.insert("architecture".into(), json!(arch));
+        b.insert("node".into(), json!(node));
+        b.insert(
+            "workerConfiguration".into(),
+            json!(crate::builder_install::configuration(arch)),
+        );
+        let pod = render(
+            &serde_json::from_str(selected_template("builder-pod.json", b)?)?,
+            b,
+        )?;
+        b.insert("builderPodJson".into(), json!(serde_json::to_string(&pod)?));
+        let worker = json!({"schema":2,"builders":{"default":{"engine":"BuildKit","image":builder,"inputImage":input,"version":"0.33.0","frontendVersion":"1.27.0","endpoint":format!("tcp://{}-builder-{arch}.{}.svc:1234",options.installation,options.namespace),"tlsServerName":format!("{}-builder.{}.svc",options.installation,options.namespace),"clientSecret":format!("{}-builder-client-{arch}",options.installation),"formats":["Containerfile"],"strategies":["Direct"],"platforms":[format!("linux/{arch}")],"node":node,"isolation":"PodUserNamespace","trustScope":options.application_namespace.as_deref().unwrap_or("*"),"cache":{"modes":["Local","Disabled"],"maxUsedBytes":2147483648_u64,"volumeLimitBytes":4294967296_u64},"maxParallelism":1,"offline":true}}});
+        b.insert(
+            "builderCatalog".into(),
+            json!(serde_json::to_string(&worker)?),
+        );
+        append(resources, "builder.json", b)?;
+        resources.push(pod);
+        b.insert(
+            "workerCheckName".into(),
+            json!(format!(
+                "{}-builder-check-{arch}-{}",
+                options.installation,
+                if catalog.release == "0.5.0" {
+                    kimage_core::oci::digest(
+                        format!(
+                            "{node}:{}:{}:{}",
+                            b["nodeUid"].as_str().unwrap(),
+                            catalog.components["builder"].digest,
+                            catalog.components["input"].digest
+                        )
+                        .as_bytes(),
+                    )[7..19]
+                        .to_owned()
+                } else {
+                    catalog.components["builder"].digest[7..15].to_owned()
+                }
+            )),
+        );
+        append(resources, "builder-check.json", b)?;
+    }
+    Ok(())
+}
+/// Minimal credentials and bindings for node reconciliation. The operator never
+/// needs registry publisher passwords or the admission signing key.
+pub fn native_resources(
+    options: &Options,
+    catalog: &ImageCatalog,
+    nodes: &[Node],
+    workers: &BTreeMap<String, String>,
+    builder_credentials: &credentials::Material,
+    manager: &str,
+) -> Result<Vec<Value>> {
+    let scope = options.scope();
+    let mut b = BTreeMap::from([
+        ("release".into(), json!(catalog.release)),
+        ("manager".into(), json!(manager)),
+        ("installation".into(), json!(options.installation)),
+        ("namespace".into(), json!(options.namespace)),
+        (
+            "applicationNamespace".into(),
+            json!(options.application_namespace),
+        ),
+        ("port".into(), json!(options.port)),
+        (
+            "registryOrigin".into(),
+            json!(format!(
+                "https://{}-registry.{}.svc:5443/",
+                options.installation, options.namespace
+            )),
+        ),
+        (
+            "allowedNamespaces".into(),
+            json!(
+                scope
+                    .registry_namespaces()
+                    .into_iter()
+                    .collect::<Vec<_>>()
+                    .join(",")
+            ),
+        ),
+        ("scopeSelector".into(), scope.webhook_selector()),
+        ("proxyImage".into(), json!(catalog.reference("proxy")?)),
+        ("builderImage".into(), json!(catalog.reference("builder")?)),
+        ("inputImage".into(), json!(catalog.reference("input")?)),
+        (
+            "builderServerCredentials".into(),
+            json!(Credentials::subset(
+                builder_credentials,
+                &["ca.crt", "server.crt", "server.key"]
+            )?),
+        ),
+        (
+            "builderClientCredentials".into(),
+            json!(Credentials::subset(
+                builder_credentials,
+                &["ca.crt", "client.crt", "client.key"]
+            )?),
+        ),
+        (
+            "workerCapabilities".into(),
+            json!(crate::builder_install::WORKER_CAPABILITIES),
+        ),
+    ]);
+    let mut resources = Vec::new();
+    append_native(&mut resources, &mut b, options, catalog, nodes, workers)?;
+    Ok(resources)
 }
 
 #[cfg(test)]

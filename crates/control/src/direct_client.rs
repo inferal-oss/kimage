@@ -27,7 +27,17 @@ pub fn pod(image: &Image, config: &Config, settings: &Settings, record: &Record)
     let id = &record.session.snapshot_id;
     let mut metadata = build_inputs::object_metadata(image, config, id, "client")?;
     metadata["labels"]["kimage.dev/role"] = json!("builder-client");
+    metadata["labels"]["kimage.dev/build-log-image"] = json!(
+        image
+            .labels()
+            .get("kimage.dev/platform-parent")
+            .cloned()
+            .or_else(|| image.uid())
+            .context("MissingImageUid")?
+    );
     metadata["annotations"]["kimage.dev/build-snapshot-id"] = json!(id);
+    metadata["annotations"]["kimage.dev/build-version"] = json!(image.spec.version);
+    metadata["annotations"]["kimage.dev/build-platform"] = json!(record.session.platform.name());
     let mut volumes = vec![
         json!({"name":"snapshot","emptyDir":{"sizeLimit":"2Gi"}}),
         json!({"name":"sensitive","emptyDir":{"medium":"Memory","sizeLimit":"64Mi"}}),

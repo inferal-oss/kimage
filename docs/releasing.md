@@ -59,9 +59,10 @@ No QEMU build emulation is used.
 
 Review `release-assets`:
 
-- Four `kimage-v0.4.1-<linux|darwin>-<amd64|arm64>` installer binaries.
+- Four `kimage-v0.5.0-<linux|darwin>-<amd64|arm64>` installer binaries.
 - `component-images.json`, the bounded catalog with all eight immutable index pins.
-- `kimage-0.4.1.tgz`, containing the same canonical resources and release pins.
+- `release-compatibility.json`, matching the compiled transition edges and persisted formats.
+- `kimage-0.5.0.tgz`, containing the same canonical resources and release pins.
 - `LICENSE`, `THIRD-PARTY-NOTICES.txt`, `SHA256SUMS` and release notes.
 
 `component-layouts` is an internal build artifact used by publication and CI,
@@ -71,17 +72,17 @@ filled only after both native graph sets pass verification.
 ## Tag and publish
 
 ```sh
-git tag -a v0.4.1 -m 'kimage 0.4.1'
-git push origin v0.4.1
-gh workflow run publish.yml --ref v0.4.1 -f dry_run=true
+git tag -a v0.5.0 -m 'kimage 0.5.0'
+git push origin v0.5.0
+gh workflow run publish.yml --ref v0.5.0 -f dry_run=true
 # After reviewing the exact tag preview:
-gh workflow run publish.yml --ref v0.4.1 -f dry_run=false
+gh workflow run publish.yml --ref v0.5.0 -f dry_run=false
 ```
 
 The tag must match the workspace version and point at a main commit. Publication
 uses the standard OCI registry protocol with all architectures and preserved
 digests. Images have source/license/version labels and live at
-`ghcr.io/inferal-oss/kimage/<role>:v0.4.1`; installation uses their index digests.
+`ghcr.io/inferal-oss/kimage/<role>:v0.5.0`; installation uses their index digests.
 Existing different release tags are never overwritten.
 
 **First publication:** new GHCR packages can default to private. Set all eight
@@ -117,3 +118,31 @@ workflow conclusions and a clean pushed main before reporting completion.
 Older 0.2.x/0.3.x tags keep their original bundle publication workflows. Retain
 those installers and independently trusted bundles for legacy recovery; 0.4.0
 does not perform automatic adoption, storage migration or schema downgrade.
+
+## Upgrade acceptance for every release
+
+Keep the previous published release's canonical resources frozen under
+`crates/control/src/pull_install/templates/vVERSION`. Do not regenerate a rollback
+from new resource templates. Update `release-compatibility.json` with the exact
+allowed edge, data/API/installation/build formats and any downgrade constraints.
+The component catalog and protocol versions must agree. Published predecessor
+assets come from GitHub with recorded size/SHA-256 verification, not a recompiled
+old checkout. Keep historical evidence unchanged.
+
+Native CI runs CLI/Helm, both scopes and both architectures through the published
+predecessor, interruption/resume and reverse transition. It builds fresh Images,
+consumes outputs produced on each side, checks private failed-attempt diagnostics
+and predecessor input protection, and verifies every fixture OCI graph inside the
+cluster after rollback and after uninstall/reinstall. Secret material never enters
+public receipts. The real mixed-node test is explicitly enabled separately with
+`scripts/e2e-upgrade.py --run --config PRIVATE_CONFIG.json`.
+
+Before the final tag, run the `Release candidate images` workflow on main. It first
+passes native acceptance, then publishes immutable `candidate-COMMIT` GHCR tags;
+installation still selects digests from the candidate catalog. This permits real
+mixed-cluster testing without claiming or overwriting final release tags. Use
+isolated namespaces/ports and reversible fixture labels for node membership;
+never delete or cordon shared Nodes. Restore selection before testing an older
+operator that cannot enforce it. Review actual candidate catalogs and retain
+public, sanitized acceptance receipts. Final release pins must match the tested
+candidate when code is unchanged.

@@ -1,6 +1,6 @@
 # Native platforms, build policy, and installation scope
 
-kimage 0.4.1 produces and verifies `linux/amd64` and `linux/arm64` images on
+kimage 0.5.0 produces and verifies `linux/amd64` and `linux/arm64` images on
 native workers. An Image without `spec.platform` or `spec.platforms` uses automatic
 selection. The default build policy is **OnDemand**.
 
@@ -158,6 +158,16 @@ broader application read/write permissions and applies runtime namespace filters
 Registry node administrators are trusted readers; this is not hostile-tenant
 registry isolation. Uninstall keeps PVCs, CRDs, Images, and retained releases.
 
+## Node changes and diagnostics
+
+The operator reconciles native workers and UID-bound node proxies automatically.
+Use `<installation>-node-policy` for a node label selector and explicit worker
+pins. Automatic workers remain where eligible; replacements fence the old worker
+before new clients can run. Registry node identity and storage remain fixed.
+`kimage status` and `kimage doctor` expose availability and pending work. See
+[node membership and release transitions](installation.md#nodes-storage-and-reapplication)
+for policy and compatible rollback constraints.
+
 ## Tests and release gate
 
 `cargo test --workspace` covers platform placement and intersections, complete
@@ -167,7 +177,10 @@ policy, demand generations, and controller API build creation. The
 for CLI and Helm, both scopes, on native amd64 and arm64 Linux runners. It exercises real
 builds/pulls, all supported controller templates, dry-run, pending demand, eager
 production, RBAC and namespace boundaries, and retained storage on uninstall.
-The release workflow requires that matrix to pass before publication.
+The release workflow requires that matrix to pass before publication. Each case
+also runs the published 0.4.1 predecessor through interrupted upgrade and rollback,
+checks failed-attempt diagnostics, and verifies complete retained OCI graphs
+after rollback and uninstall/reinstall.
 
 
 The [opt-in mixed-cluster E2E](mixed-cluster-e2e.md) separately exercises both

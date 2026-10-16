@@ -65,6 +65,34 @@ enum Command {
     Install(ImageInstall),
     /// Remove an installation while retaining images and registry storage.
     Uninstall(RemoveInstallation),
+    /// Read private build output, including retained attempts after Pod cleanup.
+    Logs {
+        image: String,
+        #[arg(short, long)]
+        namespace: Option<String>,
+        #[arg(long)]
+        platform: Option<kimage_core::oci::Platform>,
+        #[arg(long)]
+        attempt: Option<String>,
+        #[arg(short, long)]
+        follow: bool,
+    },
+    /// Inspect active/retained attempts and stable build failure conditions.
+    Builds {
+        image: String,
+        #[arg(short, long)]
+        namespace: Option<String>,
+        #[arg(long)]
+        platform: Option<kimage_core::oci::Platform>,
+    },
+    /// Check or resume an explicit installation upgrade, keeping its original manager.
+    Upgrade(Transition),
+    /// Restore a compatible installed release, retaining registry data and Helm history.
+    Rollback(Transition),
+    /// Show versions, native workers, components, storage and pending operations.
+    Status(Diagnostic),
+    /// Check resource drift and certificate validity without changing the cluster.
+    Doctor(Diagnostic),
     /// Retained bootstrap workflow for independently trusted legacy bundles.
     #[command(hide = true)]
     LegacyInstall {
@@ -159,6 +187,28 @@ struct RemoveInstallation {
     namespace: String,
     #[arg(long, default_value = "kimage")]
     installation: String,
+}
+#[derive(Args)]
+struct Transition {
+    #[command(flatten)]
+    installation: RemoveInstallation,
+    #[arg(long)]
+    to: String,
+    /// Read-only compatibility and retained-data checks.
+    #[arg(long)]
+    check: bool,
+    #[arg(long)]
+    image_catalog: Option<PathBuf>,
+    /// Independently trusted target chart for a Helm-managed installation.
+    #[arg(long)]
+    chart: Option<PathBuf>,
+}
+#[derive(Args)]
+struct Diagnostic {
+    #[command(flatten)]
+    installation: RemoveInstallation,
+    #[arg(long)]
+    json: bool,
 }
 #[derive(Args)]
 struct ImageCluster {
@@ -375,7 +425,70 @@ async fn main() -> Result<()> {
         "kimage"
     };
     let matches = Cli::command().name(name).get_matches();
-    match Cli::from_arg_matches(&matches)?.command {
+    let command = Cli::from_arg_matches(&matches)?.command;
+    let rollback = matches!(command, Command::Rollback(_));
+    let doctor = matches!(command, Command::Doctor(_));
+    match command {
+        Command::Upgrade(args) | Command::Rollback(args) => {
+            let target = kimage_control::component_images::ImageCatalog::resolve(
+                &args.to,
+                args.image_catalog.as_deref(),
+            )
+            .await?;
+            let result = kimage_control::lifecycle::transition(
+                kimage_control::kubernetes::client().await?,
+                &args.installation.namespace,
+                &args.installation.installation,
+                &target,
+                args.check,
+                rollback,
+                args.chart.as_deref(),
+            )
+            .await?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+        Command::Status(args) | Command::Doctor(args) => {
+            let result = kimage_control::diagnostics::inspect(
+                kimage_control::kubernetes::client().await?,
+                &args.installation.namespace,
+                &args.installation.installation,
+                doctor,
+            )
+            .await?;
+            if args.json {
+                println!("{}", serde_json::to_string_pretty(&result)?);
+            } else {
+                println!(
+                    "{} {} in {} ({})",
+                    args.installation.installation,
+                    result["release"].as_str().unwrap_or("unknown"),
+                    args.installation.namespace,
+                    result["manager"].as_str().unwrap_or("unknown")
+                );
+                println!("Platforms: {}", result["platforms"]);
+                println!(
+                    "Storage: {} ({})",
+                    result["storage"]["claim"].as_str().unwrap_or("unknown"),
+                    result["storage"]["phase"].as_str().unwrap_or("unknown")
+                );
+                for issue in result["issues"].as_array().unwrap() {
+                    println!(
+                        "{}: {}",
+                        issue["reason"].as_str().unwrap_or("Issue"),
+                        issue["action"]
+                            .as_str()
+                            .unwrap_or("Inspect installation resources")
+                    );
+                }
+                if result["healthy"] == true {
+                    println!("Healthy");
+                }
+            }
+            anyhow::ensure!(
+                !doctor || result["healthy"] == true,
+                "InstallationNeedsAttention"
+            );
+        }
         Command::Verify { archive, root } => {
             let image = verified(&archive, &root)?;
             println!("{}", serde_json::to_string(image.root())?);
@@ -491,6 +604,44 @@ async fn main() -> Result<()> {
                 "kimage {} removed; image resources and registry storage retained",
                 args.installation
             );
+        }
+        Command::Logs {
+            image,
+            namespace,
+            platform,
+            attempt,
+            follow,
+        } => {
+            let config = kube::Config::infer().await?;
+            let namespace = namespace.as_deref().unwrap_or(&config.default_namespace);
+            kimage_control::build_logs::read(
+                kimage_control::kubernetes::client().await?,
+                namespace,
+                &image,
+                platform.as_ref(),
+                attempt.as_deref(),
+                follow,
+                false,
+            )
+            .await?;
+        }
+        Command::Builds {
+            image,
+            namespace,
+            platform,
+        } => {
+            let config = kube::Config::infer().await?;
+            let namespace = namespace.as_deref().unwrap_or(&config.default_namespace);
+            kimage_control::build_logs::read(
+                kimage_control::kubernetes::client().await?,
+                namespace,
+                &image,
+                platform.as_ref(),
+                None,
+                false,
+                true,
+            )
+            .await?;
         }
         Command::LegacyInstall {
             install,

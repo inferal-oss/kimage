@@ -1,0 +1,13 @@
+[
+  {
+    "apiVersion": "v1",
+    "kind": "ConfigMap",
+    "metadata": {
+      "name": "${installation}-node-policy",
+      "namespace": "${namespace}",
+      "labels": {"kimage.dev/installation": "${installation}"},
+      "annotations": {"kimage.dev/manager": "${manager}"}
+    },
+    "data": {"policy.json": "${nodePolicy}"}
+  }
+]

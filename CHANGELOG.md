@@ -7,6 +7,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-16
+
+### Added
+
+- Explicit installation upgrade and compatible rollback commands, with read-only checks, an exclusive Lease, resumable phases and retained storage/credential identity verification. The initial supported transition is 0.4.1 to 0.5.0 and back, without storage or API migration.
+- Automatic node membership and native worker reconciliation, with UID-bound serving approvals, administrator node selection and worker pins, and fencing before replacement.
+- Read-only `kimage status` and `kimage doctor`, including JSON output, pending operations, component readiness, native platforms, retained storage, certificate validity and resource drift.
+- Private build diagnostics through `kimage logs IMAGE --follow` and `kimage builds IMAGE`, with platform and attempt selection. Completed attempt logs survive build Pod cleanup; each platform retains the latest five attempts with a bounded 64 KiB output tail per attempt.
+
+### Fixed
+
+- Worker recovery preserves installation and Helm ownership. Automatically registered node resources can be adopted by subsequent chart revisions and removed with their installation.
+- Native readiness Jobs have distinct identities when placement or input images change, avoiding immutable Job update failures during Helm upgrades.
+- Resource checks compare JSON values across Helm and Rust serialization without treating key ordering as drift, while rejecting unexpected or changed fields.
+
+### Security
+
+- Diagnostic Secrets carry the predecessor's reserved input marker, so rolling back to 0.4.1 cannot make private build output eligible as an ordinary build input.
+
 ## [0.4.1] - 2026-10-16
 
 ### Added
@@ -173,7 +192,8 @@ credentials, and a supported runtime profile. Builds initially support scratch
 images and provisioned local inputs. See the
 [compatibility limits](README.md#compatibility-and-limits).
 
-[Unreleased]: https://github.com/inferal-oss/kimage/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/inferal-oss/kimage/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/inferal-oss/kimage/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/inferal-oss/kimage/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/inferal-oss/kimage/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/inferal-oss/kimage/compare/v0.3.0...v0.3.1

@@ -194,6 +194,16 @@ async fn main() -> Result<()> {
         cancel: cancel.clone(),
         concurrency: Arc::new(tokio::sync::Semaphore::new(2)),
     });
+    let node_config = config.clone();
+    tokio::spawn(async move {
+        loop {
+            if let Err(error) = kimage_control::node_reconcile::once(node_config.clone()).await {
+                let _ = error;
+                tracing::warn!(reason = "NodeReconciliationPending");
+            }
+            tokio::select! {_=node_config.cancel.cancelled()=>break,_=tokio::time::sleep(Duration::from_secs(10))=>{}}
+        }
+    });
     let api: Api<kimage_control::api::Image> = if a.cluster_wide {
         Api::all(client.clone())
     } else {
@@ -280,9 +290,21 @@ async fn main() -> Result<()> {
     let controller = controller
         .run(
             |image, config| async move {
-                kimage_control::reconcile::reconcile(image, config)
-                    .await
-                    .map_err(|error| std::io::Error::other(error.to_string()))
+                let work = async {
+                    if let Some(settings) = &config.direct
+                        && kimage_control::lifecycle::active(
+                            config.client.clone(),
+                            &settings.system_namespace,
+                            &settings.installation,
+                        )
+                        .await?
+                    {
+                        return Ok(Action::requeue(Duration::from_secs(3)));
+                    }
+                    kimage_control::reconcile::reconcile(image, config).await
+                };
+                work.await
+                    .map_err(|error: anyhow::Error| std::io::Error::other(error.to_string()))
             },
             |_, _, _| Action::requeue(Duration::from_secs(10)),
             config,

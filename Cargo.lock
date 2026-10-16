@@ -1386,7 +1386,7 @@ dependencies = [
 
 [[package]]
 name = "kimage-bootstrap"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "flate2",
  "hex",
@@ -1395,7 +1395,7 @@ dependencies = [
 
 [[package]]
 name = "kimage-control"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -1432,7 +1432,7 @@ dependencies = [
 
 [[package]]
 name = "kimage-core"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",

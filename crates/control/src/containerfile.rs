@@ -1,4 +1,4 @@
-//! Pinned Containerfile/BuildKit transport adapter. No recipe-bearing logs escape.
+//! Pinned Containerfile/BuildKit transport adapter. Output stays in private diagnostics.
 use crate::input_snapshot::Capture;
 use anyhow::{Context, Result, ensure};
 use kimage_core::build::{Build, CacheMode};
@@ -230,6 +230,8 @@ pub async fn solve(
         let mut chunk = [0_u8; 16384];
         let mut line = Vec::new();
         let mut total = 0_usize;
+        let mut log = crate::build_logs::Buffer::default();
+        log.persist()?;
         loop {
             let n = stderr.read(&mut chunk).await?;
             if n == 0 {
@@ -239,6 +241,7 @@ pub async fn solve(
             ensure!(total <= 16 * 1024 * 1024, "BuildProgressLimit");
             for &byte in &chunk[..n] {
                 if byte == b'\n' {
+                    log.progress(&line);
                     progress.observe(&line)?;
                     line.clear();
                 } else {
@@ -246,8 +249,11 @@ pub async fn solve(
                     line.push(byte);
                 }
             }
+            log.persist()?;
         }
         if !line.is_empty() {
+            log.progress(&line);
+            log.persist()?;
             progress.observe(&line)?;
         }
         Ok::<_, anyhow::Error>(progress)

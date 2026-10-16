@@ -3,7 +3,7 @@
 > kimage declares immutable, versioned container images as Kubernetes resources,
 > manages their production and verified publication to a retained cluster-local
 > registry, and resolves workload image selectors to digest-pinned pulls. Apache
-> 2.0. Alpha. Public Cargo packages: kimage-core and kimage-control, version 0.4.1.
+> 2.0. Alpha. Public Cargo packages: kimage-core and kimage-control, version 0.5.0.
 
 **When to use it.** Use kimage when inputs are already provisioned in Kubernetes,
 when images should remain available independently of source/build cache, or when
@@ -29,11 +29,11 @@ cache, general base provisioning, signing/attestations,
 HA, arbitrary storage/schema migration, or automatic retained-artifact GC.
 Administrator-managed builder isolation is not a hostile tenant security claim.
 
-**Install (0.4.1).** Rust 1.99.0+, administrator kubeconfig, Ready Linux
+**Install (0.5.0).** Rust 1.99.0+, administrator kubeconfig, Ready Linux
 amd64/arm64 nodes, persistent storage and the supported Pod user-namespace runtime:
 
 ```sh
-cargo install kimage-control --version 0.4.1 --locked --bin kimage --bin kimage-install
+cargo install kimage-control --version 0.5.0 --locked --bin kimage --bin kimage-install
 kimage install --application-namespace apps
 ```
 
@@ -48,7 +48,7 @@ credentials are generated in process, with separate CAs and read/publish identit
 CA private keys are not deployed. Reapply identical arguments to resume, preserving
 Secrets and administrator build policy. kimage-install is a compatible alias.
 The Cargo crate named kimage is unrelated. Prebuilt installers: GitHub releases.
-Gateway/proxy serving version remains 0.3.0 separately from Cargo 0.4.1.
+Gateway/proxy serving version remains 0.3.0 separately from Cargo 0.5.0.
 
 **Helm alternative.** Helm 3.14+ with live cluster access:
 
@@ -56,7 +56,7 @@ Gateway/proxy serving version remains 0.3.0 separately from Cargo 0.4.1.
 helm repo add kimage https://kimage.dev/charts
 helm repo update
 kubectl create namespace apps
-helm install kimage kimage/kimage --version 0.4.1 \
+helm install kimage kimage/kimage --version 0.5.0 \
   --namespace kimage-system --create-namespace \
   --set applicationNamespace=apps --wait --wait-for-jobs
 ```
@@ -295,14 +295,45 @@ original OCI bytes, platform, compressed layer digests, and DiffIDs are verified
 Native amd64/arm64 manifests, nested indexes and complete multi-platform indexes are supported; zstd, descriptor URLs/embedded data, and subject/referrer graphs are unsupported.
 `kimage-install schemas` prints full CRD JSON without changing the cluster.
 
-**Operations.** Use the original manager. CLI install reapplication resumes the
-same version; it refuses implicit changed component resources. Helm upgrade/rollback
-uses pinned release history; preserve storage/schema compatibility and never
-downgrade shared CRDs. 0.4.0 is the first image-pull chart, with no automatic
-adoption of older bootstrap installations. Retain older installers/bundles for
-legacy recovery. Reapply after adding nodes. System components can restart by
-normal external pulls independently of the included registry. Running application
-containers survive registry downtime; new uncached starts may wait/fail.
+**Upgrade and rollback (0.5.0).** Install the new CLI separately from cluster changes.
+Supported edge: published 0.4.1 <-> 0.5.0 only. Use `kimage upgrade --to 0.5.0 --check`,
+then the same without --check. `kimage rollback --to 0.4.1 --check`, then without
+--check reverses the compatible edge. Add --namespace/--installation as needed.
+Check is read-only. Exact catalogs, an exclusive installation Lease and persisted
+phases make the operation resumable. Stop old clients/workers before component
+policy replacement. Preserve PVC/PV, credentials, admin policy, scope and CRDs.
+No storage/schema migration or implicit latest. After interruption, repeat the
+same target/catalog; a crashed Lease expires in 30s. Never delete the journal or
+switch targets while pending. Completion requires readiness and retained identity
+verification; failure does not silently roll back. New managed admission/builds
+may pause; running containers remain controlled by their workloads.
+Helm-managed installs require Helm on PATH. The same commands invoke Helm with
+exact target pins, retaining ownership/history; rollback renders the exact older chart against current placement as a new
+Helm revision. New charts reject unguarded cross-release upgrade.
+Old charts cannot add guards to raw helm rollback; use the guarded CLI path.
+`kimage install` only resumes the same release. No bootstrap 0.3.x adoption.
+`kimage status --json` shows versions, operation phase, native workers and storage.
+`kimage doctor --json` also checks resource drift and current/30-day certificate
+validity; unhealthy exits nonzero. Both are read-only and omit credential values.
+
+The release-compatibility.json asset documents exact tested edges and persisted
+formats. Unknown/skipped edges are refused. Before returning to 0.4.1, restore
+nodePolicy.nodeSelector={} because that operator cannot enforce node selection.
+Pins and build policy are preserved. Never replay historical departed-node
+placement to recover a pending revision.
+
+**Nodes.** Operator reconciles eligible membership automatically, adds UID-bound
+proxies/native workers, and revokes stale approvals. Automatic workers stay put
+while eligible. Replacement acquires a worker Lease, terminates old clients and
+waits for deletion before replacement; fencing can remain pending for an
+unreachable worker. Never force-delete it to bypass safety. Registry node name,
+UID and PVC never move automatically. Optional ConfigMap INSTALL-node-policy,
+label kimage.dev/installation=INSTALL, data policy.json:
+{"schema":1,"nodeSelector":{"kimage.dev/pool":"images"},"workerPins":{"arm64":"arm-worker"}}
+Empty selector includes all eligible nodes. Registry must stay selected. Pins
+must exist; missing pins report an issue. Helm nodePolicy=null preserves edits;
+first-install workerNodes values become pins. System components restart through
+ordinary external pulls independently of the included registry.
 
 kimage uninstall --namespace kimage-system --installation kimage, or helm uninstall
 kimage --namespace kimage-system --wait, preserves PVCs, CRDs, Images and releases.
@@ -312,7 +343,7 @@ No automatic retained-artifact GC or purge. Generated leaves last ten years;
 reapply preserves them and does not perform automatic renewal/CA rotation.
 Version 0.4.1 fixes intermittent CLI uninstall CleanupIdentityConflict during Pod
 status races while retaining UID/spec/ownership guards. For an existing 0.4.0
-installation, update the CLI to 0.4.1 and run the same uninstall command. No
+installation, update the CLI to 0.5.0 and run the same uninstall command. No
 component reinstallation or data migration is needed for this cleanup fix.
 Published CLI and public Helm mixed-cluster checks cover native GHCR pulls, all
 three fresh-Image placement cases, and complete retained OCI graph readback after
@@ -352,3 +383,11 @@ acceptance harnesses cover lifecycle/recovery/binary rollback/export and remain 
 ## Optional
 
 - [Source and issues](https://github.com/inferal-oss/kimage): Apache 2.0 repository, engineering contracts, release procedure, acceptance receipts, and contribution workflow.
+
+## Build diagnostics
+
+- `kimage builds IMAGE -n apps`: JSON listing active/retained attempt IDs, version, platform, phase, truncation and Image conditions. Use the parent Image name for multi-platform builds.
+- `kimage logs IMAGE -n apps --platform linux/arm64 --follow`; use `--attempt FULL_ID` for a specific retry. Follow never switches attempts.
+- Logs are bounded 64 KiB tails, latest five attempts per Image/platform in immutable namespace Secrets. They survive build Pod cleanup and controller restarts, but are lost with their owning Image. Collection after worker/API loss can be unavailable; 0.4.1 attempts have no output.
+- Build output can contain printed secrets. Require namespace Secret get/list for retained output and Pod get/list/exec for live output. Do not copy raw logs into public releases, status or issues without review. No arbitrary-output redaction is promised.
+- Read Image conditions for stable errors. Transient failures use persisted backoff; permanent failures await changed declarations/inputs. An operator restart does not reset them. VersionConflict means use a new exact version. Solve completion precedes publication and verified release readiness.

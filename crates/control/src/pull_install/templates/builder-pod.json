@@ -10,7 +10,8 @@
     },
     "namespace": "${namespace}",
     "annotations": {
-      "kimage.dev/manager": "${manager}"
+      "kimage.dev/manager": "${manager}",
+      "kimage.dev/node-uid": "${nodeUid}"
     }
   },
   "spec": {

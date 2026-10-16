@@ -24,7 +24,7 @@ use std::{
     time::Duration,
 };
 
-fn child_name(image: &Image, platform: &Platform) -> Result<String> {
+pub(crate) fn child_name(image: &Image, platform: &Platform) -> Result<String> {
     Ok(format!(
         "variant-{}",
         &oci::digest(&serde_json::to_vec(&(
@@ -77,10 +77,24 @@ async fn available(config: &Config) -> Result<BTreeSet<Platform>> {
             .is_none_or(String::is_empty),
         "TooManyClusterNodes"
     );
+    let policy = if let Some(settings) = &config.direct {
+        crate::node_reconcile::policy(
+            config.client.clone(),
+            &settings.system_namespace,
+            &settings.installation,
+        )
+        .await?
+    } else {
+        crate::node_reconcile::Policy::default()
+    };
     Ok(list
         .into_iter()
         .filter(|node| {
-            node.metadata.deletion_timestamp.is_none()
+            policy
+                .node_selector
+                .iter()
+                .all(|(k, v)| node.labels().get(k) == Some(v))
+                && node.metadata.deletion_timestamp.is_none()
                 && node
                     .spec
                     .as_ref()
@@ -592,6 +606,7 @@ mod tests {
                 let mut state = state.lock().unwrap();
                 let missing = || (StatusCode::NOT_FOUND, Json(json!({"apiVersion":"v1","kind":"Status","status":"Failure","reason":"NotFound","code":404}))).into_response();
                 let value = match (method.as_str(), path.as_str()) {
+                    ("GET", "/api/v1/namespaces/system/configmaps/dev-node-policy") => return missing(),
                     ("GET", "/api/v1/namespaces/system/configmaps/dev-config") => match policy {
                         Some(policy) => json!({"apiVersion":"v1","kind":"ConfigMap","metadata":{"labels":{"kimage.dev/installation":"dev"}},"data":{"configuration.json":serde_json::to_string(&configuration::Configuration {schema:1,build_policy:policy}).unwrap()}}),
                         None => return missing(),

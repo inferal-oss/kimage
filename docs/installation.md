@@ -36,7 +36,7 @@ preloaded kimage component. A default StorageClass is used unless overridden.
 Install Rust 1.99.0 or newer, then:
 
 ```sh
-cargo install kimage-control --version 0.4.1 --locked --bin kimage --bin kimage-install
+cargo install kimage-control --version 0.5.0 --locked --bin kimage --bin kimage-install
 kimage install --application-namespace apps
 ```
 
@@ -87,7 +87,7 @@ The chart repository is hosted alongside the website:
 helm repo add kimage https://kimage.dev/charts
 helm repo update
 kubectl create namespace apps
-helm install kimage kimage/kimage --version 0.4.1 \
+helm install kimage kimage/kimage --version 0.5.0 \
   --namespace kimage-system --create-namespace \
   --set applicationNamespace=apps --wait --wait-for-jobs
 ```
@@ -129,12 +129,28 @@ gets a local read proxy. Component images are full amd64/arm64 indexes. Applicat
 builds still follow [consumer placement and build policy](platforms-and-scope.md).
 There is no QEMU build emulation.
 
-After adding nodes, reapply the identical CLI command or `helm upgrade` with your
-retained values. This registers new proxies and any newly available native worker.
-The initial registry node and its UID are retained. Replacing that node or moving
-its PVC requires explicit storage recovery; a rerun will not silently move data.
-Keep scope, storage, port and installation identity consistent. Use unique
-installation identities and ports when deploying multiple installations.
+The operator now reconciles node membership automatically. New eligible nodes
+receive UID-bound read proxies; a newly available architecture receives a native
+worker. Existing automatic workers stay in place while eligible. Lost membership
+revokes serving approval; replacing a worker acquires its build Lease, terminates
+old clients and waits for worker deletion before creating a replacement. A
+partitioned worker can leave fencing pending. Do not force-delete it to make an
+upgrade proceed.
+
+The optional `<installation>-node-policy` ConfigMap contains `policy.json`:
+
+```json
+{"schema":1,"nodeSelector":{"kimage.dev/pool":"images"},"workerPins":{"arm64":"arm-worker"}}
+```
+
+It must carry label `kimage.dev/installation: <installation>`. An empty selector
+includes every eligible node. Pins are administrator placement requirements; a
+missing pinned node is reported instead of silently changing placement. Helm's
+`nodePolicy` value sets this policy; null preserves administrator edits, and a
+fresh install adopts explicit `workerNodes` values as pins. Ensure the retained
+registry node matches the selector. Its name, UID and PVC never move automatically.
+Use unique identities and ports for multiple installations. Scope, storage and
+installation identity remain fixed during release transitions.
 
 System registry/operator/admission use Deployments. Native worker and exact-node
 proxy Pods preserve the existing node-identity and worker-recovery contracts.
@@ -162,27 +178,53 @@ only fixed GitHub metadata requests and is never forwarded to asset downloads.
 
 ## Upgrades, rollback and removal
 
-Use the manager that installed the system. Helm upgrades and rollbacks use normal
-release history and pinned images:
+Install the new CLI first. Updating the Cargo package does not change cluster
+components. The initial supported release edge is **0.4.1 to 0.5.0 and back**:
 
 ```sh
-helm upgrade kimage kimage/kimage --version 0.4.1 \
-  --namespace kimage-system --reset-then-reuse-values --wait --wait-for-jobs
-helm history kimage --namespace kimage-system
-# Select a compatible revision from that history:
-helm rollback kimage <revision> --namespace kimage-system --wait --wait-for-jobs
+kimage upgrade --to 0.5.0 --check
+kimage upgrade --to 0.5.0
+kimage status --json
+kimage doctor --json
+kimage rollback --to 0.4.1 --check
+kimage rollback --to 0.4.1
 ```
 
-Use `--reset-then-reuse-values` to take new chart image defaults while preserving
-your explicit overrides. `--reuse-values` can retain old image pins.
+Add `--namespace` and `--installation` for a non-default system identity. Checks
+are read-only. Actual transitions acquire a renewable installation Lease and
+persist exact source/target catalogs and phases. They stop new reconciliation,
+terminate old clients and workers before replacing component policy, preserve
+credentials and administrator build policy, then verify component readiness and
+retained PVC/PV/CRD/credential identity. Registry writes and new managed Pod
+admission can pause during the transition; running application containers remain
+under their workload controller.
 
-A rollback must preserve schema and Distribution storage compatibility. It does
-not downgrade shared CRDs or restore lost data. 0.4.0 is the first image-pull chart;
-there is no supported automatic adoption of a 0.3.x bootstrap installation. Keep
-its original installer and trusted bundles for legacy recovery. Reapplying the
-CLI resumes the same installation; it refuses changed component resources
-rather than performing an implicit whole-release upgrade. The older guarded
-binary transitions remain documented as [legacy operations](operations.md).
+If interrupted, rerun the same exact command and catalog. A crashed process's
+Lease expires after 30 seconds. Do not delete the journal or switch targets while
+an operation is pending. The operation is marked Complete only after verification;
+a failed transition does not silently roll back. `status` reports its phase and
+`doctor` checks drift, native readiness and certificate validity, returning a
+nonzero exit status when attention is required.
+
+For a Helm-managed installation, the same commands invoke Helm and preserve Helm
+ownership and revision history. Keep a compatible `helm` executable on PATH.
+Upgrades use the exact release chart and explicit target image pins; rollback renders the exact older chart against current node placement as a new
+Helm revision. New charts reject an unguarded
+cross-release upgrade. Use the guarded commands for compatibility checks and
+interrupt recovery; an old 0.4.1 chart cannot add guards to raw `helm rollback`.
+Review history with `helm history kimage --namespace kimage-system`.
+
+The release's `release-compatibility.json` records supported exact edges and the
+API, installation/build/journal, serving and registry storage formats. Unknown
+edges are refused. Rollback to 0.4.1 requires an empty node selector because that
+operator cannot enforce the newer selection policy. Worker pins and administrator
+build policy are preserved. Restore default node selection before downgrading.
+
+Only the tested compatibility edge is allowed. There is no implicit latest,
+skipped release, shared CRD downgrade, storage migration or automatic adoption of
+0.3.x bootstrap installations. Keep original installers and trusted bundles for
+[legacy recovery](operations.md). `kimage install` remains a same-release
+installation/resume command and refuses implicit release changes.
 
 ```sh
 kimage uninstall --namespace kimage-system --installation kimage

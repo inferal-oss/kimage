@@ -1,14 +1,17 @@
 pub mod admission;
 pub mod api;
 pub mod bundle;
+pub mod diagnostics;
 pub mod gateway;
 pub mod install;
 pub mod kubernetes;
+pub mod lifecycle;
 pub mod metrics;
 pub mod preflight;
 pub mod proxy;
 pub mod reconcile;
 pub mod registry;
+pub mod registry_check;
 pub mod release_bundle;
 pub mod retention;
 pub mod schema;
@@ -23,6 +26,7 @@ pub mod pull_install;
 
 pub mod build_inputs;
 pub mod build_lifecycle;
+pub mod build_logs;
 pub mod build_reconcile;
 mod build_schema;
 pub mod build_session;
@@ -39,6 +43,7 @@ pub mod export_install;
 mod export_schema;
 pub mod exporter;
 pub mod node_install;
+pub mod node_reconcile;
 mod operation_lease;
 pub mod upgrade;
 

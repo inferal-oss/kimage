@@ -10,7 +10,7 @@ use kube::{Api, Client, ResourceExt, api::ListParams};
 use serde_json::{Value, json};
 use std::{path::PathBuf, time::Duration};
 
-fn context(client: Client, options: &Options, primary: &str) -> Result<Installer> {
+pub(crate) fn context(client: Client, options: &Options, primary: &str) -> Result<Installer> {
     Installer::image_pull_context(
         client,
         crate::install::Options {
@@ -29,7 +29,7 @@ fn context(client: Client, options: &Options, primary: &str) -> Result<Installer
         },
     )
 }
-fn namespaced(kind: &str) -> bool {
+pub(crate) fn namespaced(kind: &str) -> bool {
     !matches!(
         kind,
         "ClusterRole"
@@ -165,11 +165,23 @@ pub async fn install(client: Client, options: &Options, catalog: &ImageCatalog) 
             "ImplicitReleaseUpgradeRefused: use a compatible release manager"
         );
     }
-    let resolved = resume_options(options, &page.items, previous.as_ref())?;
+    if previous.is_some() {
+        ensure!(
+            !crate::lifecycle::active(client.clone(), &options.namespace, &options.installation)
+                .await?,
+            "InstallationOperationPending: resume the explicit upgrade or rollback"
+        );
+    }
+    let mut resolved = resume_options(options, &page.items, previous.as_ref())?;
+    let node_policy =
+        crate::node_reconcile::policy(client.clone(), &options.namespace, &options.installation)
+            .await?;
+    let (selected, workers) = crate::node_reconcile::select(&resolved, &node_policy, &page.items)?;
+    resolved.worker_nodes = workers;
     let options = &resolved;
     let credentials =
         Credentials::resolve(client.clone(), &options.namespace, &options.installation).await?;
-    let mut plan = Plan::new(options, catalog, &page.items, &credentials)?;
+    let mut plan = Plan::new(options, catalog, &selected, &credentials)?;
     let context = context(client.clone(), options, &plan.primary_node)?;
     context.ensure_scope_available().await?;
     let maps = context.api_at("ConfigMap", Some(&options.namespace))?;
@@ -201,6 +213,44 @@ pub async fn install(client: Client, options: &Options, catalog: &ImageCatalog) 
             resource["data"]["configuration.json"] = json!(configuration);
         }
     }
+    if let Some(policy) = configuration_maps
+        .get_opt(&format!("{}-node-policy", options.installation))
+        .await?
+    {
+        crate::lifecycle::owned(&policy, &options.installation)?;
+        for resource in &mut plan.resources {
+            if resource["kind"] == "ConfigMap" && resource["metadata"]["name"] == policy.name_any()
+            {
+                resource["data"]["policy.json"] = json!(
+                    policy
+                        .data
+                        .as_ref()
+                        .and_then(|d| d.get("policy.json"))
+                        .context("MissingNodePolicy")?
+                );
+            }
+        }
+    }
+    if catalog.release == "0.5.0"
+        && let Some(state) = &previous
+    {
+        crate::node_reconcile::decorate(&mut plan.resources, state)?;
+        for resource in &mut plan.resources {
+            if resource["kind"] == "ConfigMap"
+                && resource["metadata"]["name"].as_str().is_some_and(|n| {
+                    n.starts_with(&format!("{}-builder-template-", options.installation))
+                })
+                && let Some(existing) = configuration_maps
+                    .get_opt(resource["metadata"]["name"].as_str().unwrap())
+                    .await?
+            {
+                let actual = serde_json::to_value(&existing)?;
+                if crate::node_reconcile::equivalent_template(resource, &actual) {
+                    resource["data"]["pod.json"] = actual["data"]["pod.json"].clone();
+                }
+            }
+        }
+    }
     context.ensure_namespaces().await?;
     if let Some(claim) = &options.existing_claim {
         let pvc = context
@@ -212,17 +262,37 @@ pub async fn install(client: Client, options: &Options, catalog: &ImageCatalog) 
             "ExistingPvcNotBound"
         );
     }
-    for resource in &plan.resources {
-        apply_one(&context, resource).await?;
+    let identity = kimage_core::oci::digest(
+        format!("install:{}:{}", options.namespace, options.installation).as_bytes(),
+    );
+    let lease = crate::operation_lease::OperationLease::acquire_wait(
+        client.clone(),
+        &options.namespace,
+        &options.installation,
+        &format!("{}-lifecycle", options.installation),
+        &identity[7..],
+    )
+    .await?;
+    let applied = async {
+        for resource in &plan.resources {
+            lease.check().await?;
+            apply_one(&context, resource).await?;
+        }
+        wait_ready(&context, &plan).await?;
+        for resource in &plan.webhooks {
+            lease.check().await?;
+            apply_one(&context, resource).await?;
+        }
+        Ok::<(), anyhow::Error>(())
     }
-    wait_ready(&context, &plan).await?;
-    for resource in &plan.webhooks {
-        apply_one(&context, resource).await?;
-    }
+    .await;
+    let released = lease.release().await;
+    applied?;
+    released?;
     tracing::info!(installation=%options.installation,namespace=%options.namespace,release=%catalog.release,"registry-pulled installation ready");
     Ok(())
 }
-async fn wait_ready(context: &Installer, plan: &Plan) -> Result<()> {
+pub(crate) async fn wait_ready(context: &Installer, plan: &Plan) -> Result<()> {
     let deadline = tokio::time::Instant::now() + Duration::from_secs(600);
     loop {
         let mut pending = Vec::new();
@@ -360,7 +430,23 @@ pub async fn uninstall_installed(
         options.namespace == namespace && options.installation == installation,
         "InstallationStateIdentityMismatch"
     );
-    uninstall(client, &options).await
+    ensure!(
+        !crate::lifecycle::active(client.clone(), namespace, installation).await?,
+        "InstallationOperationPending: resume its exact target before uninstall"
+    );
+    let identity =
+        kimage_core::oci::digest(format!("uninstall:{namespace}:{installation}").as_bytes());
+    let lease = crate::operation_lease::OperationLease::acquire_wait(
+        client.clone(),
+        namespace,
+        installation,
+        &format!("{installation}-lifecycle"),
+        &identity[7..],
+    )
+    .await?;
+    let result = uninstall(client, &options).await;
+    let released = lease.release().await;
+    result.and(released)
 }
 
 #[cfg(test)]

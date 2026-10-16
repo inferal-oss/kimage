@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import tempfile
@@ -50,15 +51,17 @@ def verify(catalog):
 
 
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--images',type=Path,required=True);p.add_argument('--verify-only',action='store_true');p.add_argument('--public-wait',type=int,default=0);a=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--images',type=Path,required=True);p.add_argument('--verify-only',action='store_true');p.add_argument('--candidate-tag',help='Immutable candidate-<40 hex commit SHA> tag; never overwrites a release tag');p.add_argument('--public-wait',type=int,default=0);a=p.parse_args()
     catalog=json.loads((a.images/'component-images.json').read_bytes());assert catalog['repository']==REPOSITORY
+    assert a.candidate_tag is None or re.fullmatch(r'candidate-[0-9a-f]{40}',a.candidate_tag),'candidate tag must identify an exact commit'
+    tag=a.candidate_tag or 'v'+catalog['release']
     if not a.verify_only:
         with tempfile.TemporaryDirectory(prefix='kimage-registry-auth-') as temp:
             auth=Path(temp)/'auth.json'
             subprocess.run(['skopeo','login','--authfile',str(auth),'--username',os.environ['GITHUB_ACTOR'],'--password-stdin','ghcr.io'],input=os.environ['GHCR_TOKEN'],text=True,check=True,capture_output=True)
             auth.chmod(0o600)
             for role,entry in catalog['components'].items():
-                target=f'docker://{REPOSITORY}/{role}:v{catalog["release"]}'
+                target=f'docker://{REPOSITORY}/{role}:{tag}'
                 previous=subprocess.run(['skopeo','inspect','--authfile',str(auth),'--raw',target],capture_output=True,timeout=60)
                 if previous.returncode==0:
                     assert 'sha256:'+hashlib.sha256(previous.stdout).hexdigest()==entry['digest'],'refusing to overwrite an existing release image'

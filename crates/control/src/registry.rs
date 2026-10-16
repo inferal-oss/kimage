@@ -516,6 +516,18 @@ impl Registry {
         check_digest_header(response.headers(), descriptor)?;
         self.verify_remote(descriptor, false).await
     }
+    /// Bounded authenticated manifest readback for installation health checks.
+    pub async fn verify_retained_root(&self, root: &Descriptor) -> Result<()> {
+        ensure!(
+            matches!(
+                root.media_type.as_str(),
+                kimage_core::oci::INDEX | kimage_core::oci::MANIFEST
+            ) && kimage_core::oci::valid_digest(&root.digest)
+                && root.size <= 1024 * 1024,
+            "InvalidRetainedRoot"
+        );
+        self.verify_remote(root, true).await
+    }
     async fn verify_remote(&self, descriptor: &Descriptor, manifest: bool) -> Result<()> {
         let kind = if manifest { "manifests" } else { "blobs" };
         let response = self

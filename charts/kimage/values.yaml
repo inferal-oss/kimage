@@ -16,6 +16,8 @@ buildPolicy: ""
 # Normally discovered from the cluster. Supply full Node objects for offline rendering.
 nodes: []
 workerNodes: {}
+# Null preserves the administrator node policy, or adopts workerNodes as pins.
+nodePolicy: null
 exporter:
   approvedOrigins: []
 images:
