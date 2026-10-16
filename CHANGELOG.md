@@ -18,6 +18,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ### Fixed
 
+- CLI uninstall rechecks pending operations and installation identity after acquiring its Lease, and stops if that Lease is lost. A concurrent interrupted upgrade cannot be bypassed by a stale uninstall preflight.
 - Documented and tested operator shutdown before Helm removal after rollback to the published 0.4.1 controller, which can otherwise recreate an ownerless worker during deletion. Fresh 0.5.0 Helm removal remains directly tested.
 - Node reconciliation adds missing installation ownership even when a resource's specification already matches. It updates metadata with UID/resource-version guards, without restarting unchanged workers or taking over a different owner or Helm release.
 - Native diagnostic acceptance checks the final stdout line without assuming ordering between stdout and stderr. Failure summaries report bounded metadata without exposing build output; cleanup progress and uninstall timeouts identify remaining resources using metadata only. Focused lifecycle diagnostics cover both native architectures and scopes.

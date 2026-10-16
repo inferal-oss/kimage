@@ -457,7 +457,22 @@ pub async fn uninstall_installed(
         &identity[7..],
     )
     .await?;
-    let result = uninstall(client, &options).await;
+    let operation = async {
+        let latest = maps.get(&format!("{installation}-installation")).await?;
+        ensure!(
+            latest.uid() == state.uid(),
+            "InstallationChangedDuringUninstallPreflight"
+        );
+        ensure!(
+            !crate::lifecycle::active(client.clone(), namespace, installation).await?,
+            "InstallationOperationPending: resume its exact target before uninstall"
+        );
+        uninstall(client, &options).await
+    };
+    let result = tokio::select! {
+        result = operation => result,
+        _ = lease.lost.cancelled() => Err(anyhow::anyhow!("OperationLeaseLost")),
+    };
     let released = lease.release().await;
     result.and(released)
 }

@@ -75,6 +75,7 @@ struct Store {
     fail_after: Option<usize>,
     counter: u64,
     missing_worker_during_verification: bool,
+    change_after_lifecycle_lock: Option<&'static str>,
 }
 impl Store {
     fn put(&mut self, mut v: Value) {
@@ -171,6 +172,14 @@ async fn fixture() -> (kube::Client, Arc<Mutex<Store>>, tokio::task::JoinHandle<
                 json_patch::merge(&mut current,&value);value=current;
             }else if method=="POST" && store.objects.contains_key(&format!("{path}/{}",value["metadata"]["name"].as_str().unwrap())) {return status(409,"AlreadyExists")}
             store.put(value.clone());let key=format!("{}/{}",collection(&value),value["metadata"]["name"].as_str().unwrap());
+            if method=="POST" && value["kind"]=="Lease" && let Some(change)=store.change_after_lifecycle_lock.take() {
+                if change=="active" {
+                    store.put(json!({"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"dev-operation","namespace":"system","labels":{"kimage.dev/installation":"dev"}},"data":{"operation.json":"{\"phase\":\"Applying\"}"}}));
+                } else {
+                    let mut installation=store.objects["/api/v1/namespaces/system/configmaps/dev-installation"].clone();
+                    installation["metadata"]["uid"]=json!("replacement-installation");store.put(installation);
+                }
+            }
             Json(store.objects[&key].clone()).into_response()
         }
     });
@@ -184,6 +193,32 @@ async fn fixture() -> (kube::Client, Arc<Mutex<Store>>, tokio::task::JoinHandle<
     ))
     .unwrap();
     (client, store, server)
+}
+#[tokio::test]
+async fn uninstall_rechecks_interruption_and_installation_identity_after_lock_acquisition() {
+    for (change, reason) in [
+        ("active", "InstallationOperationPending"),
+        ("replacement", "InstallationChangedDuringUninstallPreflight"),
+    ] {
+        let (client, records, server) = fixture().await;
+        records.lock().unwrap().change_after_lifecycle_lock = Some(change);
+        let original = records.lock().unwrap().objects.clone();
+        let error =
+            kimage_control::pull_install::apply::uninstall_installed(client, "system", "dev")
+                .await
+                .unwrap_err();
+        assert!(error.to_string().starts_with(reason), "{error:#}");
+        let store = records.lock().unwrap();
+        for (key, value) in original {
+            if !key.ends_with("/dev-installation") {
+                assert_eq!(store.objects[&key], value, "{key}");
+            }
+        }
+        let lease =
+            &store.objects["/apis/coordination.k8s.io/v1/namespaces/system/leases/dev-lifecycle"];
+        assert!(lease["spec"]["holderIdentity"].is_null());
+        server.abort();
+    }
 }
 #[test]
 fn compatibility_is_explicit_and_bidirectional_without_implicitly_authorizing_skips() {
