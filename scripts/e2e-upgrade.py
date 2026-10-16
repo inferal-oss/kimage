@@ -151,10 +151,10 @@ class Upgrade:
         before=self.operation()
         def healthy():
             result=self.run_command([self.installer,'doctor','--namespace',self.system,'--installation',self.id,'--json'],ok=False)
-            return result.returncode==0 and json.loads(result.stdout)['healthy']
+            if result.returncode!=0 or not json.loads(result.stdout)['healthy']:return False
+            status=json.loads(self.run_command([self.installer,'status','--namespace',self.system,'--installation',self.id,'--json']).stdout)
+            return status['healthy'] and status['release']=='0.5.0'
         self.api.wait(healthy,'read-only doctor reports healthy installation')
-        status=json.loads(self.run_command([self.installer,'status','--namespace',self.system,'--installation',self.id,'--json']).stdout)
-        require(status['healthy'] and status['release']=='0.5.0','Incorrect installation status')
         require(self.operation()==before,'Diagnostics changed the operation journal')
         self.check('status and doctor report healthy placement, resource pins, retained storage and certificates without changing the journal')
 
@@ -246,7 +246,9 @@ class Upgrade:
                 deadline=time.monotonic()+180
                 try:
                     while True:
-                        require(process.poll() is None,'Operation finished before an interruption was observed; fixture must prove interruption')
+                        if process.poll() is not None:
+                            detail=path.read_text()[-3000:]
+                            raise RuntimeError('Operation exited '+str(process.returncode)+' before interruption; fixture must prove interruption. '+detail)
                         record=self.operation()
                         if record and record['phase']=='Applying':
                             if self.config['mode']=='cli':

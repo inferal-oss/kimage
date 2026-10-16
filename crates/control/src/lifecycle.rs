@@ -535,7 +535,7 @@ pub async fn transition(
                 .is_some_and(|v| v == ns),
             "HelmReleaseNamespaceConflict"
         );
-        helm_output(&["version".into(), "--short".into()]).await?;
+        helm_update_mode().await?;
         let values = helm_values.as_ref().context("MissingHelmReleaseValues")?;
         let pinned = |catalog: &ImageCatalog| {
             values["images"]["repository"] == catalog.repository
@@ -970,12 +970,39 @@ async fn helm_output(args: &[String]) -> Result<Vec<u8>> {
         .output()
         .await
         .context("HelmExecutableRequired")?;
-    ensure!(
-        output.status.success(),
-        "HelmCommandFailed: inspect helm status and history for this installation"
-    );
+    if !output.status.success() {
+        // Helm can include rendered credential objects in stderr. Return a
+        // stable reason, never arbitrary chart output or Secret material.
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let reason = if stderr.contains("conflict with") || stderr.contains("Apply failed with") {
+            "HelmFieldOwnershipConflict"
+        } else if stderr.contains("ExplicitUpgradeRequired") {
+            "HelmTransitionGuardRefused"
+        } else if stderr.contains("cannot patch") || stderr.contains("immutable") {
+            "HelmResourceUpdateFailed"
+        } else {
+            "HelmCommandFailed"
+        };
+        anyhow::bail!("{reason}: inspect helm status and history for this installation");
+    }
     ensure!(output.stdout.len() <= 4 * 1024 * 1024, "HelmOutputTooLarge");
     Ok(output.stdout)
+}
+async fn helm_update_mode() -> Result<Vec<String>> {
+    let version = helm_output(&["version".into(), "--short".into()]).await?;
+    let version = std::str::from_utf8(&version)?.trim();
+    ensure!(
+        version.starts_with("v3.") || version.starts_with("v4."),
+        "UnsupportedHelmVersion: use Helm 3 or 4"
+    );
+    // Helm 4 defaults to SSA. Quiescing and native node reconciliation update
+    // fields outside Helm's apply manager, so use Helm's ordinary three-way
+    // update path rather than forcing ownership conflicts or replacing volumes.
+    Ok(if version.starts_with("v4.") {
+        vec!["--server-side=false".into()]
+    } else {
+        vec![]
+    })
 }
 async fn helm_history(name: &str, ns: &str) -> Result<Vec<Value>> {
     let mut history: Vec<Value> = serde_json::from_slice(
@@ -1133,6 +1160,7 @@ async fn helm_transition(
             "10m".into(),
         ];
         args.extend(base.clone());
+        args.extend(helm_update_mode().await?);
         lease.check().await?;
         // Clear Helm's pending revision without waiting for historical node
         // placement. The guarded target is rendered against current topology.
@@ -1161,6 +1189,7 @@ async fn helm_transition(
         ]);
     }
     args.extend(base);
+    args.extend(helm_update_mode().await?);
     lease.check().await?;
     helm_output(&args).await?;
     restore_helm_policy(context, record, &state, release_name, lease).await?;

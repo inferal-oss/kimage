@@ -307,7 +307,8 @@ same target/catalog; a crashed Lease expires in 30s. Never delete the journal or
 switch targets while pending. Completion requires readiness and retained identity
 verification; failure does not silently roll back. New managed admission/builds
 may pause; running containers remain controlled by their workloads.
-Helm-managed installs require Helm on PATH. The same commands invoke Helm with
+Helm-managed installs require Helm 3 or 4 on PATH. Helm 4 transitions select ordinary three-way updates to avoid
+field-ownership conflicts with quiescing and reconciled node resources. They use
 exact target pins, retaining ownership/history; rollback renders the exact older chart against current placement as a new
 Helm revision. New charts reject unguarded cross-release upgrade.
 Old charts cannot add guards to raw helm rollback; use the guarded CLI path.

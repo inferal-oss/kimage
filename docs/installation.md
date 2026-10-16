@@ -208,6 +208,8 @@ nonzero exit status when attention is required.
 
 For a Helm-managed installation, the same commands invoke Helm and preserve Helm
 ownership and revision history. Keep a compatible `helm` executable on PATH.
+Helm 3 and 4 are supported. Guarded transitions select ordinary three-way updates
+on Helm 4 to coordinate with operator quiescing and reconciled node resources.
 Upgrades use the exact release chart and explicit target image pins; rollback renders the exact older chart against current node placement as a new
 Helm revision. New charts reject an unguarded
 cross-release upgrade. Use the guarded commands for compatibility checks and

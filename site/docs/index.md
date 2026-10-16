@@ -393,7 +393,7 @@ Add `--namespace` and `--installation` for a non-default system identity. Checks
 
 If interrupted, repeat the exact command and catalog. A crashed process's Lease expires after 30 seconds. Do not delete the journal or switch targets. `status` shows the pending phase; `doctor` checks drift, native readiness and certificate validity and exits nonzero when attention is needed. A failed operation does not silently roll back.
 
-For Helm ownership, keep Helm on PATH. The commands invoke Helm with exact target image pins and preserve revision history. Rollback records a new Helm revision from the exact older chart and current node placement. New charts reject unguarded cross-release upgrades. Old charts cannot add guards to raw Helm rollback, so use the guarded path for compatibility checks and interrupt recovery. Inspect history with `helm history kimage --namespace kimage-system`.
+For Helm ownership, keep Helm 3 or 4 on PATH. The commands invoke Helm with exact target image pins and preserve revision history. Helm 4 transitions select ordinary three-way updates to coordinate with operator quiescing and reconciled node resources. Rollback records a new Helm revision from the exact older chart and current node placement. New charts reject unguarded cross-release upgrades. Old charts cannot add guards to raw Helm rollback, so use the guarded path for compatibility checks and interrupt recovery. Inspect history with `helm history kimage --namespace kimage-system`.
 
 The release asset `release-compatibility.json` records exact tested transitions and persisted formats. Unknown edges are refused. Before returning to 0.4.1, restore an empty node selector; that operator cannot enforce the newer selection policy. Worker pins and build policy are preserved.
 
