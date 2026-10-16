@@ -233,13 +233,19 @@ class Upgrade:
 
     def assert_removed(self):
         remaining={}
+        last_inventory=None
         def absent():
+            nonlocal last_inventory
             remaining.clear()
             for kind in ['pods','deployments','jobs','configmaps','secrets','services','networkpolicies','roles','rolebindings','serviceaccounts']:
                 items=self.api.get(kind,namespace=self.system,selector='kimage.dev/installation='+self.id)['items']
                 if items:
                     remaining[kind]=[dict(name=v['metadata']['name'],deleting=bool(v['metadata'].get('deletionTimestamp')),
                                          owners=[dict(kind=o['kind'],name=o['name'],uid=o['uid']) for o in v['metadata'].get('ownerReferences',[])]) for v in items]
+            inventory=json.dumps(remaining,sort_keys=True)
+            if remaining and inventory!=last_inventory:
+                print('WAIT: disposable inventory (metadata only): '+inventory,flush=True)
+            last_inventory=inventory
             return not remaining
         try:
             self.api.wait(absent,'all disposable system resources removed, including controller-created resources and operation journal')

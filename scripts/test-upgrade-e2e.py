@@ -33,9 +33,13 @@ class Boundaries(unittest.TestCase):
                 raise TimeoutError('fixture')
         fixture=upgrade.Upgrade.__new__(upgrade.Upgrade)
         fixture.api=API();fixture.system='system';fixture.id='install'
-        with self.assertRaisesRegex(RuntimeError,'fixture-secret') as error:fixture.assert_removed()
+        output=io.StringIO()
+        with contextlib.redirect_stdout(output),self.assertRaisesRegex(RuntimeError,'fixture-secret') as error:fixture.assert_removed()
         self.assertNotIn('credential',str(error.exception))
         self.assertNotIn('private',str(error.exception))
+        self.assertIn('fixture-secret',output.getvalue())
+        self.assertNotIn('credential',output.getvalue())
+        self.assertNotIn('private',output.getvalue())
 
     def test_fixture_preflight_creates_a_private_shared_minified_kubeconfig(self):
         import types

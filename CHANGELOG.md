@@ -19,7 +19,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 ### Fixed
 
 - Node reconciliation adds missing installation ownership even when a resource's specification already matches. It updates metadata with UID/resource-version guards, without restarting unchanged workers or taking over a different owner or Helm release.
-- Native diagnostic acceptance checks the final stdout line without assuming ordering between stdout and stderr. Failure summaries report bounded metadata without exposing build output; uninstall timeouts identify remaining resources using metadata only. Focused lifecycle diagnostics cover both native architectures and scopes.
+- Native diagnostic acceptance checks the final stdout line without assuming ordering between stdout and stderr. Failure summaries report bounded metadata without exposing build output; cleanup progress and uninstall timeouts identify remaining resources using metadata only. Focused lifecycle diagnostics cover both native architectures and scopes.
 - Readiness Job names fit Kubernetes label limits for every supported installation name, including 31- and 32-character names. Rust and Helm render the same bounded names.
 - Helm transitions fence node-local proxy Pods before changing their images and use Helm 4's legacy readiness wait, which tolerates transient restart backoff instead of immediately rejecting a recovering proxy. Independent native readiness and retained-data verification still gate completion.
 - CLI rollback resume stops a partially restarted predecessor again before applying resources. Concurrent worker creation is accepted only for an exact, owned, non-deleting resource; foreign or changed resources remain refused.
