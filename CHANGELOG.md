@@ -7,6 +7,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+### Added
+
+- A [0.5.1 plan for Argo CD installation](docs/0.5.1-plan.md), covering deterministic rendering, in-cluster bootstrap, guarded transitions, retention and real-controller acceptance. Argo CD support remains planned.
+
 ## [0.5.0] - 2026-10-16
 
 ### Added
