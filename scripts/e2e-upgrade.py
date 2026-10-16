@@ -149,9 +149,14 @@ class Upgrade:
 
     def installation_diagnostics(self):
         before=self.operation()
+        last_issues=None
         def healthy():
+            nonlocal last_issues
             result=self.run_command([self.installer,'doctor','--namespace',self.system,'--installation',self.id,'--json'],ok=False)
-            if result.returncode!=0 or not json.loads(result.stdout)['healthy']:return False
+            doctor=json.loads(result.stdout) if result.stdout.strip() else dict(healthy=False,issues=[dict(reason='DoctorCommandUnavailable')])
+            if result.returncode!=0 or not doctor['healthy']:
+                if doctor['issues']!=last_issues:print('WAIT: installation health '+json.dumps(doctor['issues']),flush=True);last_issues=doctor['issues']
+                return False
             status=json.loads(self.run_command([self.installer,'status','--namespace',self.system,'--installation',self.id,'--json']).stdout)
             return status['healthy'] and status['release']=='0.5.0'
         self.api.wait(healthy,'read-only doctor reports healthy installation')
@@ -300,8 +305,13 @@ class Upgrade:
             body=mixed.image_body(name,'native-probes')
             body['spec']['platform']=dict(os='linux',architecture=arch)
             build=body['spec']['source']['build']
-            build['definition']['inline']='FROM scratch\nCOPY attempt.json /leak\n'
-            build['inputs']['volumes']=[dict(name='source',secret=dict(name=secret))]
+            # Keep the ordinary executable context valid. A Secret must mount
+            # below the sensitive root; otherwise syntax validation would reject
+            # this fixture before it reaches reserved-input authorization.
+            build['definition']['inline']='FROM scratch\nARG TARGETARCH\nCOPY probe-${TARGETARCH} /probe\nRUN --mount=type=secret,id=diagnostic ["/probe", "build"]\n'
+            build['inputs']['volumes'].append(dict(name='diagnostic',secret=dict(name=secret)))
+            build['inputs']['volumeMounts'].append(dict(name='diagnostic',mountPath='/run/kimage-build-secrets/diagnostic',readOnly=True))
+            build['buildSecrets']=[dict(id='diagnostic',sourceFile='/run/kimage-build-secrets/diagnostic/attempt.json')]
             image=self.api.create(body)
             def refused():
                 value=self.api.get('images.kimage.dev',name,self.app)
