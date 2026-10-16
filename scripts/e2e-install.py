@@ -8,6 +8,7 @@ import argparse
 import base64
 import copy
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -15,6 +16,9 @@ import subprocess
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
+spec = importlib.util.spec_from_file_location('log_assertions', ROOT/'scripts/e2e-log-assertions.py')
+log_assertions = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(log_assertions)
 
 
 def prerequisite_images(node):
@@ -189,13 +193,9 @@ def main():
         active=wait(lambda: attempts().get('active'), 'diagnostic client starts', 120)
         attempt=active[0]['attempt']
         followed=run([args.installer.resolve(),'logs','diagnostic-failure','--namespace',app,'--platform','linux/'+arch,'--attempt',attempt,'--follow'],timeout=180)
-        assert 'kimage-diagnostic-failure-end' in followed.stdout, followed.stderr
         retained=wait(lambda: attempts().get('retained'), 'private log archived before cleanup', 180)
-        assert len(retained)==1 and retained[0]['attempt']==attempt and retained[0]['truncated']
-        assert retained[0]['phase']=='Failed:ContainerfileSolveFailed'
         archived=run([args.installer.resolve(),'logs','diagnostic-failure','--namespace',app,'--attempt',attempt])
-        assert '[earlier output truncated]' in archived.stdout and 'kimage-diagnostic-failure-end' in archived.stdout
-        assert len(archived.stdout.encode())<66000
+        log_assertions.verify(followed.stdout, archived.stdout, retained, attempt)
         public=json.dumps(get('images.kimage.dev'))+json.dumps(get('imagereleases.kimage.dev'))
         assert 'kimage-diagnostic-output-' not in public and 'kimage-diagnostic-failure-end' not in public
         logs=[v for v in get('secrets')['items'] if v['metadata'].get('labels',{}).get('kimage.dev/build-log')==get('images.kimage.dev','diagnostic-failure')['metadata']['uid']]

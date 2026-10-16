@@ -10,6 +10,20 @@ spec.loader.exec_module(install)
 
 
 class Preflight(unittest.TestCase):
+    def test_diagnostic_tail_accepts_independent_stdout_stderr_order_and_keeps_errors_private(self):
+        assertions = install.log_assertions
+        burst = ''.join(f'kimage-diagnostic-output-{line:04}\n' for line in range(5000))
+        for output in ('kimage-diagnostic-failure-end\n' + burst, burst + 'kimage-diagnostic-failure-end\n'):
+            tail = assertions.TRUNCATED + '\n' + output[-65536:]
+            receipt = [dict(attempt='fixture', truncated=True, phase='Failed:ContainerfileSolveFailed')]
+            assertions.verify(tail, tail, receipt, 'fixture')
+        with self.assertRaisesRegex(RuntimeError, 'Live native failure output is missing') as error:
+            assertions.verify('private-build-secret', tail, receipt, 'fixture')
+        self.assertNotIn('private-build-secret', str(error.exception))
+        self.assertIn('"finalLine": false', str(error.exception))
+        with self.assertRaisesRegex(RuntimeError, 'Invalid bounded retained output'):
+            assertions.verify(tail, burst, receipt, 'fixture')
+
     def test_incomplete_kubelet_reports_keep_waiting(self):
         for status in [{}, {'images': None}, {'images': []}, {'images': [{'names': None}]},
                        {'images': [{'names': ['unrelated:latest']}]}]:

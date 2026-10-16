@@ -22,6 +22,8 @@ import uuid
 ROOT=Path(__file__).resolve().parents[1]
 spec=importlib.util.spec_from_file_location('mixed',ROOT/'scripts/e2e-mixed-cluster.py')
 mixed=importlib.util.module_from_spec(spec);spec.loader.exec_module(mixed)
+spec=importlib.util.spec_from_file_location('log_assertions',ROOT/'scripts/e2e-log-assertions.py')
+log_assertions=importlib.util.module_from_spec(spec);spec.loader.exec_module(log_assertions)
 
 
 def require(value,message):
@@ -288,11 +290,9 @@ class Upgrade:
         active=self.api.wait(lambda:attempts().get('active'),'native failed build starts')
         attempt=active[0]['attempt']
         output=self.run_command([self.installer,'logs',name,'-n',self.app,'--platform','linux/'+arch,'--attempt',attempt,'--follow'],timeout=180)
-        require('kimage-diagnostic-failure-end' in output.stdout,'Live native failure output is missing')
         retained=self.api.wait(lambda:attempts().get('retained'),'private failed attempt survives Pod cleanup')
-        require(len(retained)==1 and retained[0]['attempt']==attempt and retained[0]['truncated'] and retained[0]['phase']=='Failed:ContainerfileSolveFailed','Incorrect retained failure receipt')
         archived=self.run_command([self.installer,'logs',name,'-n',self.app,'--attempt',attempt])
-        require('[earlier output truncated]' in archived.stdout and 'kimage-diagnostic-failure-end' in archived.stdout and len(archived.stdout.encode())<66000,'Invalid bounded retained output')
+        log_assertions.verify(output.stdout, archived.stdout, retained, attempt)
         secrets=self.api.get('secrets',namespace=self.app,selector='kimage.dev/build-log='+image['metadata']['uid'])['items']
         require(len(secrets)==1 and secrets[0]['immutable'] and secrets[0]['metadata']['labels'].get('kimage.dev/build-state')==image['metadata']['uid'],'Private output lacks the predecessor reserved-input marker')
         public=json.dumps(self.api.get('images.kimage.dev',namespace=self.app))+json.dumps(self.api.get('imagereleases.kimage.dev',namespace=self.app))
