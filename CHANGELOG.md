@@ -18,6 +18,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ### Fixed
 
+- Status and doctor preserve Helm ownership inside worker recovery templates, avoiding false drift reports after a guarded chart upgrade.
 - Worker recovery preserves installation and Helm ownership. Automatically registered node resources can be adopted by subsequent chart revisions and removed with their installation.
 - Native readiness Jobs have distinct identities when placement or input images change, avoiding immutable Job update failures during Helm upgrades.
 - Resource checks compare JSON values across Helm and Rust serialization without treating key ordering as drift, while rejecting unexpected or changed fields.

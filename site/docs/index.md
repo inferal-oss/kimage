@@ -204,7 +204,7 @@ A real missing-release Pod CREATE records bounded UID/generation/version demand 
 
 Versions are immutable per Image UID and native platform, with a separate aggregate identity. `status.platformReleases` lists native variants. A later consumer can request an additional variant; the index is published only after both complete graphs and matching private input captures are verified. Changed input captures require a new version.
 
-The CLI and Helm discover one native worker per available architecture and a read proxy for every eligible node. Kubelet selects native children from the pinned component indexes. Reapply after adding nodes to register new proxies and platforms. There is no QEMU emulation. Provide matching executable inputs for every requested application architecture.
+The CLI and Helm discover one native worker per available architecture and a read proxy for every eligible node. Kubelet selects native children from the pinned component indexes. From 0.5.0, the operator automatically registers eligible nodes and platforms under the configured node policy. Earlier releases require reapplication after node additions. There is no QEMU emulation. Provide matching executable inputs for every requested application architecture.
 
 ## Namespace or cluster-wide installation
 

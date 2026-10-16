@@ -398,8 +398,10 @@ source:
               captures are verified. Changed input captures require a new version.</p>
             <p>The CLI and Helm discover one native worker per available architecture
               and a read proxy for every eligible node. Kubelet selects native children
-              from the pinned component indexes. Reapply after adding nodes to register
-              new proxies and platforms. There is no QEMU emulation. Provide matching
+              from the pinned component indexes. From 0.5.0, the operator automatically
+              registers eligible nodes and platforms under the configured node policy.
+              Earlier releases require reapplication after node additions. There is no
+              QEMU emulation. Provide matching
               executable inputs for every requested application architecture.</p>
           </section>
           <section id="scope">

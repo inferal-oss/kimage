@@ -191,7 +191,13 @@ pub async fn inspect(
             |(nodes, workers)| {
                 let mut options = options.clone();
                 options.worker_nodes = workers;
-                crate::pull_install::Plan::new(&options, &catalog, &nodes, &credentials)
+                crate::pull_install::Plan::with_manager(
+                    &options,
+                    &catalog,
+                    &nodes,
+                    &credentials,
+                    &manager,
+                )
             },
         );
         match planned {

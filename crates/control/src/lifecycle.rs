@@ -494,7 +494,13 @@ pub async fn transition(
     let (selected, workers) = crate::node_reconcile::select(&options, &node_policy, &all_nodes)?;
     let mut planned_options = options.clone();
     planned_options.worker_nodes = workers;
-    let mut plan = Plan::new(&planned_options, target, &selected, &credentials)?;
+    let mut plan = Plan::with_manager(
+        &planned_options,
+        target,
+        &selected,
+        &credentials,
+        &record.manager,
+    )?;
     if let Some(policy) = maps.get_opt(&format!("{id}-node-policy")).await? {
         owned(&policy, id)?;
         for resource in &mut plan.resources {

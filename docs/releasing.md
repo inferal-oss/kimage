@@ -22,6 +22,7 @@ python3 scripts/test-release.py
 python3 scripts/test-component-images.py
 python3 scripts/test-mixed-e2e.py
 python3 scripts/test-install-e2e.py
+python3 scripts/test-upgrade-e2e.py
 python3 scripts/check-docs.py
 python3 scripts/check-site.py
 python3 scripts/check-chart.py --helm helm
@@ -135,7 +136,8 @@ consumes outputs produced on each side, checks private failed-attempt diagnostic
 and predecessor input protection, and verifies every fixture OCI graph inside the
 cluster after rollback and after uninstall/reinstall. Secret material never enters
 public receipts. The real mixed-node test is explicitly enabled separately with
-`scripts/e2e-upgrade.py --run --config PRIVATE_CONFIG.json`.
+`scripts/e2e-upgrade.py --run --config PRIVATE_CONFIG.json`. See the
+[lifecycle acceptance guide](lifecycle-e2e.md) for configuration and retained data.
 
 Before the final tag, run the `Release candidate images` workflow on main. It first
 passes native acceptance, then publishes immutable `candidate-COMMIT` GHCR tags;

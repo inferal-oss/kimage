@@ -280,6 +280,20 @@ impl Plan {
         nodes: &[Node],
         credentials: &Credentials,
     ) -> Result<Self> {
+        Self::with_manager(options, catalog, nodes, credentials, "cli")
+    }
+
+    pub(crate) fn with_manager(
+        options: &Options,
+        catalog: &ImageCatalog,
+        nodes: &[Node],
+        credentials: &Credentials,
+        manager: &str,
+    ) -> Result<Self> {
+        ensure!(
+            matches!(manager, "cli" | "helm"),
+            "InvalidInstallationManager"
+        );
         options.validate()?;
         catalog.validate(&catalog.release, false)?;
         credentials.validate()?;
@@ -340,7 +354,7 @@ impl Plan {
             .and_then(ResourceExt::uid)
             .context("MissingRegistryNodeUid")?;
         b.insert("release".into(), json!(catalog.release));
-        b.insert("manager".into(), json!("cli"));
+        b.insert("manager".into(), json!(manager));
         for (key, value) in [
             ("namespace", json!(options.namespace)),
             ("installation", json!(options.installation)),
@@ -801,6 +815,62 @@ mod tests {
             port: 17701,
         }
     }
+    #[test]
+    fn diagnostic_plans_preserve_helm_manager_inside_worker_recovery_templates() {
+        let credentials = Credentials::generate("kimage-system", "kimage").unwrap();
+        let nodes = [node("amd", "amd64"), node("arm", "arm64")];
+        for release in ["0.4.1", "0.5.0"] {
+            let mut catalog = catalog();
+            catalog.release = release.into();
+            for role in ["operator", "admission", "input", "exporter"] {
+                catalog.components.get_mut(role).unwrap().version = release.into();
+            }
+            let options = options(InstallScope::Namespace);
+            let plan =
+                Plan::with_manager(&options, &catalog, &nodes, &credentials, "helm").unwrap();
+            let native = native_resources(
+                &options,
+                &catalog,
+                &nodes,
+                &plan.workers,
+                &credentials.builder,
+                "helm",
+            )
+            .unwrap();
+            let mut checked = 0;
+            for expected in plan.resources.iter().filter(|r| {
+                r["kind"] == "ConfigMap"
+                    && r["metadata"]["name"]
+                        .as_str()
+                        .unwrap()
+                        .contains("-builder-template-")
+            }) {
+                checked += 1;
+                let actual = native
+                    .iter()
+                    .find(|r| r["metadata"]["name"] == expected["metadata"]["name"])
+                    .unwrap();
+                let current = serde_json::from_value(actual.clone()).unwrap();
+                crate::install::verify_declared(expected, &current).unwrap();
+                let pod: Value =
+                    serde_json::from_str(expected["data"]["pod.json"].as_str().unwrap()).unwrap();
+                assert_eq!(pod["metadata"]["annotations"]["kimage.dev/manager"], "helm");
+                let mut forged = actual.clone();
+                let mut pod = pod;
+                pod["metadata"]["annotations"]["kimage.dev/manager"] = json!("cli");
+                forged["data"]["pod.json"] = json!(serde_json::to_string(&pod).unwrap());
+                assert!(
+                    crate::install::verify_declared(
+                        expected,
+                        &serde_json::from_value(forged).unwrap()
+                    )
+                    .is_err()
+                );
+            }
+            assert_eq!(checked, 2);
+        }
+    }
+
     #[test]
     fn both_scopes_use_native_registry_pulls_and_retained_storage_without_binary_payloads() {
         let credentials = Credentials::generate("kimage-system", "kimage").unwrap();

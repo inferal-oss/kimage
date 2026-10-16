@@ -229,8 +229,10 @@ a generation; stale UIDs/generations and arbitrary historical build requests fai
 
 The CLI and Helm discover one native worker per available architecture and a
 read proxy per eligible node. Component indexes select native manifests through
-kubelet, independent of laptop architecture. Reapply after node additions. The
-original registry node/UID stays pinned to protect retained storage; replacement
+kubelet, independent of laptop architecture. From 0.5.0, eligible nodes and
+platforms reconcile automatically under node policy; earlier releases require
+reapplication after node additions. The original registry node/UID stays pinned
+to protect retained storage; replacement
 needs explicit recovery. There is no QEMU emulation.
 
 Copied executable inputs must match the requested architecture. The hello example
