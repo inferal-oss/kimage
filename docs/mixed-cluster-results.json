@@ -1,0 +1,162 @@
+{
+  "schema": 1,
+  "test": "real-mixed-cluster",
+  "date": "2026-10-15",
+  "testedPackageVersion": "0.3.0",
+  "testedRelease": "v0.3.0",
+  "testedReleaseCommit": "3ca9bb121159da8f4991490761a9450348036526",
+  "harnessCommit": "83bf36402e94b30155318e460a428963b8f37ab1",
+  "harnessSha256": "2c33a4690de8b943a9e6621152fb9447546b3e1e8bc0d02ad3df7c7d2b5e081d",
+  "profile": {
+    "operatingSystem": "linux",
+    "architectures": [
+      "amd64",
+      "arm64"
+    ],
+    "kubeletVersion": "v1.36.5+rke2r1",
+    "containerRuntimeVersion": "containerd://2.3.4-k3s1",
+    "installScope": "namespace",
+    "buildPolicy": "OnDemand"
+  },
+  "checks": [
+    "Fresh parent Image and immutable input for every case; platform/platforms omitted",
+    "No child, release, or demand before the consumer",
+    "Exact current-generation demand and native child/release sets",
+    "Executed native RUN for each variant, with a fresh input marker",
+    "Verified native manifests and complete index",
+    "Unknown placement: both native consumers pull the same selected index root",
+    "Explicit placement: only the requested native variant exists",
+    "Stored workload templates retain platform selectors",
+    "Final settling check rejects late unwanted variants",
+    "Administrator build policy unchanged",
+    "Owned consumer Deployments and Pods removed"
+  ],
+  "runs": [
+    {
+      "runId": "9131578a4e35",
+      "complete": true,
+      "consumerCleanupComplete": true,
+      "cases": [
+        {
+          "placement": "unknown",
+          "imageUid": "564624ae-fe57-4165-867e-35c0e562e488",
+          "nativeImageUids": [
+            "0f63855f-4b84-4c49-a0fd-2a8b0c1d0063",
+            "f62e121e-2688-43cb-9e39-dc7d09729dfc"
+          ],
+          "builtPlatforms": [
+            "amd64",
+            "arm64"
+          ],
+          "consumerPlatforms": [
+            "amd64",
+            "arm64"
+          ],
+          "selectedRoot": "sha256:e3dce267b070109e0d604dbaafe063222e076dfd88366754bfe50df45c3d28eb",
+          "selectedMediaType": "application/vnd.oci.image.index.v1+json"
+        },
+        {
+          "placement": "amd64",
+          "imageUid": "0878831e-27dd-4cf9-9662-f69cfa802bf1",
+          "nativeImageUids": [
+            "bd5a31d6-92d8-41a9-bb4d-a05d8108f767"
+          ],
+          "builtPlatforms": [
+            "amd64"
+          ],
+          "consumerPlatforms": [
+            "amd64"
+          ],
+          "selectedRoot": "sha256:5cd6c1fa0b00bbcc4aa286c6a11618e113f6bfb05aa39705705ae00644aeff3e",
+          "selectedMediaType": "application/vnd.oci.image.manifest.v1+json"
+        },
+        {
+          "placement": "arm64",
+          "imageUid": "15d1e430-3c31-4aa8-b7c6-90b69d80be5f",
+          "nativeImageUids": [
+            "e01e3bc9-ed92-486e-b8f7-c3627c37cf46"
+          ],
+          "builtPlatforms": [
+            "arm64"
+          ],
+          "consumerPlatforms": [
+            "arm64"
+          ],
+          "selectedRoot": "sha256:038a1f7eca402764f1b3d0123f9413ef0698c77c4c605fc6830b582ef8e22dda",
+          "selectedMediaType": "application/vnd.oci.image.manifest.v1+json"
+        }
+      ]
+    },
+    {
+      "runId": "d35f1820d53c",
+      "complete": true,
+      "consumerCleanupComplete": true,
+      "cases": [
+        {
+          "placement": "unknown",
+          "imageUid": "380f5b2a-24ff-4f93-a5d1-55013d2c1322",
+          "nativeImageUids": [
+            "4064019a-ca37-45c5-9278-617d5b855c60",
+            "df81d187-6258-439b-9f04-2b0995f52413"
+          ],
+          "builtPlatforms": [
+            "amd64",
+            "arm64"
+          ],
+          "consumerPlatforms": [
+            "amd64",
+            "arm64"
+          ],
+          "selectedRoot": "sha256:f5549b8fb538ae1cf74593fb11566fc6f1545bd184e67aee775373833aa82e5b",
+          "selectedMediaType": "application/vnd.oci.image.index.v1+json"
+        },
+        {
+          "placement": "amd64",
+          "imageUid": "7891fb5e-e90b-440d-8c70-72204ec31353",
+          "nativeImageUids": [
+            "57b4e353-1b82-4ae9-abaa-16682798c28b"
+          ],
+          "builtPlatforms": [
+            "amd64"
+          ],
+          "consumerPlatforms": [
+            "amd64"
+          ],
+          "selectedRoot": "sha256:699243be6b196ef58c71b69065c285dac3b0b141f77cf64ee4731b9bd3a508e8",
+          "selectedMediaType": "application/vnd.oci.image.manifest.v1+json"
+        },
+        {
+          "placement": "arm64",
+          "imageUid": "07491a29-fbff-47cb-96ea-b21c7a8b8425",
+          "nativeImageUids": [
+            "8845affe-5f86-44d7-a96a-0b3128c46459"
+          ],
+          "builtPlatforms": [
+            "arm64"
+          ],
+          "consumerPlatforms": [
+            "arm64"
+          ],
+          "selectedRoot": "sha256:80f4c489108700dafd1babe670182c116e7780b4e6ab04fd7b7406a7bf6971f2",
+          "selectedMediaType": "application/vnd.oci.image.manifest.v1+json"
+        }
+      ]
+    }
+  ],
+  "fixtureDisposition": {
+    "normalUninstall": true,
+    "systemPods": 0,
+    "applicationPods": 0,
+    "consumerDeployments": 0,
+    "temporaryRunnerRbacRemoved": true,
+    "retainedImages": 14,
+    "retainedImageReleases": 18,
+    "retainedPvcCount": 1,
+    "retainedPvcCapacity": "1Gi",
+    "sharedCrdsRetained": true
+  },
+  "bundleInventoryDigests": {
+    "linux/amd64": "sha256:1d3541ffde72201ad98e48e7eff2db3f3fe63a28f6a3a2f70dcde92b9929a3cf",
+    "linux/arm64": "sha256:97b90d4e4c19fa1b3e7d8d6d7d32bcf41ab46379190f1125999f08cd627ba5c8"
+  }
+}

@@ -13,6 +13,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
   and arm64 workload placement. It checks native builds, exact variant and demand
   sets, and native execution through the selected OCI index or manifest. Public
   CI checks the harness; the live test requires an existing mixed cluster.
+  [Two recorded real-cluster runs](docs/mixed-cluster-results.json) passed using
+  the published 0.3.0 binaries.
 
 ### Changed
 

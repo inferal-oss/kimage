@@ -180,3 +180,8 @@ architectures in one real cluster, using fresh Images for unknown and explicit
 amd64/arm64 workload placement. It checks exact native builds and actual pulls
 of the selected index or manifest. It is ignored by default and explicitly
 configured for an administrator-approved mixed cluster.
+
+Two [recorded mixed-cluster runs](mixed-cluster-results.json) passed against the
+published 0.3.0 binaries on real RKE2 amd64/arm64 nodes, with a separate fresh Image
+for every placement case. Unknown placement used the same index root on both
+architectures; explicit placement built and consumed only its requested variant.

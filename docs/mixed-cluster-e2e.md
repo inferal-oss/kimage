@@ -5,6 +5,20 @@ separate from the homogeneous native Kubernetes CI matrix. Public CI checks the
 harness contract and skips the live Rust test by default; it does not emulate a
 mixed cluster or require access to a private cluster.
 
+## Recorded acceptance
+
+Two independent runs passed on 2026-10-15 using the official 0.3.0 binaries, real
+Linux/amd64 and Linux/arm64 nodes, RKE2 `v1.36.5+rke2r1`, and containerd
+`2.3.4-k3s1`. Both used namespace scope and `OnDemand` policy. Across six fresh
+parent Images, unknown placement produced both variants and an index consumed on
+both architectures; explicit placement produced only its requested variant.
+The [receipt](mixed-cluster-results.json) records parent/native Image UIDs, roots,
+consumer platforms, harness identity, and completed consumer cleanup. It excludes
+private cluster names and node identifiers. The test did not require a product
+binary change or a 0.3.1 release. The dedicated fixture was normally uninstalled
+afterward: no test Pods or runner access remained, while pinned releases and the
+1 GiB registry PVC were retained. See `fixtureDisposition` in the receipt.
+
 ## Prerequisites
 
 Use a dedicated application namespace managed by an existing kimage installation.

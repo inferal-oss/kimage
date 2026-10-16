@@ -372,8 +372,10 @@ for the full grammar and rollout behavior.
 
 Native Kubernetes E2E covers Linux/amd64 and Linux/arm64. The earlier full acceptance fixture uses Linux/amd64, Kubernetes `v1.36.5+k3s1`,
 containerd `2.3.4-k3s1.36`, and Ubuntu 24.04.5 with kernel `6.8.0-142`.
-An earlier RKE2 foundation profile is documented separately. The installer
-refuses untested runtime versions rather than assuming compatibility.
+Mixed amd64/arm64 demand, build, and pull acceptance also passed on RKE2
+`v1.36.5+rke2r1` with containerd `2.3.4-k3s1`, using the default `inferal`
+runtime profile. The installer refuses untested exact runtime versions rather
+than assuming compatibility.
 
 The first build adapter supports **scratch images and provisioned local inputs**.
 Remote base images, remote build contexts, external frontends, and build network
@@ -417,8 +419,14 @@ build policy and mocked Kubernetes API recovery regressions.
 Native Kubernetes E2E runs both namespace and cluster installations on amd64 and
 arm64, including actual native build execution and workload pulls, dry-run,
 on-demand/eager policy, controller templates, RBAC and namespace boundaries.
-This matrix gates releases. Earlier two-node interruption/recovery, binary
-rollback and external-export harnesses remain separately recorded acceptance evidence.
+This matrix gates releases. The separate [opt-in mixed-cluster E2E](docs/mixed-cluster-e2e.md)
+passed twice on real amd64 and arm64 RKE2 nodes with the published 0.3.0 binaries.
+Fresh Images confirm unknown placement builds both variants and explicit placement
+builds only the requested platform; native consumers pull the selected index or
+manifest. See the [recorded results](docs/mixed-cluster-results.json). Public CI
+validates this harness; the live mixed test is explicitly enabled against an
+approved cluster. Earlier two-node interruption/recovery, binary rollback and
+external-export harnesses remain separately recorded acceptance evidence.
 
 Contributions are welcome through [issues](https://github.com/inferal-oss/kimage/issues)
 and pull requests. Include the relevant validation and update the docs when

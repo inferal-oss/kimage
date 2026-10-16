@@ -84,7 +84,11 @@ Native amd64 and arm64 E2E uses Kubernetes v1.36.5+k3s1 and containerd
 2.3.4-k3s1.36 on Ubuntu 24.04 GitHub-hosted runners. Earlier full lifecycle
 acceptance used amd64, Ubuntu 24.04.5 and kernel 6.8.0-142. Choose
 --runtime-profile k3s explicitly. The CLI default inferal profile checks the
-earlier RKE2 v1.36.5+rke2r1 / containerd 2.3.4-k3s1 foundation profile.
+RKE2 v1.36.5+rke2r1 / containerd 2.3.4-k3s1 profile. Two opt-in real mixed-cluster
+runs using official 0.3.0 passed native demand/build/pull checks: fresh unknown
+placement built both variants and used an index on both architectures; fresh
+explicit amd64/arm64 placement built only that platform. These live tests are
+separate from public CI. [Recorded results](https://github.com/inferal-oss/kimage/blob/main/docs/mixed-cluster-results.json).
 Untested exact runtime versions are refused. A generic kind/k3d/container cluster
 is not automatically supported: user namespaces, idmapped volumes, kernel and
 filesystem support, CNI policy enforcement, and persistent storage all matter.

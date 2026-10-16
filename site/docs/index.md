@@ -330,7 +330,7 @@ Inspect `status.exports` for phase, selected release UID, local/remote digest, r
 | Layer | Tested profile |
 | --- | --- |
 | Full acceptance cluster | Native Linux/amd64 and Linux/arm64 E2E; Kubernetes `v1.36.5+k3s1`; containerd `2.3.4-k3s1.36`; Ubuntu 24.04.5, kernel `6.8.0-142`. Select `--runtime-profile k3s`. |
-| Earlier foundation profile | RKE2 `v1.36.5+rke2r1`; containerd `2.3.4-k3s1`. The CLI's default profile is `inferal`; the complete later lifecycle proof uses the k3s fixture. |
+| Mixed-platform acceptance | RKE2 `v1.36.5+rke2r1`; containerd `2.3.4-k3s1`. Real amd64/arm64 placement, native builds, and index/manifest pulls passed twice using 0.3.0. Select the default `inferal` profile. The separate complete lifecycle proof uses the k3s fixture. |
 | Builder | BuildKit 0.33.0, builtin Dockerfile frontend 1.27.0, OCI/runc worker, native snapshotter. |
 | Serving | Distribution 3.1.2; gateway/proxy 0.3.0. Explicit rollback window described below. |
 | Native clients | Rust 1.99.0; macOS and Linux/musl on amd64 and arm64. |
@@ -560,7 +560,7 @@ python3 scripts/check-site.py
 
 CI runs Rust tests on macOS/arm64 and native Linux/amd64 and Linux/arm64 musl, plus eleven release-tooling tests, formatting, Clippy, documentation/example checks, and package verification. These include parser/admission compatibility for readable colon and literal/encoded query ranges, native graph verification, placement and build policy. Native Kubernetes E2E tests both installation scopes on each architecture before release.
 
-An [explicitly enabled mixed-cluster E2E](https://github.com/inferal-oss/kimage/blob/main/docs/mixed-cluster-e2e.md) uses fresh Images for unknown, amd64, and arm64 workload placement. It checks exact native variants and native consumption of an OCI index or manifest. Standard CI validates the harness and skips the live test; running it requires an approved real mixed cluster.
+An [explicitly enabled mixed-cluster E2E](https://github.com/inferal-oss/kimage/blob/main/docs/mixed-cluster-e2e.md) uses fresh Images for unknown, amd64, and arm64 workload placement. It checks exact native variants and native consumption of an OCI index or manifest. Standard CI validates the harness and skips the live test; running it requires an approved real mixed cluster. [Two independent runs passed](https://github.com/inferal-oss/kimage/blob/main/docs/mixed-cluster-results.json) with the official 0.3.0 binaries on real RKE2 amd64/arm64 nodes. Each case used a fresh Image. Unknown placement built both variants and ran both architectures from one index; explicit placement built only the requested platform. Both runs removed their consumer Deployments and Pods.
 
 The separate owned two-node fixture passed installation, build/input matrices, normal uncached pulls, interruption and cold recovery, actual binary upgrade/rollback, and retained-release export. Those cluster harnesses are not ordinary CI jobs. Historical receipts predate later selector/CLI changes; they remain unchanged evidence for their recorded bundle.
 

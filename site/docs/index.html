@@ -844,12 +844,13 @@ exports:
                   </td>
                 </tr>
                 <tr>
-                  <td>Earlier foundation profile</td>
+                  <td>Mixed-platform acceptance</td>
                   <td>
                     RKE2 <code>v1.36.5+rke2r1</code>; containerd
-                    <code>2.3.4-k3s1</code>. The CLI's default profile is
-                    <code>inferal</code>; the complete later lifecycle proof
-                    uses the k3s fixture.
+                    <code>2.3.4-k3s1</code>. Real amd64/arm64 placement, native
+                    builds, and index/manifest pulls passed twice using 0.3.0.
+                    Select the default <code>inferal</code> profile. The separate
+                    complete lifecycle proof uses the k3s fixture.
                   </td>
                 </tr>
                 <tr>
@@ -1504,6 +1505,12 @@ python3 scripts/check-site.py</code></pre>
               It checks exact native variants and native consumption of an OCI
               index or manifest. Standard CI validates the harness and skips the
               live test; running it requires an approved real mixed cluster.
+              <a href="https://github.com/inferal-oss/kimage/blob/main/docs/mixed-cluster-results.json">Two independent runs passed</a>
+              with the official 0.3.0 binaries on real RKE2 amd64/arm64 nodes.
+              Each case used a fresh Image. Unknown placement built both variants
+              and ran both architectures from one index; explicit placement
+              built only the requested platform. Both runs removed their
+              consumer Deployments and Pods.
             </p>
             <p>
               The separate owned two-node fixture passed installation,

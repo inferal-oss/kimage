@@ -109,6 +109,11 @@ cluster and left shared Inferal resources and node configuration untouched.
 Earlier evidence tables below/above are historical and retain their original limits.
 The later [opt-in mixed-cluster test](mixed-cluster-e2e.md) uses its separately
 approved fixture and requires a compatible current installation.
+Two independent runs with official 0.3.0 binaries passed on real RKE2 amd64/arm64
+nodes. The [mixed-platform receipt](mixed-cluster-results.json) records six fresh
+parent Image identities, exact native variant sets, selected roots, and native
+consumer platforms. This is separate from the required homogeneous native CI
+matrix and does not broaden the older lifecycle evidence.
 
 ## Reproducible checks
 
