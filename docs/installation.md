@@ -195,3 +195,14 @@ retained namespaces, PVCs, finalizers or schema coordination records as ordinary
 cleanup. Back up the entire registry backend together with release metadata,
 UIDs and schema state. Generated leaf certificates last ten years. Reapplication
 preserves them; it does not implement automatic certificate renewal or CA rotation.
+
+## Acceptance evidence
+
+All eight [recorded native cases](native-install-results.json) passed for 0.4.0:
+CLI and Helm, namespace and cluster scope, on amd64 and arm64. Each case starts
+with an empty kimage runtime cache and pulls the complete component indexes from
+a verified TLS registry. The checks cover authenticated worker readiness, actual
+application builds/pulls, workload controllers, demand/eager policy, scope/RBAC,
+overlap refusal, reapplication preserving credentials/policy/storage, and retained
+artifacts after removal. Source and package checks also pass on Linux amd64/arm64
+and macOS arm64.

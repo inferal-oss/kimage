@@ -1,0 +1,265 @@
+{
+  "version": "0.4.0",
+  "sourceCommit": "9b831cf2da4ef051731be59b07d31c9bf63aa42f",
+  "workflow": "https://github.com/inferal-oss/kimage/actions/runs/38852636133",
+  "sourceChecks": "https://github.com/inferal-oss/kimage/actions/runs/38852925571",
+  "fixture": "Fresh native GitHub-hosted K3s clusters pulling complete OCI indexes from an ephemeral verified TLS registry; no kimage runtime imports or Kubernetes API image uploads.",
+  "cases": [
+    {
+      "mode": "cli",
+      "scope": "cluster",
+      "platform": "linux/amd64",
+      "checks": [
+        "fresh cli cluster install and authenticated native worker readiness",
+        "components use ordinary digest-pinned registry pulls with no executable ConfigMaps",
+        "overlapping installation refused before creating resources",
+        "operator RBAC matches installation scope",
+        "automatic Image remains idle without consumers",
+        "dry-run reports pending without recording build demand",
+        "only requested native platform built and pulled by Deployment",
+        "readable and percent-encoded selectors resolve the same native digest",
+        "unavailable platform placement is rejected without a fallback build",
+        "channel changes retain native readiness without new build demand",
+        "built-in and custom controllers, init containers and sidecars use native releases",
+        "cluster scope handles independent namespaces, rejects cross-namespace consumption and skips exclusions",
+        "quiet catalog watch observes a fresh Image after thirty seconds",
+        "administrator ConfigMap eager policy builds without workload demand",
+        "reapply preserves credentials, registry storage and administrator eager policy",
+        "uninstall preserves registry storage and published image resources"
+      ],
+      "complete": true,
+      "runtime": {
+        "architecture": "amd64",
+        "operatingSystem": "linux",
+        "kernelVersion": "6.17.0-1022-azure",
+        "osImage": "Ubuntu 24.04.5 LTS",
+        "kubeletVersion": "v1.36.5+k3s1",
+        "containerRuntimeVersion": "containerd://2.3.4-k3s1.36"
+      }
+    },
+    {
+      "mode": "helm",
+      "scope": "cluster",
+      "platform": "linux/amd64",
+      "checks": [
+        "fresh helm cluster install and authenticated native worker readiness",
+        "components use ordinary digest-pinned registry pulls with no executable ConfigMaps",
+        "overlapping installation refused before creating resources",
+        "operator RBAC matches installation scope",
+        "automatic Image remains idle without consumers",
+        "dry-run reports pending without recording build demand",
+        "only requested native platform built and pulled by Deployment",
+        "readable and percent-encoded selectors resolve the same native digest",
+        "unavailable platform placement is rejected without a fallback build",
+        "channel changes retain native readiness without new build demand",
+        "built-in and custom controllers, init containers and sidecars use native releases",
+        "cluster scope handles independent namespaces, rejects cross-namespace consumption and skips exclusions",
+        "quiet catalog watch observes a fresh Image after thirty seconds",
+        "administrator ConfigMap eager policy builds without workload demand",
+        "reapply preserves credentials, registry storage and administrator eager policy",
+        "uninstall preserves registry storage and published image resources"
+      ],
+      "complete": true,
+      "runtime": {
+        "architecture": "amd64",
+        "operatingSystem": "linux",
+        "kernelVersion": "6.17.0-1022-azure",
+        "osImage": "Ubuntu 24.04.5 LTS",
+        "kubeletVersion": "v1.36.5+k3s1",
+        "containerRuntimeVersion": "containerd://2.3.4-k3s1.36"
+      }
+    },
+    {
+      "mode": "cli",
+      "scope": "namespace",
+      "platform": "linux/amd64",
+      "checks": [
+        "fresh cli namespace install and authenticated native worker readiness",
+        "components use ordinary digest-pinned registry pulls with no executable ConfigMaps",
+        "overlapping installation refused before creating resources",
+        "operator RBAC matches installation scope",
+        "automatic Image remains idle without consumers",
+        "dry-run reports pending without recording build demand",
+        "only requested native platform built and pulled by Deployment",
+        "readable and percent-encoded selectors resolve the same native digest",
+        "unavailable platform placement is rejected without a fallback build",
+        "channel changes retain native readiness without new build demand",
+        "built-in and custom controllers, init containers and sidecars use native releases",
+        "namespace scope leaves other namespaces untouched",
+        "quiet catalog watch observes a fresh Image after thirty seconds",
+        "administrator ConfigMap eager policy builds without workload demand",
+        "reapply preserves credentials, registry storage and administrator eager policy",
+        "uninstall preserves registry storage and published image resources"
+      ],
+      "complete": true,
+      "runtime": {
+        "architecture": "amd64",
+        "operatingSystem": "linux",
+        "kernelVersion": "6.17.0-1022-azure",
+        "osImage": "Ubuntu 24.04.5 LTS",
+        "kubeletVersion": "v1.36.5+k3s1",
+        "containerRuntimeVersion": "containerd://2.3.4-k3s1.36"
+      }
+    },
+    {
+      "mode": "helm",
+      "scope": "namespace",
+      "platform": "linux/amd64",
+      "checks": [
+        "fresh helm namespace install and authenticated native worker readiness",
+        "components use ordinary digest-pinned registry pulls with no executable ConfigMaps",
+        "overlapping installation refused before creating resources",
+        "operator RBAC matches installation scope",
+        "automatic Image remains idle without consumers",
+        "dry-run reports pending without recording build demand",
+        "only requested native platform built and pulled by Deployment",
+        "readable and percent-encoded selectors resolve the same native digest",
+        "unavailable platform placement is rejected without a fallback build",
+        "channel changes retain native readiness without new build demand",
+        "built-in and custom controllers, init containers and sidecars use native releases",
+        "namespace scope leaves other namespaces untouched",
+        "quiet catalog watch observes a fresh Image after thirty seconds",
+        "administrator ConfigMap eager policy builds without workload demand",
+        "reapply preserves credentials, registry storage and administrator eager policy",
+        "uninstall preserves registry storage and published image resources"
+      ],
+      "complete": true,
+      "runtime": {
+        "architecture": "amd64",
+        "operatingSystem": "linux",
+        "kernelVersion": "6.17.0-1022-azure",
+        "osImage": "Ubuntu 24.04.5 LTS",
+        "kubeletVersion": "v1.36.5+k3s1",
+        "containerRuntimeVersion": "containerd://2.3.4-k3s1.36"
+      }
+    },
+    {
+      "mode": "cli",
+      "scope": "cluster",
+      "platform": "linux/arm64",
+      "checks": [
+        "fresh cli cluster install and authenticated native worker readiness",
+        "components use ordinary digest-pinned registry pulls with no executable ConfigMaps",
+        "overlapping installation refused before creating resources",
+        "operator RBAC matches installation scope",
+        "automatic Image remains idle without consumers",
+        "dry-run reports pending without recording build demand",
+        "only requested native platform built and pulled by Deployment",
+        "readable and percent-encoded selectors resolve the same native digest",
+        "unavailable platform placement is rejected without a fallback build",
+        "channel changes retain native readiness without new build demand",
+        "built-in and custom controllers, init containers and sidecars use native releases",
+        "cluster scope handles independent namespaces, rejects cross-namespace consumption and skips exclusions",
+        "quiet catalog watch observes a fresh Image after thirty seconds",
+        "administrator ConfigMap eager policy builds without workload demand",
+        "reapply preserves credentials, registry storage and administrator eager policy",
+        "uninstall preserves registry storage and published image resources"
+      ],
+      "complete": true,
+      "runtime": {
+        "architecture": "arm64",
+        "operatingSystem": "linux",
+        "kernelVersion": "6.17.0-1022-azure",
+        "osImage": "Ubuntu 24.04.5 LTS",
+        "kubeletVersion": "v1.36.5+k3s1",
+        "containerRuntimeVersion": "containerd://2.3.4-k3s1.36"
+      }
+    },
+    {
+      "mode": "helm",
+      "scope": "cluster",
+      "platform": "linux/arm64",
+      "checks": [
+        "fresh helm cluster install and authenticated native worker readiness",
+        "components use ordinary digest-pinned registry pulls with no executable ConfigMaps",
+        "overlapping installation refused before creating resources",
+        "operator RBAC matches installation scope",
+        "automatic Image remains idle without consumers",
+        "dry-run reports pending without recording build demand",
+        "only requested native platform built and pulled by Deployment",
+        "readable and percent-encoded selectors resolve the same native digest",
+        "unavailable platform placement is rejected without a fallback build",
+        "channel changes retain native readiness without new build demand",
+        "built-in and custom controllers, init containers and sidecars use native releases",
+        "cluster scope handles independent namespaces, rejects cross-namespace consumption and skips exclusions",
+        "quiet catalog watch observes a fresh Image after thirty seconds",
+        "administrator ConfigMap eager policy builds without workload demand",
+        "reapply preserves credentials, registry storage and administrator eager policy",
+        "uninstall preserves registry storage and published image resources"
+      ],
+      "complete": true,
+      "runtime": {
+        "architecture": "arm64",
+        "operatingSystem": "linux",
+        "kernelVersion": "6.17.0-1022-azure",
+        "osImage": "Ubuntu 24.04.5 LTS",
+        "kubeletVersion": "v1.36.5+k3s1",
+        "containerRuntimeVersion": "containerd://2.3.4-k3s1.36"
+      }
+    },
+    {
+      "mode": "cli",
+      "scope": "namespace",
+      "platform": "linux/arm64",
+      "checks": [
+        "fresh cli namespace install and authenticated native worker readiness",
+        "components use ordinary digest-pinned registry pulls with no executable ConfigMaps",
+        "overlapping installation refused before creating resources",
+        "operator RBAC matches installation scope",
+        "automatic Image remains idle without consumers",
+        "dry-run reports pending without recording build demand",
+        "only requested native platform built and pulled by Deployment",
+        "readable and percent-encoded selectors resolve the same native digest",
+        "unavailable platform placement is rejected without a fallback build",
+        "channel changes retain native readiness without new build demand",
+        "built-in and custom controllers, init containers and sidecars use native releases",
+        "namespace scope leaves other namespaces untouched",
+        "quiet catalog watch observes a fresh Image after thirty seconds",
+        "administrator ConfigMap eager policy builds without workload demand",
+        "reapply preserves credentials, registry storage and administrator eager policy",
+        "uninstall preserves registry storage and published image resources"
+      ],
+      "complete": true,
+      "runtime": {
+        "architecture": "arm64",
+        "operatingSystem": "linux",
+        "kernelVersion": "6.17.0-1022-azure",
+        "osImage": "Ubuntu 24.04.5 LTS",
+        "kubeletVersion": "v1.36.5+k3s1",
+        "containerRuntimeVersion": "containerd://2.3.4-k3s1.36"
+      }
+    },
+    {
+      "mode": "helm",
+      "scope": "namespace",
+      "platform": "linux/arm64",
+      "checks": [
+        "fresh helm namespace install and authenticated native worker readiness",
+        "components use ordinary digest-pinned registry pulls with no executable ConfigMaps",
+        "overlapping installation refused before creating resources",
+        "operator RBAC matches installation scope",
+        "automatic Image remains idle without consumers",
+        "dry-run reports pending without recording build demand",
+        "only requested native platform built and pulled by Deployment",
+        "readable and percent-encoded selectors resolve the same native digest",
+        "unavailable platform placement is rejected without a fallback build",
+        "channel changes retain native readiness without new build demand",
+        "built-in and custom controllers, init containers and sidecars use native releases",
+        "namespace scope leaves other namespaces untouched",
+        "quiet catalog watch observes a fresh Image after thirty seconds",
+        "administrator ConfigMap eager policy builds without workload demand",
+        "reapply preserves credentials, registry storage and administrator eager policy",
+        "uninstall preserves registry storage and published image resources"
+      ],
+      "complete": true,
+      "runtime": {
+        "architecture": "arm64",
+        "operatingSystem": "linux",
+        "kernelVersion": "6.17.0-1022-azure",
+        "osImage": "Ubuntu 24.04.5 LTS",
+        "kubeletVersion": "v1.36.5+k3s1",
+        "containerRuntimeVersion": "containerd://2.3.4-k3s1.36"
+      }
+    }
+  ]
+}

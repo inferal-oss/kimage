@@ -394,6 +394,7 @@ build policy and mocked Kubernetes API recovery regressions.
 Native Kubernetes E2E runs CLI and Helm in both namespace and cluster scope on amd64 and
 arm64, including actual native build execution and workload pulls, dry-run,
 on-demand/eager policy, controller templates, RBAC and namespace boundaries.
+The [0.4.0 acceptance record](docs/native-install-results.json) covers all eight cases.
 This matrix gates releases. The separate [opt-in mixed-cluster E2E](docs/mixed-cluster-e2e.md)
 passed twice on real amd64 and arm64 RKE2 nodes with the published 0.3.0 binaries.
 Fresh Images confirm unknown placement builds both variants and explicit placement
