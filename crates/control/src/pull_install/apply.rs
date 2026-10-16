@@ -304,8 +304,21 @@ pub(crate) async fn wait_ready(context: &Installer, plan: &Plan) -> Result<()> {
             let name = resource["metadata"]["name"].as_str().unwrap();
             let current = context
                 .api_at(kind, Some(&context.options.namespace))?
-                .get(name)
+                .get_opt(name)
                 .await?;
+            let Some(current) = current else {
+                pending.push(format!("{kind}/{name}"));
+                continue;
+            };
+            ensure!(
+                current.labels().get(LABEL) == Some(&context.options.installation),
+                "ComponentReadinessOwnershipConflict: {kind}/{name}"
+            );
+            crate::install::verify_declared(resource, &current)?;
+            if current.metadata.deletion_timestamp.is_some() {
+                pending.push(format!("{kind}/{name}"));
+                continue;
+            }
             let status = &current.data["status"];
             let ready = match kind {
                 "Pod" => status["conditions"].as_array().is_some_and(|cs| {

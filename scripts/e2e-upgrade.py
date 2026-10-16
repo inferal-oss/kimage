@@ -54,6 +54,7 @@ class Upgrade:
             data=(self.previous/asset['name']).read_bytes()
             require(len(data)==asset['size'] and 'sha256:'+hashlib.sha256(data).hexdigest()==asset['sha256'],'Predecessor asset changed')
         self.report=dict(schema=1,test='installation-lifecycle',source='0.4.1',target='0.5.0',manager=config['mode'],scope=config['scope'],checks=[],complete=False)
+        self.report['harnessSha256']='sha256:'+hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
         self.report['artifacts']={key:'sha256:'+hashlib.sha256(Path(config[key]).read_bytes()).hexdigest() for key in ['installer','catalog','chart']}
         self.report['predecessor']=verified
         self.nodes={}
@@ -360,6 +361,7 @@ class Upgrade:
             if self.config.get('nodeChanges'):self.node_changes()
             self.installation_diagnostics()
             self.transition('0.4.1',True)
+            self.build('rolled-back')
             for image,expected,architecture in self.images:self.consume(image,expected,architecture)
             self.check('published 0.4.1 consumes releases produced before and after the upgrade')
             self.check_rollback_log_privacy()

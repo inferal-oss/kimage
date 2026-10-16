@@ -74,6 +74,7 @@ struct Store {
     writes: usize,
     fail_after: Option<usize>,
     counter: u64,
+    missing_worker_during_verification: bool,
 }
 impl Store {
     fn put(&mut self, mut v: Value) {
@@ -146,6 +147,9 @@ async fn fixture() -> (kube::Client, Arc<Mutex<Store>>, tokio::task::JoinHandle<
             let mut store=records.lock().unwrap();
             let status=|code:u16,reason:&str|(StatusCode::from_u16(code).unwrap(),Json(json!({"apiVersion":"v1","kind":"Status","status":"Failure","reason":reason,"code":code}))).into_response();
             if method=="GET" {
+                if store.missing_worker_during_verification && path=="/api/v1/namespaces/system/pods/dev-builder-amd64" && store.objects.get("/api/v1/namespaces/system/configmaps/dev-operation").and_then(|v|v["data"]["operation.json"].as_str()).and_then(|s|serde_json::from_str::<Value>(s).ok()).is_some_and(|j|j["phase"]=="Verifying" && j["target"]["release"]=="0.4.1") {
+                    store.missing_worker_during_verification=false;return status(404,"NotFound");
+                }
                 if let Some(value)=store.objects.get(&path){return Json(value.clone()).into_response()}
                 let collection=path.ends_with("/nodes")||path.ends_with("/pods")||path.ends_with("/jobs")||path.ends_with("/configmaps")||path.ends_with("/imagereleases");
                 if collection {
@@ -315,6 +319,36 @@ async fn incompatible_targets_and_replaced_registry_node_are_rejected_without_wr
     .unwrap_err();
     assert!(error.to_string().starts_with("RegistryNodeIdentityChanged"));
     assert_eq!(store.lock().unwrap().writes, 0);
+    server.abort();
+}
+#[tokio::test]
+async fn rollback_waits_through_a_worker_disappearing_during_readiness_verification() {
+    let (client, store, server) = fixture().await;
+    lifecycle::transition(
+        client.clone(),
+        "system",
+        "dev",
+        &catalog("0.5.0"),
+        false,
+        false,
+        None,
+    )
+    .await
+    .unwrap();
+    store.lock().unwrap().missing_worker_during_verification = true;
+    let result = lifecycle::transition(
+        client,
+        "system",
+        "dev",
+        &catalog("0.4.1"),
+        false,
+        true,
+        None,
+    )
+    .await
+    .unwrap();
+    assert_eq!(result["phase"], "Complete");
+    assert!(!store.lock().unwrap().missing_worker_during_verification);
     server.abort();
 }
 #[test]
