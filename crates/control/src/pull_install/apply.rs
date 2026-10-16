@@ -80,6 +80,13 @@ fn resume_options(
             resolved.registry_node == previous.registry_node,
             "RegistryPlacementChangeRequiresStorageRecovery"
         );
+        if resolved.worker_nodes.is_empty() {
+            resolved.worker_nodes = previous.worker_nodes.clone();
+        }
+        ensure!(
+            serde_json::to_value(&resolved)? == serde_json::to_value(&previous)?,
+            "InstallationConfigurationChanged: preserve the existing scope, storage, port and placement"
+        );
         let node = nodes
             .iter()
             .find(|node| Some(node.name_any()) == resolved.registry_node)
@@ -131,6 +138,19 @@ pub async fn install(client: Client, options: &Options, catalog: &ImageCatalog) 
     let previous = maps
         .get_opt(&format!("{}-installation", options.installation))
         .await?;
+    if let Some(previous) = &previous {
+        let record: Value = serde_json::from_str(
+            previous
+                .data
+                .as_ref()
+                .and_then(|data| data.get("installation.json"))
+                .context("MissingInstallationState")?,
+        )?;
+        ensure!(
+            record["release"] == catalog.release,
+            "ImplicitReleaseUpgradeRefused: use a compatible release manager"
+        );
+    }
     let resolved = resume_options(options, &page.items, previous.as_ref())?;
     let options = &resolved;
     let credentials =
@@ -324,4 +344,60 @@ pub async fn uninstall_installed(
         "InstallationStateIdentityMismatch"
     );
     uninstall(client, &options).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use k8s_openapi::api::core::v1::ConfigMap;
+    fn options() -> Options {
+        serde_json::from_value(json!({"namespace":"kimage-system","installation":"kimage","scope":"namespace","applicationNamespace":"apps","excludedNamespaces":[],"runtimeProfile":"inferal","registryNode":null,"storageClass":null,"storageSize":"1Gi","existingClaim":null,"port":17701})).unwrap()
+    }
+    fn node(name: &str, uid: &str) -> Node {
+        serde_json::from_value(json!({"metadata":{"name":name,"uid":uid}})).unwrap()
+    }
+    #[test]
+    fn reapply_retains_storage_and_worker_placement_and_refuses_identity_or_config_changes() {
+        let requested = options();
+        let mut previous = requested.clone();
+        previous.registry_node = Some("original".into());
+        previous
+            .worker_nodes
+            .insert("amd64".into(), "original".into());
+        let mut state: ConfigMap = serde_json::from_value(json!({
+            "metadata":{"labels":{LABEL:"kimage"},"annotations":{"kimage.dev/manager":"cli"}},
+            "data":{"installation.json":serde_json::to_string(&json!({"schema":1,"delivery":"ImagePull","options":previous,"registryNodeUid":"original-uid","release":"0.4.0"})).unwrap()}
+        })).unwrap();
+        let nodes = [
+            node("added-first", "added-uid"),
+            node("original", "original-uid"),
+        ];
+        let resolved = resume_options(&requested, &nodes, Some(&state)).unwrap();
+        assert_eq!(resolved.registry_node.as_deref(), Some("original"));
+        assert_eq!(resolved.worker_nodes["amd64"], "original");
+        assert!(
+            resume_options(
+                &requested,
+                &[node("original", "replacement-uid")],
+                Some(&state)
+            )
+            .is_err()
+        );
+        let mut changed = requested.clone();
+        changed.registry_node = Some("added-first".into());
+        assert!(resume_options(&changed, &nodes, Some(&state)).is_err());
+        changed = requested.clone();
+        changed.application_namespace = Some("other".into());
+        assert!(resume_options(&changed, &nodes, Some(&state)).is_err());
+        changed = requested.clone();
+        changed.port += 1;
+        assert!(resume_options(&changed, &nodes, Some(&state)).is_err());
+        state
+            .metadata
+            .annotations
+            .as_mut()
+            .unwrap()
+            .insert("kimage.dev/manager".into(), "helm".into());
+        assert!(resume_options(&requested, &nodes, Some(&state)).is_err());
+    }
 }

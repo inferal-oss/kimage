@@ -330,8 +330,8 @@
             <h2>Start small.<br />See the whole path.</h2>
           </div>
           <p>
-            Install the native commands with Cargo and fetch the official
-            bundle, without a source checkout or packaging script. The hello
+            Install the native CLI with Cargo or choose Helm. Kubernetes pulls
+            component images from GHCR, without a source checkout or packaging script. The hello
             tutorial takes a static executable through a scratch build, a
             retained release, and a running Deployment.
           </p>
@@ -343,7 +343,7 @@
               <div>
                 <h3>Prepare a development cluster</h3>
                 <p>
-                  Fetch the official verified bundle, then install the control
+                  Pull pinned native release images, then install the control
                   plane and default builder using the handbook.
                 </p>
               </div>
@@ -385,15 +385,14 @@
             </div>
             <pre><code><span class="comment"># Rust 1.99.0</span>
 <span class="prompt">$</span> cargo install kimage-control \
-    --version 0.3.1 --locked
-<span class="prompt">$</span> kimage install --help
+    --version 0.4.0 --locked --bin kimage --bin kimage-install
+<span class="prompt">$</span> kimage install --application-namespace apps
 
-<span class="comment"># After cluster setup and input preparation</span>
+<span class="comment"># After preparing the tutorial inputs</span>
 <span class="prompt">$</span> kubectl apply -f examples/hello/image.yaml
+<span class="prompt">$</span> kubectl apply -f examples/hello/deployment.yaml
 <span class="prompt">$</span> kubectl -n apps wait \
-    --for=condition=Ready image/hello
-<span class="prompt">$</span> kubectl apply \
-    -f examples/hello/deployment.yaml</code></pre>
+    --for=condition=Ready image/hello</code></pre>
             <div class="terminal-footer">
               <span class="signal" aria-hidden="true"></span> An image
               declaration. A running workload.

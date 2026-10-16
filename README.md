@@ -99,7 +99,7 @@ It does not need to know the publication registry, repository path, or digest.
 The included registry retains verified releases; admission resolves the request
 and kubelet pulls through node-local serving using the normal runtime. The
 registry is part of the installation, rather than a separate output service each
-application author must choose. Administrators still provision its storage and
+application author must choose. Administrators provision its storage; installation generates separate service
 credentials.
 
 For example, `platform://apps/service:^1.2.0` selects the highest compatible
@@ -139,9 +139,8 @@ and the [website comparison](https://kimage.dev/docs/#comparison).
   custom container runtime plugin.
 - **Retained artifacts:** removing build inputs or clearing worker cache does not
   remove published releases.
-- **API-only installation and recovery:** native macOS and Linux installers for amd64 and arm64 bootstrap, verify, and recover the system through Kubernetes APIs.
-- **Guarded upgrades and rollback:** compatible serving binaries can be replaced
-  and rolled back while preserving storage and release identities.
+- **Simple installation:** `kimage install` or Helm, with native amd64/arm64 component images published to GHCR on release. No binary uploads through the Kubernetes API.
+- **Retained storage across maintenance:** Helm release history and the legacy guarded serving transitions preserve artifact identities within their documented compatibility windows.
 - **Optional registry export:** a separate controller copies retained releases to
   an authenticated HTTPS registry.
 - **Operational metrics:** build, publication, and pull latency, failures,
@@ -169,75 +168,51 @@ component boundaries and trust assumptions.
 
 ## Getting started
 
-### Install the tools
+### Install the CLI
 
-Install [Rust 1.99.0 or newer](https://www.rust-lang.org/tools/install), then install
-the native commands directly from crates.io. No source checkout is needed:
-
-```sh
-cargo install kimage-control --version 0.3.1 --locked
-kimage install --help
-```
-
-This installs `kimage`, the compatible `kimage-install` alias, `kimage-operator`, `kimage-admission`,
-`kimage-gateway`, `kimage-proxy`, `kimage-input`, and `kimage-exporter`. To install
-only the native installer, add `--bin kimage`. Ensure Cargo's bin directory
-is on your `PATH`.
-
-The crates.io package is **`kimage-control`**; the `kimage` crate belongs to a
-separate project. Cargo builds tools for your machine. The installer automatically
-downloads the official bundle for each selected cluster node architecture and its
-exact package version, verifies GitHub asset
-digests, the inventory, executables, and OCI graphs, then caches it. No packaging
-script or checkout is needed. Prebuilt native installers are also available in
-[GitHub releases](https://github.com/inferal-oss/kimage/releases).
-
-### Prepare a cluster
-
-Supply the cluster prerequisites and TLS credentials described in the
-[cluster setup guide](https://kimage.dev/docs/#cluster-setup), then run one command:
+Install [Rust 1.99.0 or newer](https://www.rust-lang.org/tools/install), then:
 
 ```sh
-kimage install \
-  --runtime-profile k3s \
-  --namespace kimage-system --application-namespace apps \
-  --installation dev --node <approved-node> \
-  --carrier <cached-image@sha256:digest> \
-  --storage-class <class> --port <loopback-port> \
-  --credentials <registry-directory> \
-  --admission-credentials <admission-directory> \
-  --builder-credentials <builder-directory>
+cargo install kimage-control --version 0.4.0 --locked --bin kimage --bin kimage-install
+kimage install --application-namespace apps
 ```
 
-It downloads and verifies the matching bundle automatically, then runs bootstrap,
-seed, handover, control plane, and the default builder. No separate fetch or check
-command is needed. Rerun with identical arguments after an interruption; the
-installer checks retained checkpoints before continuing. Individual phase commands
-remain available for recovery and advanced workflows.
+No source checkout is needed. With no flags, `kimage install` manages the current
+kubeconfig namespace. Components use public, digest-pinned amd64/arm64 images from
+GHCR. The installer discovers native workers, generates credentials, provisions
+the included registry, and waits for authenticated readiness. It sends only small
+Kubernetes resources through the API. `kimage-install` is a compatible alias;
+[prebuilt installers](https://github.com/inferal-oss/kimage/releases) are also available.
+The crates.io package is **`kimage-control`**; `kimage` is an unrelated crate.
 
-You need a supported Linux/amd64 or Linux/arm64 cluster, administrator access, persistent
-storage, an approved carrier image already cached on the selected node, and
-kernel/runtime support for the builder's Kubernetes user namespace. The default
-builder uses BuildKit 0.33.0. Setup remains an explicit administrator workflow;
-there is no Helm chart yet.
-The release workflow builds and publishes the component bundle and four native installers (Linux and macOS, amd64 and arm64). Select `--release 0.3.1` to pin a release explicitly, `--bundle-cache`
-to choose a cache directory, and `--offline` to require cached/local bytes. For
-air-gapped delivery, transfer the fetched bundle directory and use `--bundle` with
-its independently trusted `--trusted-inventory sha256:...`. See the
-[bundle delivery reference](https://kimage.dev/docs/#bundle-delivery).
+Use administrator kubeconfig, persistent storage and a supported Linux runtime
+with Pod user namespaces. The default profile is the tested RKE2 profile. For the
+tested K3s profile, add `--runtime-profile k3s`. This remains alpha software with
+exact runtime checks; see [prerequisites](docs/installation.md#prerequisites).
 
-Use `--scope cluster` and omit `--application-namespace` to manage ordinary
-namespaces cluster-wide; repeat `--exclude-namespace` to opt namespaces out.
-Both modes require cluster administrator setup. See [platforms, build policy,
-and installation scope](docs/platforms-and-scope.md) for placement rules, eager
-configuration, native worker setup, and isolation boundaries.
+### Or install with Helm
 
-The tutorial below assumes an application namespace named `apps` has been
-configured by the installer and `builderRef: default` is ready. Use a disposable
-development cluster for your first installation.
+```sh
+helm repo add kimage https://kimage.dev/charts
+helm repo update
+kubectl create namespace apps
+helm install kimage kimage/kimage --version 0.4.0 \
+  --namespace kimage-system --create-namespace \
+  --set applicationNamespace=apps --wait --wait-for-jobs
+```
 
-The [hello example](examples/hello) can be downloaded separately from GitHub;
-a repository checkout is optional for the installed commands.
+The release chart contains the same immutable image pins as the CLI. Its repository
+is published with the website on GitHub Pages. Add `--set runtimeProfile=k3s` for
+the tested K3s profile. The included registry stores application releases;
+GHCR supplies kimage's system components.
+
+Both methods support namespace or cluster scope. Use `kimage install --scope cluster`
+or Helm `--set scope=cluster` to manage ordinary namespaces, with configurable
+exclusions. See the [installation guide](docs/installation.md) for defaults,
+mirrors, storage, reapplication, Helm values, removal and legacy compatibility,
+and [platform selection and build policy](docs/platforms-and-scope.md).
+
+The tutorial assumes namespace `apps` and the default builder are ready.
 
 ## Tutorial: build and run a hello image
 

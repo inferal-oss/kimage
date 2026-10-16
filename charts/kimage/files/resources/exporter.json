@@ -1,0 +1,301 @@
+[
+  {
+    "apiVersion": "v1",
+    "kind": "Secret",
+    "metadata": {
+      "name": "${installation}-export-reader",
+      "namespace": "${namespace}",
+      "labels": {
+        "kimage.dev/installation": "${installation}"
+      },
+      "annotations": {
+        "kimage.dev/manager": "${manager}"
+      }
+    },
+    "type": "Opaque",
+    "data": "${proxyCredentials}"
+  },
+  {
+    "apiVersion": "v1",
+    "kind": "ServiceAccount",
+    "metadata": {
+      "name": "${installation}-exporter",
+      "namespace": "${namespace}",
+      "labels": {
+        "kimage.dev/installation": "${installation}"
+      },
+      "annotations": {
+        "kimage.dev/manager": "${manager}"
+      }
+    },
+    "automountServiceAccountToken": false
+  },
+  {
+    "apiVersion": "rbac.authorization.k8s.io/v1",
+    "kind": "${exporterRoleKind}",
+    "metadata": {
+      "name": "${exporterApplicationName}",
+      "namespace": "${exporterApplicationNamespace}",
+      "labels": {
+        "kimage.dev/installation": "${installation}"
+      },
+      "annotations": {
+        "kimage.dev/manager": "${manager}"
+      }
+    },
+    "rules": [
+      {
+        "apiGroups": [
+          "kimage.dev"
+        ],
+        "resources": [
+          "images",
+          "imagereleases"
+        ],
+        "verbs": [
+          "get",
+          "list",
+          "watch"
+        ]
+      },
+      {
+        "apiGroups": [
+          "kimage.dev"
+        ],
+        "resources": [
+          "images/status"
+        ],
+        "verbs": [
+          "patch"
+        ]
+      },
+      {
+        "apiGroups": [
+          ""
+        ],
+        "resources": [
+          "secrets"
+        ],
+        "verbs": [
+          "get"
+        ]
+      }
+    ]
+  },
+  {
+    "apiVersion": "rbac.authorization.k8s.io/v1",
+    "kind": "${exporterBindingKind}",
+    "metadata": {
+      "name": "${exporterApplicationName}",
+      "namespace": "${exporterApplicationNamespace}",
+      "labels": {
+        "kimage.dev/installation": "${installation}"
+      },
+      "annotations": {
+        "kimage.dev/manager": "${manager}"
+      }
+    },
+    "subjects": [
+      {
+        "kind": "ServiceAccount",
+        "name": "${installation}-exporter",
+        "namespace": "${namespace}"
+      }
+    ],
+    "roleRef": {
+      "apiGroup": "rbac.authorization.k8s.io",
+      "kind": "${exporterRoleKind}",
+      "name": "${exporterApplicationName}"
+    }
+  },
+  {
+    "apiVersion": "rbac.authorization.k8s.io/v1",
+    "kind": "Role",
+    "metadata": {
+      "name": "${installation}-exporter",
+      "namespace": "${namespace}",
+      "labels": {
+        "kimage.dev/installation": "${installation}"
+      },
+      "annotations": {
+        "kimage.dev/manager": "${manager}"
+      }
+    },
+    "rules": [
+      {
+        "apiGroups": [
+          "coordination.k8s.io"
+        ],
+        "resources": [
+          "leases"
+        ],
+        "verbs": [
+          "get",
+          "create",
+          "update"
+        ]
+      }
+    ]
+  },
+  {
+    "apiVersion": "rbac.authorization.k8s.io/v1",
+    "kind": "RoleBinding",
+    "metadata": {
+      "name": "${installation}-exporter",
+      "namespace": "${namespace}",
+      "labels": {
+        "kimage.dev/installation": "${installation}"
+      },
+      "annotations": {
+        "kimage.dev/manager": "${manager}"
+      }
+    },
+    "subjects": [
+      {
+        "kind": "ServiceAccount",
+        "name": "${installation}-exporter",
+        "namespace": "${namespace}"
+      }
+    ],
+    "roleRef": {
+      "apiGroup": "rbac.authorization.k8s.io",
+      "kind": "Role",
+      "name": "${installation}-exporter"
+    }
+  },
+  {
+    "apiVersion": "apps/v1",
+    "kind": "Deployment",
+    "metadata": {
+      "name": "${installation}-exporter",
+      "namespace": "${namespace}",
+      "labels": {
+        "kimage.dev/installation": "${installation}",
+        "kimage.dev/role": "exporter"
+      },
+      "annotations": {
+        "kimage.dev/manager": "${manager}"
+      }
+    },
+    "spec": {
+      "replicas": 1,
+      "strategy": {
+        "type": "Recreate"
+      },
+      "selector": {
+        "matchLabels": {
+          "kimage.dev/installation": "${installation}",
+          "kimage.dev/role": "exporter"
+        }
+      },
+      "template": {
+        "metadata": {
+          "labels": {
+            "kimage.dev/installation": "${installation}",
+            "kimage.dev/role": "exporter"
+          }
+        },
+        "spec": {
+          "automountServiceAccountToken": true,
+          "restartPolicy": "Always",
+          "hostNetwork": false,
+          "dnsPolicy": "ClusterFirst",
+          "securityContext": {
+            "seccompProfile": {
+              "type": "RuntimeDefault"
+            },
+            "fsGroup": 65532
+          },
+          "containers": [
+            {
+              "name": "exporter",
+              "image": "${exporterImage}",
+              "imagePullPolicy": "IfNotPresent",
+              "command": [
+                "/kimage-exporter"
+              ],
+              "args": "${exporterArguments}",
+              "securityContext": {
+                "runAsUser": 65532,
+                "runAsGroup": 65532,
+                "runAsNonRoot": true,
+                "allowPrivilegeEscalation": false,
+                "readOnlyRootFilesystem": true,
+                "capabilities": {
+                  "drop": [
+                    "ALL"
+                  ]
+                }
+              },
+              "resources": {
+                "requests": {
+                  "cpu": "50m",
+                  "memory": "64Mi"
+                },
+                "limits": {
+                  "cpu": "1",
+                  "memory": "512Mi",
+                  "ephemeral-storage": "2Gi"
+                }
+              },
+              "volumeMounts": [
+                {
+                  "name": "credentials",
+                  "mountPath": "/credentials",
+                  "readOnly": true
+                },
+                {
+                  "name": "scratch",
+                  "mountPath": "/tmp",
+                  "readOnly": false
+                }
+              ],
+              "readinessProbe": {
+                "httpGet": {
+                  "path": "/readyz",
+                  "port": 8080
+                },
+                "periodSeconds": 2
+              }
+            }
+          ],
+          "volumes": [
+            {
+              "name": "credentials",
+              "secret": {
+                "secretName": "${installation}-export-reader",
+                "defaultMode": 292
+              }
+            },
+            {
+              "name": "scratch",
+              "emptyDir": {
+                "sizeLimit": "4Gi"
+              }
+            }
+          ],
+          "affinity": {
+            "nodeAffinity": {
+              "requiredDuringSchedulingIgnoredDuringExecution": {
+                "nodeSelectorTerms": [
+                  {
+                    "matchFields": [
+                      {
+                        "key": "metadata.name",
+                        "operator": "In",
+                        "values": [
+                          "${primaryNode}"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "serviceAccountName": "${installation}-exporter"
+        }
+      }
+    }
+  }
+]

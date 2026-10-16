@@ -56,6 +56,24 @@ class ImagesTests(unittest.TestCase):
             self.assertEqual(catalog['components']['gateway']['version'],'0.3.0')
             self.assertEqual(catalog['components']['operator']['version'],'0.4.0')
 
+    def test_packaged_chart_contains_exact_catalog_pins_and_is_deterministic(self):
+        chart=module('package-chart')
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary);native=[fixture(root/arch,arch) for arch in ['amd64','arm64']]
+            with contextlib.redirect_stdout(io.StringIO()):
+                catalog=assemble.assemble(native,root/'images','ghcr.io/inferal-oss/kimage')
+                first=chart.package(root/'images/component-images.json',root/'chart1')
+                second=chart.package(root/'images/component-images.json',root/'chart2')
+            self.assertEqual(first.read_bytes(),second.read_bytes())
+            with tarfile.open(first,'r:gz') as tar:
+                values=tar.extractfile('kimage/values.yaml').read().decode()
+                for role,entry in catalog['components'].items():self.assertIn(role+': "'+entry['digest']+'"',values)
+                self.assertIn('kimage/LICENSE',tar.getnames())
+                self.assertFalse(any('crds/' in name for name in tar.getnames()))
+            catalog['repository']='untrusted.invalid/mirror'
+            (root/'images/component-images.json').write_text(json.dumps(catalog))
+            with self.assertRaises(AssertionError):chart.package(root/'images/component-images.json',root/'bad')
+
     def test_missing_platform_or_wrong_native_executable_never_produces_catalog(self):
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary);amd=fixture(root/'amd','amd64')

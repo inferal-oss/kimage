@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Hold new-version website instructions until crates and bundle assets are public."""
+"""Hold new-version website instructions until crates and installation assets are public."""
 import json
 import os
 from pathlib import Path
@@ -34,6 +34,10 @@ def ready(version):
     if version == '0.1.0':
         return True
     names = {asset['name'] for asset in release['assets'] if asset['state'] == 'uploaded' and asset.get('digest')}
+    if tuple(map(int,version.split('-')[0].split('.'))) >= (0,4,0):
+        required={'component-images.json',f'kimage-{version}.tgz','SHA256SUMS','LICENSE','THIRD-PARTY-NOTICES.txt'}
+        required.update(f'kimage-v{version}-{system}-{arch}' for system in ['linux','darwin'] for arch in ['amd64','arm64'])
+        return required.issubset(names)
     architectures = ['amd64', 'arm64'] if tuple(map(int, version.split('-')[0].split('.'))) >= (0, 3, 0) else ['amd64']
     required = {f'kimage-bundle-v{version}-linux-{arch}{suffix}' for arch in architectures for suffix in ['.tar.gz', '.inventory.json']}
     if len(architectures) == 2:
@@ -46,4 +50,4 @@ if __name__ == '__main__':
     available = ready(version)
     with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
         output.write('ready=' + str(available).lower() + '\n')
-    print('Release available for site deployment.' if available else f'Site validated; deployment awaits public crates and bundles for {version}.')
+    print('Release available for site deployment.' if available else f'Site validated; deployment awaits public crates and installation assets for {version}.')

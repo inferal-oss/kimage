@@ -64,6 +64,7 @@ jobs:
           cargo test --locked --workspace
           python3 scripts/check-changelog.py
           python3 scripts/test-release.py
+          python3 scripts/test-component-images.py
           python3 scripts/test-mixed-e2e.py
           python3 scripts/check-docs.py
           python3 scripts/check-site.py
@@ -77,10 +78,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-24.04
-            target: x86_64-unknown-linux-musl
-          - os: ubuntu-24.04-arm
-            target: aarch64-unknown-linux-musl
           - os: macos-15-intel
             target: x86_64-apple-darwin
           - os: macos-15
@@ -91,11 +88,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Install musl linker
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends musl-tools
       - name: Install Rust
         run: rustup toolchain install 1.99.0 --profile minimal --target ${{ matrix.target }}
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -105,16 +97,7 @@ jobs:
             ~/.cargo/git
             target
           key: native-${{ matrix.target }}-1.99.0-${{ hashFiles('Cargo.lock') }}
-      - name: Build Linux components and installer
-        if: runner.os == 'Linux'
-        run: |
-          cargo build --locked --release --workspace --bins --target ${{ matrix.target }}
-          tar -czf "$RUNNER_TEMP/native-${{ matrix.target }}.tar.gz" \
-            -C target/${{ matrix.target }}/release \
-            kimage-bootstrap kimage-install kimage-gateway kimage-proxy \
-            kimage-operator kimage-admission kimage-input kimage-exporter
       - name: Build macOS installer
-        if: runner.os == 'macOS'
         run: |
           cargo build --locked --release --package kimage-control --bin kimage-install --target ${{ matrix.target }}
           tar -czf "$RUNNER_TEMP/native-${{ matrix.target }}.tar.gz" \
@@ -128,108 +111,87 @@ jobs:
           retention-days: 7
 
   acceptance:
-    name: Native Kubernetes acceptance
+    name: Registry-pull Kubernetes acceptance
     needs: validate
     uses: ./.github/workflows/e2e.yml
 
-  bundle:
-    name: Verify complete ${{ matrix.architecture }} bundle
-    needs: native
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - architecture: amd64
-            os: ubuntu-24.04
-            target: x86_64-unknown-linux-musl
-          - architecture: arm64
-            os: ubuntu-24.04-arm
-            target: aarch64-unknown-linux-musl
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          pattern: native-*
-          merge-multiple: true
-          path: .local/release-native
-      - name: Unpack native binaries
-        run: |
-          mkdir -p .local/release-native/linux .local/release-native/macos-arm64 .local/release-native/macos-amd64
-          tar -xzf .local/release-native/native-${{ matrix.target }}.tar.gz -C .local/release-native/linux
-          tar -xzf .local/release-native/native-aarch64-apple-darwin.tar.gz -C .local/release-native/macos-arm64
-          tar -xzf .local/release-native/native-x86_64-apple-darwin.tar.gz -C .local/release-native/macos-amd64
-      - name: Fetch pinned upstream executables
-        run: python3 scripts/fetch-release-inputs.py --architecture ${{ matrix.architecture }} --out .local/upstream-release
-      - name: Build and natively verify complete offline bundle
-        run: |
-          python3 scripts/package-bundle.py --architecture ${{ matrix.architecture }} --linux-dir .local/release-native/linux \
-            --registry .local/upstream-release/registry --registry-version 3.1.2 --serving-version 0.3.0 \
-            --buildkit-dir .local/upstream-release/buildkit --include-installers \
-            --macos-installer .local/release-native/macos-arm64/kimage-install \
-            --macos-amd64-installer .local/release-native/macos-amd64/kimage-install --out dist/bundle
-          python3 - <<'PY'
-          import json, subprocess, re, hashlib
-          from pathlib import Path
-          version = re.search(r'(?ms)^\[workspace\.package\]\s*\n.*?^version\s*=\s*"([^"]+)"', Path('Cargo.toml').read_text())[1]
-          inventory = json.loads(Path('dist/bundle/inventory.json').read_bytes())
-          for role in ['operator', 'admission', 'input', 'exporter', 'install', 'gateway', 'proxy']:
-              actual = subprocess.check_output(['.local/release-native/linux/kimage-' + role, '--version'], text=True).strip()
-              expected = inventory['components'][role]['version'] if role != 'install' else version
-              assert actual == 'kimage-' + role + ' ' + expected, actual
-          digest = 'sha256:' + hashlib.sha256(Path('dist/bundle/inventory.json').read_bytes()).hexdigest()
-          subprocess.run(['.local/release-native/linux/kimage-install', 'bundle-check', '--bundle', 'dist/bundle', '--trusted-inventory', digest], check=True)
-          PY
-          tar -czf dist/verified-bundle-${{ matrix.architecture }}.tar.gz -C dist/bundle .
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: verified-bundle-${{ matrix.architecture }}
-          path: dist/verified-bundle-${{ matrix.architecture }}.tar.gz
-          if-no-files-found: error
-          compression-level: 0
-          retention-days: 7
-
   assets:
-    name: Assemble both native bundles and four installers
-    needs: [bundle, acceptance]
+    name: Assemble installers, catalog and Helm chart
+    needs: [native, acceptance]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
-          pattern: verified-bundle-*
+          pattern: native-*
           merge-multiple: true
-          path: .local/verified-bundles
+          path: .local/native
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          pattern: e2e-native-*
+          merge-multiple: true
+          path: .local/native
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: component-catalog-chart
+          path: .local/chart
       - name: Install Cargo metadata toolchain
         run: rustup toolchain install 1.99.0 --profile minimal
-      - name: Package versioned release assets
+      - name: Assemble verified release assets
         run: |
-          mkdir -p dist/amd64 dist/arm64
-          tar -xzf .local/verified-bundles/verified-bundle-amd64.tar.gz -C dist/amd64
-          tar -xzf .local/verified-bundles/verified-bundle-arm64.tar.gz -C dist/arm64
-          cargo metadata --locked --format-version 1 > dist/cargo-metadata.json
+          mkdir -p .local/installers/linux-amd64 .local/installers/linux-arm64 .local/installers/darwin-amd64 .local/installers/darwin-arm64
+          tar -xzf .local/native/e2e-native-amd64.tar.gz -C .local/installers/linux-amd64 kimage-install
+          tar -xzf .local/native/e2e-native-arm64.tar.gz -C .local/installers/linux-arm64 kimage-install
+          tar -xzf .local/native/native-x86_64-apple-darwin.tar.gz -C .local/installers/darwin-amd64
+          tar -xzf .local/native/native-aarch64-apple-darwin.tar.gz -C .local/installers/darwin-arm64
+          cargo metadata --locked --format-version 1 > .local/cargo-metadata.json
           VERSION=$(python3 -c "import tomllib; print(tomllib.load(open('Cargo.toml','rb'))['workspace']['package']['version'])")
-          python3 scripts/package-release.py --bundle dist/amd64 --bundle dist/arm64 --out dist/release --version "$VERSION"
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+          python3 scripts/package-image-release.py --catalog .local/chart/component-images.json \
+            --chart ".local/chart/kimage-${VERSION}.tgz" --installers .local/installers \
+            --metadata .local/cargo-metadata.json --out dist/release
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: release-assets
           path: dist/release/*
-          if-no-files-found: error
           compression-level: 0
           retention-days: 7
 
+  images:
+    name: Publish and verify public GHCR components
+    needs: [acceptance, assets]
+    if: startsWith(github.ref, 'refs/tags/v') && !inputs.dry_run
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: component-layouts
+          path: .local
+      - name: Publish standard OCI indexes without changing their digests
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends skopeo
+          mkdir -p .local/components
+          tar -xzf .local/component-layouts.tar.gz -C .local/components
+          python3 scripts/publish-component-images.py --images .local/components --public-wait 1800
+
   publish:
     name: Publish tagged assets and crates through OIDC
-    needs: assets
-    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [assets, images]
+    if: always() && startsWith(github.ref, 'refs/tags/v') && needs.assets.result == 'success' && (needs.images.result == 'success' || inputs.dry_run)
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 25
     environment: crates-io
     permissions:
       contents: write
@@ -279,34 +241,5 @@ jobs:
           KIMAGE_GITHUB_TOKEN: ${{ github.token }}
         run: |
           python3 scripts/publish-github-release.py --tag "$RELEASE_TAG" --assets dist/release --finalize
-          VERSION=${RELEASE_TAG#v}
-          mkdir -p .local
-          chmod +x "dist/release/kimage-v${VERSION}-linux-amd64"
-          "dist/release/kimage-v${VERSION}-linux-amd64" bundle-fetch \
-            --bundle-cache .local/published-bundles > .local/fetched-bundle.json &
-          FIRST_FETCH=$!
-          "dist/release/kimage-v${VERSION}-linux-amd64" bundle-fetch \
-            --bundle-cache .local/published-bundles > .local/concurrent-bundle.json &
-          SECOND_FETCH=$!
-          wait "$FIRST_FETCH"
-          wait "$SECOND_FETCH"
-          "dist/release/kimage-v${VERSION}-linux-amd64" bundle-check \
-            --bundle-cache .local/published-bundles --offline
-          "dist/release/kimage-v${VERSION}-linux-amd64" bundle-fetch --platform linux/arm64 \
-            --bundle-cache .local/published-bundles > .local/fetched-arm64.json
-          "dist/release/kimage-v${VERSION}-linux-amd64" bundle-check --platform linux/arm64 \
-            --bundle-cache .local/published-bundles --offline
-          python3 - <<'PY'
-          import json, hashlib, os
-          from pathlib import Path
-          version = os.environ['RELEASE_TAG']
-          downloaded = json.loads(Path('.local/fetched-bundle.json').read_text())
-          assert downloaded == json.loads(Path('.local/concurrent-bundle.json').read_text())
-          inventory = Path('dist/release') / ('kimage-bundle-' + version + '-linux-amd64.inventory.json')
-          assert downloaded['trustedInventory'] == 'sha256:' + hashlib.sha256(inventory.read_bytes()).hexdigest()
-          arm = json.loads(Path('.local/fetched-arm64.json').read_text())
-          inventory = Path('dist/release') / ('kimage-bundle-' + version + '-linux-arm64.inventory.json')
-          assert arm['trustedInventory'] == 'sha256:' + hashlib.sha256(inventory.read_bytes()).hexdigest()
-          assert arm['bundle'] != downloaded['bundle']
-          PY
+          python3 scripts/publish-component-images.py --images dist/release --verify-only
           gh api --method POST repos/inferal-oss/kimage/dispatches -f event_type=release-published

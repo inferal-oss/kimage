@@ -852,6 +852,71 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn small_catalog_asset_checks_origin_bounds_digest_and_metadata_only_authentication() {
+        let mut server = server().await;
+        server.client.api_token = Some(reqwest::header::HeaderValue::from_static(
+            "Bearer fixture-only",
+        ));
+        let body = br#"{"schema":1,"release":"0.4.0"}"#.to_vec();
+        let url = server
+            .client
+            .assets
+            .join("v0.4.0/component-images.json")
+            .unwrap();
+        let asset = json!({"name":"component-images.json","size":body.len(),"digest":kimage_core::oci::digest(&body),"state":"uploaded","browser_download_url":url.as_str()});
+        {
+            let mut state = server.state.lock().unwrap();
+            state.archive = body.clone();
+            state.metadata = json!({"tag_name":"v0.4.0","draft":false,"assets":[asset.clone()]});
+        }
+        assert_eq!(
+            server
+                .client
+                .small_asset("v0.4.0", "component-images.json")
+                .await
+                .unwrap(),
+            body
+        );
+        assert_eq!(server.state.lock().unwrap().authenticated_metadata, 1);
+        server.state.lock().unwrap().failure = Some("digest");
+        assert!(
+            server
+                .client
+                .small_asset("v0.4.0", "component-images.json")
+                .await
+                .is_err()
+        );
+        server.state.lock().unwrap().failure = None;
+        for bad in [
+            json!([dict_asset(&asset, "size", json!(256 * 1024 + 1))]),
+            json!([dict_asset(
+                &asset,
+                "browser_download_url",
+                json!("https://untrusted.invalid/catalog")
+            )]),
+            json!([asset.clone(), asset.clone()]),
+        ] {
+            server.state.lock().unwrap().metadata["assets"] = bad;
+            assert!(
+                server
+                    .client
+                    .small_asset("v0.4.0", "component-images.json")
+                    .await
+                    .is_err()
+            );
+        }
+    }
+    fn dict_asset(
+        asset: &serde_json::Value,
+        key: &str,
+        value: serde_json::Value,
+    ) -> serde_json::Value {
+        let mut asset = asset.clone();
+        asset[key] = value;
+        asset
+    }
+
+    #[tokio::test]
     async fn native_bundle_selection_verifies_arm_elf_oci_and_separates_cache_platforms() {
         let cache = tempfile::tempdir().unwrap();
         for platform in [Platform::linux_amd64(), Platform::linux_arm64()] {

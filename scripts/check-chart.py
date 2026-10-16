@@ -68,9 +68,9 @@ def main():
             nodes=[node('node-'+arch,arch) for arch in architectures]
             options=dict(namespace='kimage-system',installation='kimage',scope=scope,
                 applicationNamespace='apps' if scope=='namespace' else None,excludedNamespaces=['excluded'] if scope=='cluster' else [],
-                runtimeProfile='inferal',registryNode=None,storageClass=None,storageSize='1Gi',existingClaim='retained' if existing else None,port=17701)
+                runtimeProfile='inferal',registryNode=None,exportOrigins=['https://registry.example/'] if case<2 else [],storageClass=None,storageSize='1Gi',existingClaim='retained' if existing else None,port=17701)
             values=dict(scope=scope,applicationNamespace='apps' if scope=='namespace' else '',excludedNamespaces=options['excludedNamespaces'],
-                nodes=nodes,images=dict(digests=digests),persistence=dict(existingClaim='retained' if existing else ''))
+                nodes=nodes,exporter=dict(approvedOrigins=options['exportOrigins']),images=dict(digests=digests),persistence=dict(existingClaim='retained' if existing else ''))
             for name,value in [('options',options),('nodes',nodes),('values',values)]:
                 (work/(name+'.json')).write_text(json.dumps(value))
             native=work/f'native-{case}.json'

@@ -3,11 +3,7 @@
 > kimage declares immutable, versioned container images as Kubernetes resources,
 > manages their production and verified publication to a retained cluster-local
 > registry, and resolves workload image selectors to digest-pinned pulls. Apache
-> 2.0. Alpha. Public Cargo packages: kimage-core and kimage-control, version 0.3.1.
-
-0.3.1 fixes quiet Kubernetes watches and long-lived API streams being cut off by
-a 30-second socket read timeout. Connection limits and kube-runtime watch
-inactivity handling remain in place. Use 0.3.1 for new installations.
+> 2.0. Alpha. Public Cargo packages: kimage-core and kimage-control, version 0.4.0.
 
 **When to use it.** Use kimage when inputs are already provisioned in Kubernetes,
 when images should remain available independently of source/build cache, or when
@@ -15,7 +11,7 @@ a cluster needs local build and pull workflows without an external registry.
 Application authors declare an Image, exact version, and source; the controller
 handles attempts and publication. There is no per-image BuildRun or output
 registry configuration. The registry and node-local serving are included in the
-installation; administrators still provision storage and credentials. Workloads
+installation; administrators provision storage and installation generates service credentials. Workloads
 request Image identity and accepted versions, e.g. platform://apps/service:^1.2.0,
 without knowing a registry hostname, repository path, or digest. Admission pins
 new Pods; existing Pods do not roll automatically. kpack also declares Images
@@ -33,109 +29,68 @@ cache, general base provisioning, signing/attestations,
 HA, arbitrary storage/schema migration, or automatic retained-artifact GC.
 Administrator-managed builder isolation is not a hostile tenant security claim.
 
-**Install native commands without cloning the repository.** Requires Rust
-1.99.0 or newer; ensure Cargo's bin directory is on PATH:
+**Install (0.4.0).** Rust 1.99.0+, administrator kubeconfig, Ready Linux
+amd64/arm64 nodes, persistent storage and the supported Pod user-namespace runtime:
 
 ```sh
-cargo install kimage-control --version 0.3.1 --locked
-kimage install --help
+cargo install kimage-control --version 0.4.0 --locked --bin kimage --bin kimage-install
+kimage install --application-namespace apps
 ```
 
-This installs kimage, its compatible kimage-install alias, kimage-operator, kimage-admission, kimage-gateway,
-kimage-proxy, kimage-input, and kimage-exporter. Add --bin kimage for only
-the installer. The unrelated crate named `kimage` belongs to another project.
-Gateway/proxy report serving compatibility version 0.3.0, separately from Cargo
-package version 0.3.1. kimage-bootstrap is an unpublished internal bundle helper.
+No flags means current kubeconfig application namespace, kimage-system system
+namespace, installation kimage, 1Gi retained PVC, default StorageClass, port 17701.
+The CLI fetches only the exact release's small SHA-verified component-images.json;
+kubelet pulls complete digest-pinned native OCI indexes from
+ ghcr.io/inferal-oss/kimage (admission,builder,exporter,gateway,input,operator,proxy,registry).
+No binary/image uploads through ConfigMaps, installer Pods or port-forwarding.
+No required carrier, issuer scripts or source checkout. Registry/admission/builder
+credentials are generated in process, with separate CAs and read/publish identities;
+CA private keys are not deployed. Reapply identical arguments to resume, preserving
+Secrets and administrator build policy. kimage-install is a compatible alias.
+The Cargo crate named kimage is unrelated. Prebuilt installers: GitHub releases.
+Gateway/proxy serving version remains 0.3.0 separately from Cargo 0.4.0.
 
-**Official bundles and offline use.** No source checkout or packaging script is
-needed. `kimage install` automatically fetches, verifies, and caches the bundle,
-then runs bootstrap, seed, handover, control plane, and default builder setup.
-No separate fetch, check, or phase commands are required.
-Optional `kimage bundle-fetch` downloads and verifies the exact official
-GitHub release matching this CLI package version (0.3.1), never latest, without
-kubeconfig or cluster writes. It prints JSON {bundle: <verified-directory>,
-trustedInventory: <sha256-digest>}. All bundle-using phases use the same automatic
-selection and reverify cached files before reuse. `--release 0.3.1` pins an exact
-release; `--bundle-cache <directory>` overrides the private cache. Default cache:
-XDG_CACHE_HOME/kimage/bundles if set, otherwise ~/Library/Caches/kimage/bundles on
-macOS or ~/.cache/kimage/bundles on Linux. `--offline` prevents bundle downloads only (cluster commands still need Kubernetes) and
-fails clearly on a cache miss. Keep an independent bundle copy for recovery.
-
-The fixed official inferal-oss/kimage GitHub repository over verified HTTPS is
-the online trust origin. GitHub's API provides asset size/SHA-256; the client
-restricts HTTPS download origins, verifies archive/inventory/static executables
-and complete OCI graphs, rejects unsafe/oversized tar entries, and atomically
-caches only complete verified content. Public downloads need no token. Optional
-KIMAGE_GITHUB_TOKEN authenticates only the fixed metadata endpoint for API rate
-limits; it is never sent to asset downloads or redirects.
-For air gaps, transfer the fetched bundle directory and inventory digest through
-your approved channel. Supply `--bundle <directory> --trusted-inventory
-sha256:<64-lowercase-hex-digits>` instead of --release. Local bundles always need
-that independent pin. The pin is also optional for official downloads. Cache
-corruption fails closed and requires explicit removal/refetch. GitHub Actions
-builds complete Linux/amd64 and Linux/arm64 bundles and four native Linux/macOS amd64/arm64 installers, inventories, checksums, and license notices as release assets.
-Official bundles start at 0.2.0; 0.1.0 has no downloadable bundle assets.
+**Helm alternative.** Helm 3+ with live cluster access:
 
 ```sh
-kimage bundle-fetch
-kimage bundle-check --offline
+helm repo add kimage https://kimage.dev/charts
+helm repo update
+kubectl create namespace apps
+helm install kimage kimage/kimage --version 0.4.0 \
+  --namespace kimage-system --create-namespace \
+  --set applicationNamespace=apps --wait --wait-for-jobs
 ```
 
-**Cluster setup is a separate administrator prerequisite.** Automatic bundle
-delivery does not provision Kubernetes. Supply administrator kubeconfig, issuer
-credentials, persistent storage, cached carrier, and the supported runtime.
-Native amd64 and arm64 E2E uses Kubernetes v1.36.5+k3s1 and containerd
-2.3.4-k3s1.36 on Ubuntu 24.04 GitHub-hosted runners. Earlier full lifecycle
-acceptance used amd64, Ubuntu 24.04.5 and kernel 6.8.0-142. Choose
---runtime-profile k3s explicitly. The CLI default inferal profile checks the
-RKE2 v1.36.5+rke2r1 / containerd 2.3.4-k3s1 profile. Two opt-in real mixed-cluster
-runs using official 0.3.0 passed native demand/build/pull checks: fresh unknown
-placement built both variants and used an index on both architectures; fresh
-explicit amd64/arm64 placement built only that platform. These live tests are
-separate from public CI. [Recorded results](https://github.com/inferal-oss/kimage/blob/main/docs/mixed-cluster-results.json).
-Untested exact runtime versions are refused. A generic kind/k3d/container cluster
-is not automatically supported: user namespaces, idmapped volumes, kernel and
-filesystem support, CNI policy enforcement, and persistent storage all matter.
+Published charts contain the same eight native index pins. Helm discovers live
+Nodes; offline template requires full Node objects via nodes. It does not create
+the application namespace. Values: scope namespace|cluster; applicationNamespace
+(default default for namespace scope); excludedNamespaces list; runtimeProfile
+inferal|k3s; persistence.storageClass/size(default1Gi)/existingClaim; registryNode;
+port(default17701); workerNodes arch-to-node map; buildPolicy(empty preserves
+existing or defaults OnDemand, can Eager); images.repository and images.digests.
+The operator manages shared CRDs; Helm does not own/delete them.
 
-Required installation arguments are --runtime-profile, --namespace (system),
---application-namespace (distinct, namespace scope only), --installation, --node, --carrier (approved
-digest already cached on that node), --storage-class, --port (at least 1024),
---credentials (registry directory). Bundle selection is automatic; optionally add
---release 0.3.1, or the local bundle/pin pair described above. Use an
-administrator kubeconfig. The standard command is:
+**Runtime prerequisites.** Default inferal profile: RKE2 v1.36.5+rke2r1 /
+containerd 2.3.4-k3s1. Tested k3s profile: K3s v1.36.5+k3s1 / containerd
+2.3.4-k3s1.36; add --runtime-profile k3s or Helm --set runtimeProfile=k3s.
+Untested exact versions are refused. Generic kind/k3d is not automatically
+supported. User namespaces, idmapped volumes, kernel/filesystem support, CNI
+policies and storage matter. BuildKit 0.33.0 / builtin frontend1.27.0 workers use
+hostUsers:false, native snapshotter, no host/runtime mounts or SA token, bounded
+nested namespace capabilities and unconfined seccomp/AppArmor inside their Pod.
+This is administrator-managed isolation, not a hostile-tenant guarantee.
 
-```sh
-kimage install \
-  --runtime-profile k3s \
-  --namespace kimage-system --application-namespace apps \
-  --installation dev --node <approved-node> \
-  --carrier <cached-image@sha256:digest> \
-  --storage-class <class> --port <loopback-port> \
-  --credentials <registry-directory> \
-  --admission-credentials <admission-directory> \
-  --builder-credentials <builder-directory>
-```
-
-All credential directories are checked before bootstrap writes. Preserve identical
-arguments to resume after interruption. Existing ownership, bundle and configuration
-checkpoints are checked; partial handovers resume rather than restart bootstrap.
-Individual phase commands remain available for advanced/recovery use:
-bootstrap, seed, handover, control-plane, builder. `kimage-install` is an alias.
-Run `kimage install --help` for exact flags.
-No SSH, runtime socket, host filesystem mount, or node trust-store edit is used.
-Missing carrier or incompatible namespace policy fails rather than falling back.
-
-Registry credentials: ca.crt, tls.crt, tls.key, distinct reader-password and
-publisher-password; leaf SAN <installation>-registry.<system-namespace>.svc.
-Admission: ca.crt, tls.crt, tls.key, resolution-key (at least 32 bytes); leaf SAN
-<installation>-admission.<system-namespace>.svc. Builder: ca.crt, server.crt,
-server.key, client.crt, client.key; server SAN
-<installation>-builder.<system-namespace>.svc, separate server/client EKUs.
-CA private keys stay outside Kubernetes. The seven-day test issuer is only a
-development fixture. Builder uses BuildKit 0.33.0 / builtin frontend 1.27.0,
-hostUsers:false, native snapshotter, no host/runtime mounts or service account
-token, and nested namespace capabilities with unconfined seccomp/AppArmor inside
-its Pod. It needs administrator-approved policy and denies worker egress.
+**Delivery and mirrors.** GHCR supplies system components. The included retained
+cluster-local registry stores application images, whose publication needs no
+external registry configuration. Nodes need HTTPS access to GHCR or an approved
+mirror. Mirror all eight complete multi-platform indexes preserving digests;
+change only repository in an independently verified local catalog and pass
+--image-catalog /path/component-images.json. Helm: set images.repository and
+retain published digest pins. Nodes must already trust/reach the mirror; kimage
+does not alter trust stores or import images through the API. Catalog alone is
+not enough for disconnected use. Optional KIMAGE_GITHUB_TOKEN applies only to
+fixed GitHub metadata requests, never asset downloads. Catalog size/asset SHA,
+roles, versions, API revision and both native platforms are checked.
 
 **Minimal complete build example.** Assumes namespace apps and default builder
 are already configured. On native Linux/amd64 or Linux/arm64 with Rust and a musl linker, create a small
@@ -272,14 +227,11 @@ may need a retry after Image Ready. Server dry-run records no demand. Do not wai
 for an automatic Image before applying its Deployment. Demand accumulates within
 a generation; stale UIDs/generations and arbitrary historical build requests fail.
 
-The standard install discovers one native worker node per available architecture,
-selects bundles from cluster Node architecture rather than laptop architecture,
-fetches and verifies all selected bundles before setup, seeds native components
-through the registry API and joins additional native worker nodes. New platforms
-added later need matching bundle, join-node and builder setup. Local --bundle on
-a mixed cluster needs explicit per-platform phases. --offline needs cached bundles
-for all selected architectures. Standalone bundle-fetch defaults to the host ISA;
-use --platform linux/amd64 or --platform linux/arm64 to prepare another platform.
+The CLI and Helm discover one native worker per available architecture and a
+read proxy per eligible node. Component indexes select native manifests through
+kubelet, independent of laptop architecture. Reapply after node additions. The
+original registry node/UID stays pinned to protect retained storage; replacement
+needs explicit recovery. There is no QEMU emulation.
 
 Copied executable inputs must match the requested architecture. The hello example
 uses ARG TARGETARCH and COPY hello-${TARGETARCH}; provide hello-amd64 and hello-arm64
@@ -287,8 +239,8 @@ for a mixed cluster. A homogeneous cluster needs only its matching binary. kimag
 does not translate source binaries. Compile these on matching native Linux build
 machines, then populate the input ConfigMap directory before applying workloads.
 
-**Installation scope (0.3.0).** Default --scope namespace requires a distinct
---application-namespace apps. --scope cluster omits application-namespace, manages
+**Installation scope.** Default --scope namespace targets the current kubeconfig
+namespace, or explicit --application-namespace apps. --scope cluster omits application-namespace, manages
 ordinary namespaces including future ones, and accepts repeated --exclude-namespace
 NAME flags. The system namespace and kube-system/kube-public/kube-node-lease are
 always excluded from application admission/reconciliation. Overlaps with other
@@ -343,37 +295,25 @@ original OCI bytes, platform, compressed layer digests, and DiffIDs are verified
 Native amd64/arm64 manifests, nested indexes and complete multi-platform indexes are supported; zstd, descriptor URLs/embedded data, and subject/referrer graphs are unsupported.
 `kimage-install schemas` prints full CRD JSON without changing the cluster.
 
-**Operations.** join-node uses the original installation arguments plus
---target-node and the same prerequisites. upgrade-serving takes target
---bundle/--trusted-inventory and source --previous-bundle/--previous-trusted-inventory.
-Rollback reverses those independently trusted pairs. The tested actual binary
-window is Distribution 3.1.1 ↔ 3.1.2 and gateway/proxy 0.1.0 / 0.2.0 / 0.3.0 (cluster scope requires 0.3.0), with the
-shipped filesystem configuration on the same PVC. Prefer Distribution 3.1.2.
-All non-serving component versions/roots and bundle API revision must match.
-The updater uses a Lease, warmup pulls, immutable checkpoints, read-only retained
-serving, and single-writer replacement. Publication pauses; interrupted streams
-use runtime retry/digest checks. Repeat the same pair after interruption. It
-never changes CRDs or migrates data. Whole 0.1.0/0.2.0 release bundles differ in
-non-serving component roots, so this is not a general whole-release downgrade. Schema revision 5 accepts only exact shipped revision 2/3/4 transitions; no schema downgrade/storage migration.
+**Operations.** Use the original manager. CLI install reapplication resumes the
+same version; it refuses implicit changed component resources. Helm upgrade/rollback
+uses pinned release history; preserve storage/schema compatibility and never
+downgrade shared CRDs. 0.4.0 is the first image-pull chart, with no automatic
+adoption of older bootstrap installations. Retain older installers/bundles for
+legacy recovery. Reapply after adding nodes. System components can restart by
+normal external pulls independently of the included registry. Running application
+containers survive registry downtime; new uncached starts may wait/fail.
 
-recover reuses original bootstrap arguments and PVC to recreate carrier serving,
-then normal phases restore components. It requires a usable control plane/node,
-cached carrier, retained bundle/credentials, and original PVC. It cannot recover
-lost storage. Back up the whole Distribution backend together with release
-metadata, UIDs/root descriptors, and schema coordination state. Published alpha
-releases are permanently pinned; deletion/unpinning is denied. No automatic GC
-or explicit artifact purge. uninstall removes owned disposable components but
-retains PVCs, CRDs, Images, and ImageReleases. Do not force finalizers or delete
-namespaces/backends as normal cleanup. Running containers survive registry
-downtime; new uncached starts can wait/fail until serving returns.
+kimage uninstall --namespace kimage-system --installation kimage, or helm uninstall
+kimage --namespace kimage-system --wait, preserves PVCs, CRDs, Images and releases.
+Never remove retained namespaces/backends/finalizers as normal cleanup. Back up
+whole registry backend plus release UIDs, roots and schema coordination state.
+No automatic retained-artifact GC or purge. Generated leaves last ten years;
+reapply preserves them and does not perform automatic renewal/CA rotation.
 
-renew-tls uses cluster arguments plus --admission-credentials without bundle
-arguments. It replaces validated leaves while preserving CA/password/resolution
-key, then checks served fingerprints. CA/password/key rotation uses an explicit
-maintenance window and retained-PVC recovery; builder mTLS uses reprovisioning.
-
-**Optional export.** A separate administrator-enabled exporter needs approved
-HTTPS origins. Image spec.exports contains named registry destinations with
+**Optional export.** Enable at CLI install with repeated --export-origin
+https://registry.example/ flags, or Helm exporter.approvedOrigins list. Empty
+disables the separate exporter. Only explicit HTTPS origins are approved. Image spec.exports contains named registry destinations with
 repository (authority/path), explicit tags, credentialsSecretRef or explicit
 unauthenticated:true, optional caSecretRef with ca.crt, and overwritePolicy:Never.
 Credential Secret type is kubernetes.io/dockerconfigjson, with auths matching the

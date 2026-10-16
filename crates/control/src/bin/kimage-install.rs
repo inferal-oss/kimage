@@ -175,6 +175,9 @@ struct ImageCluster {
     excluded_namespaces: Vec<String>,
     #[arg(long, value_enum, default_value = "inferal")]
     runtime_profile: kimage_control::install::RuntimeProfile,
+    /// Optional approved HTTPS export origin, repeated for each destination.
+    #[arg(long = "export-origin")]
+    export_origins: Vec<String>,
     /// Optional registry placement; workers and node proxies are discovered automatically.
     #[arg(long)]
     registry_node: Option<String>,
@@ -207,6 +210,8 @@ impl ImageCluster {
             excluded_namespaces: self.excluded_namespaces.iter().cloned().collect(),
             runtime_profile: self.runtime_profile,
             registry_node: self.registry_node.clone(),
+            worker_nodes: Default::default(),
+            export_origins: self.export_origins.iter().cloned().collect(),
             storage_class: self.storage_class.clone(),
             storage_size: self.storage_size.clone(),
             existing_claim: self.pvc.clone(),

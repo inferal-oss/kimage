@@ -25,6 +25,10 @@ pub struct Options {
     pub excluded_namespaces: BTreeSet<String>,
     pub runtime_profile: RuntimeProfile,
     pub registry_node: Option<String>,
+    #[serde(default)]
+    pub worker_nodes: BTreeMap<String, String>,
+    #[serde(default)]
+    pub export_origins: BTreeSet<String>,
     pub storage_class: Option<String>,
     pub storage_size: String,
     pub existing_claim: Option<String>,
@@ -51,6 +55,22 @@ impl Options {
             self.storage_size.len() <= 32 && !self.storage_size.is_empty(),
             "InvalidStorageSize"
         );
+        ensure!(
+            self.export_origins.len() <= 8,
+            "TooManyApprovedExportOrigins"
+        );
+        for value in &self.export_origins {
+            let url: reqwest::Url = value.parse()?;
+            ensure!(
+                url.scheme() == "https"
+                    && url.username().is_empty()
+                    && url.password().is_none()
+                    && url.path() == "/"
+                    && url.query().is_none()
+                    && url.fragment().is_none(),
+                "InvalidApprovedExportOrigin"
+            );
+        }
         if let Some(claim) = &self.existing_claim {
             ensure!(
                 kimage_core::selector::dns_subdomain(claim),
@@ -67,7 +87,8 @@ impl Options {
     }
 }
 
-pub const TEMPLATE_NAMES: [&str; 10] = [
+pub const TEMPLATE_NAMES: [&str; 11] = [
+    "exporter.json",
     "base.json",
     "storage.json",
     "control.json",
@@ -81,6 +102,7 @@ pub const TEMPLATE_NAMES: [&str; 10] = [
 ];
 pub fn template(name: &str) -> Result<&'static str> {
     Ok(match name {
+        "exporter.json" => include_str!("templates/exporter.json"),
         "base.json" => include_str!("templates/base.json"),
         "storage.json" => include_str!("templates/storage.json"),
         "control.json" => include_str!("templates/control.json"),
@@ -259,6 +281,18 @@ impl Plan {
                 )
                 .or_insert_with(|| node.name_any());
         }
+        for (architecture, name) in &options.worker_nodes {
+            ensure!(
+                nodes.iter().any(|node| node.name_any() == *name
+                    && node
+                        .status
+                        .as_ref()
+                        .and_then(|s| s.node_info.as_ref())
+                        .is_some_and(|i| i.architecture == *architecture)),
+                "RetainedWorkerNodeUnavailable"
+            );
+            workers.insert(architecture.clone(), name.clone());
+        }
         let scope = options.scope();
         let origin = format!(
             "https://{}-registry.{}.svc:5443/",
@@ -272,6 +306,7 @@ impl Plan {
         let mut b = BTreeMap::<String, Value>::new();
         let mut persisted_options = serde_json::to_value(options)?;
         persisted_options["registryNode"] = json!(primary);
+        persisted_options["workerNodes"] = json!(workers);
         let registry_uid = nodes
             .iter()
             .find(|node| node.name_any() == primary)
@@ -434,6 +469,69 @@ impl Plan {
             &b,
         )?;
         append(&mut resources, "control.json", &b)?;
+        if !options.export_origins.is_empty() {
+            let mut args = vec![
+                "--system-namespace".to_owned(),
+                options.namespace.clone(),
+                "--installation".into(),
+                options.installation.clone(),
+                "--internal-origin".into(),
+                origin.clone(),
+                "--internal-ca".into(),
+                "/credentials/ca.crt".into(),
+                "--internal-password".into(),
+                "/credentials/reader-password".into(),
+            ];
+            if scope.cluster_wide {
+                args.push("--cluster-wide".into());
+                for ns in &options.excluded_namespaces {
+                    args.extend(["--exclude-namespace".into(), ns.clone()]);
+                }
+            } else {
+                args.extend([
+                    "--namespace".into(),
+                    options.application_namespace.clone().unwrap(),
+                ]);
+            }
+            for origin in &options.export_origins {
+                args.extend(["--approved-origin".into(), origin.clone()]);
+            }
+            b.insert("exporterArguments".into(), json!(args));
+            b.insert(
+                "exporterRoleKind".into(),
+                json!(if scope.cluster_wide {
+                    "ClusterRole"
+                } else {
+                    "Role"
+                }),
+            );
+            b.insert(
+                "exporterBindingKind".into(),
+                json!(if scope.cluster_wide {
+                    "ClusterRoleBinding"
+                } else {
+                    "RoleBinding"
+                }),
+            );
+            b.insert(
+                "exporterApplicationNamespace".into(),
+                json!(options.application_namespace),
+            );
+            b.insert(
+                "exporterApplicationName".into(),
+                json!(format!(
+                    "{}-{}",
+                    options.installation,
+                    if scope.cluster_wide {
+                        "application-exporter"
+                    } else {
+                        "exporter"
+                    }
+                )),
+            );
+            append(&mut resources, "exporter.json", &b)?;
+        }
+
         for node in &nodes {
             let uid = node.uid().context("MissingNodeUid")?;
             b.insert("node".into(), json!(node.name_any()));
@@ -548,6 +646,8 @@ mod tests {
             },
             runtime_profile: RuntimeProfile::Inferal,
             registry_node: None,
+            worker_nodes: BTreeMap::new(),
+            export_origins: BTreeSet::new(),
             storage_class: None,
             storage_size: "1Gi".into(),
             existing_claim: None,

@@ -82,7 +82,10 @@ def main():
     paths = sorted(path for path in args.assets.iterdir() if path.is_file() and path.name != 'RELEASE_NOTES.md')
     architectures = ['amd64', 'arm64'] if tuple(map(int, args.tag.removeprefix('v').split('-')[0].split('.'))) >= (0, 3, 0) else ['amd64']
     expected = {'LICENSE', 'THIRD-PARTY-NOTICES.txt', 'SHA256SUMS'}
-    expected.update(f'kimage-bundle-{args.tag}-linux-{arch}{suffix}' for arch in architectures for suffix in ['.tar.gz', '.inventory.json'])
+    if tuple(map(int,args.tag.removeprefix('v').split('-')[0].split('.'))) >= (0,4,0):
+        expected.update(['component-images.json',f'kimage-{args.tag.removeprefix("v")}.tgz'])
+    else:
+        expected.update(f'kimage-bundle-{args.tag}-linux-{arch}{suffix}' for arch in architectures for suffix in ['.tar.gz', '.inventory.json'])
     platforms = ['linux-amd64', 'linux-arm64', 'darwin-amd64', 'darwin-arm64'] if len(architectures) == 2 else ['linux-amd64', 'darwin-arm64']
     expected.update(f'kimage-{args.tag}-{platform}' for platform in platforms)
     assert {path.name for path in paths} == expected, 'release asset set is incomplete'

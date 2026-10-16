@@ -16,6 +16,8 @@ buildPolicy: ""
 # Normally discovered from the cluster. Supply full Node objects for offline rendering.
 nodes: []
 workerNodes: {}
+exporter:
+  approvedOrigins: []
 images:
   repository: ghcr.io/inferal-oss/kimage
   # Release packaging fills these with the verified multi-platform index digests.

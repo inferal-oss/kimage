@@ -7,6 +7,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-15
+
+### Added
+
+- Native amd64/arm64 component images published to GHCR by the release workflow, with complete immutable OCI indexes and public-pull verification.
+- A Helm chart repository at `https://kimage.dev/charts`, containing the same release image pins and resource definitions as the CLI.
+- Eight native Kubernetes acceptance cases covering CLI and Helm, namespace and cluster scope, on both architectures, using fresh TLS registry pulls.
+
+### Changed
+
+- `kimage install` now discovers nodes, generates credentials and applies ordinary Kubernetes resources. It fetches only a small verified image catalog; component executables and layers no longer travel through the Kubernetes API.
+- Installation defaults to the current kubeconfig application namespace, a dedicated system namespace and the default StorageClass. Reapplication preserves credentials, build policy and registry node identity.
+- Releases contain four installers, the image catalog and pinned chart instead of bootstrap bundles. Legacy bootstrap commands remain available for independently retained older installations.
+- Updated installation guides, quickstarts, website and agent essentials for image-pull and Helm installation.
+
 ## [0.3.1] - 2026-10-15
 
 ### Fixed
@@ -136,7 +151,8 @@ credentials, and a supported runtime profile. Builds initially support scratch
 images and provisioned local inputs. See the
 [compatibility limits](README.md#compatibility-and-limits).
 
-[Unreleased]: https://github.com/inferal-oss/kimage/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/inferal-oss/kimage/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/inferal-oss/kimage/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/inferal-oss/kimage/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/inferal-oss/kimage/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/inferal-oss/kimage/compare/v0.1.0...v0.2.0

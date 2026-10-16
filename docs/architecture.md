@@ -1,5 +1,11 @@
 # Clean implementation architecture
 
+As of 0.4.0, the CLI and Helm apply ordinary resources with multi-platform GHCR
+image pins. System components pull independently of the included application
+registry. See [installation](installation.md). The bootstrap, carrier and bundle
+recovery entries below record the earlier implementation and acceptance evidence.
+
+
 For 0.3.0 platform selection, default on-demand production, eager configuration,
 and namespace/cluster installation, see [native platforms and scope](platforms-and-scope.md).
 Earlier acceptance receipts below describe the historical amd64 fixture; native

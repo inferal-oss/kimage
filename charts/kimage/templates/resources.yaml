@@ -4,6 +4,7 @@
 {{ include "kimage.resourceFile" (dict "root" . "name" "base.json" "bindings" $b) }}
 {{ include "kimage.resourceFile" (dict "root" . "name" (printf "scope-%s.json" .Values.scope) "bindings" $b) }}
 {{ include "kimage.resourceFile" (dict "root" . "name" "control.json" "bindings" $b) }}
+{{- if .Values.exporter.approvedOrigins -}}{{ include "kimage.resourceFile" (dict "root" . "name" "exporter.json" "bindings" $b) }}{{- end -}}
 {{- range $name := $environment.nodeNames -}}
   {{- $node := get $environment.nodes $name -}}
   {{- $_ := set $b "node" $name -}}{{- $_ := set $b "nodeUid" $node.metadata.uid -}}

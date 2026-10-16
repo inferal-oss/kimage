@@ -47,7 +47,7 @@
             <p class="docs-nav-label">START HERE</p>
             <a href="#overview">The idea</a
             ><a href="#install">Install the CLI</a
-            ><a href="#bundle-delivery">Bundle delivery</a
+            ><a href="#bundle-delivery">Release images</a
             ><a href="#quickstart">Your first image</a>
             <p class="docs-nav-label">DEFINE AND DELIVER</p>
             <a href="#image-api">Image reference</a
@@ -87,9 +87,9 @@
           </p>
           <div class="docs-callout">
             <strong>Alpha, with a specific supported profile.</strong> The CLI
-            automatically fetches verified official release bundles. Cluster
-            setup still needs an administrator, issuer credentials, persistent
-            storage, a cached carrier, and the runtime prerequisites below.
+            pulls pinned native component images from GHCR. Cluster setup needs administrator
+            access, persistent storage and the runtime prerequisites below. The CLI
+            generates credentials; Helm is also available.
           </div>
 
           <section id="overview">
@@ -122,179 +122,26 @@
           </section>
 
           <section id="install">
-            <h2>Install the CLI</h2>
-            <p>
-              With Rust 1.99.0 or newer and Cargo's bin directory on your PATH:
-            </p>
-            <pre><code>cargo install kimage-control --version 0.3.1 --locked
-kimage install --help</code></pre>
-            <p>
-              Version 0.3.1 fixes Kubernetes watches expiring after a quiet
-              30-second interval. Connection limits and kube-runtime's watch
-              inactivity handling remain in place.
-            </p>
-            <p>
-              No source checkout is needed. The package is
-              <code>kimage-control</code>; the unrelated
-              <code>kimage</code> crate belongs to another project. Add
-              <code>--bin kimage</code> if you only want the installer.
-            </p>
-            <table>
-              <thead>
-                <tr>
-                  <th>Command</th>
-                  <th>Purpose</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td><code>kimage</code>, <code>kimage-install</code></td>
-                  <td>
-                    Verify, install, maintain, upgrade, and recover through
-                    Kubernetes APIs.
-                  </td>
-                </tr>
-                <tr>
-                  <td><code>kimage-operator</code></td>
-                  <td>
-                    Reconcile Images, build attempts, publication, and release
-                    metadata.
-                  </td>
-                </tr>
-                <tr>
-                  <td><code>kimage-admission</code></td>
-                  <td>
-                    Resolve workload selectors and enforce retained-release
-                    policy.
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <code>kimage-gateway</code> / <code>kimage-proxy</code>
-                  </td>
-                  <td>
-                    Authenticate registry traffic and serve node-local digest
-                    reads.
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <code>kimage-input</code> / <code>kimage-exporter</code>
-                  </td>
-                  <td>
-                    Capture inputs and optionally copy retained releases to
-                    another registry.
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            <p>
-              Cargo compiles native commands for your machine. Official GitHub
-              releases also provide prebuilt macOS and Linux installers for amd64 and arm64,
-              plus complete Linux bundles for both native architectures. The
-              installer fetches and verifies its matching release automatically;
-              it does not provision a cluster. Gateway/proxy carry serving
-              compatibility version <code>0.3.0</code>, independently of the
-              Cargo package version.
-            </p>
+<h2>Install the CLI</h2>
+<p>Use Rust 1.99.0 or newer. No source checkout is needed:</p>
+<pre><code>cargo install kimage-control --version 0.4.0 --locked --bin kimage --bin kimage-install
+kimage install --application-namespace apps</code></pre>
+<p><code>kimage-install</code> is a compatible alias. The crate named <code>kimage</code> belongs to another project. Prebuilt Linux and macOS installers for amd64 and arm64 are available in <a href="https://github.com/inferal-oss/kimage/releases">GitHub releases</a>.</p>
+<p>With no flags, <code>kimage install</code> manages the current kubeconfig namespace, uses <code>kimage-system</code> for components, a 1Gi retained PVC and the cluster's default StorageClass. It discovers native workers, generates credentials and waits for authenticated readiness. Use administrator kubeconfig and the <a href="#compatibility">supported runtime</a>. For the tested K3s profile, add <code>--runtime-profile k3s</code>.</p>
+<p>Server binaries are also available from <code>kimage-control</code> if needed. Gateway and proxy retain serving protocol version 0.3.0 independently of package version 0.4.0.</p>
           </section>
 
           <section id="bundle-delivery">
-            <h2>Automatic bundle delivery</h2>
-            <p>
-              Every bundle-using phase fetches the official release matching
-              this CLI's exact package version, then reuses a verified local
-              cache. <code>kimage install</code> handles this automatically,
-              with no separate fetch/check step. It never selects
-              <code>latest</code>. Optional: to prepare the bundle before you
-              have a kubeconfig:
-            </p>
-            <pre><code>kimage bundle-fetch
-kimage bundle-check --offline</code></pre>
-            <p>
-              The fetch command prints JSON containing <code>bundle</code> (the
-              verified directory) and <code>trustedInventory</code> (its
-              <code>sha256:</code> digest). It does not access Kubernetes.
-              GitHub Actions builds and attaches the full bundle, separate
-              inventory, four native installers, checksums, and license notices
-              to each release.
-            </p>
-            <table>
-              <thead>
-                <tr>
-                  <th>Option</th>
-                  <th>Behavior</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td><code>--release 0.3.1</code></td>
-                  <td>
-                    Select an exact official release. Default: the installed CLI
-                    package version. Keep the same selection when resuming a
-                    phase.
-                  </td>
-                </tr>
-                <tr>
-                  <td><code>--bundle-cache &lt;directory&gt;</code></td>
-                  <td>
-                    Override the cache. Default: XDG_CACHE_HOME/kimage/bundles
-                    when set; otherwise ~/Library/Caches/kimage/bundles on macOS
-                    or ~/.cache/kimage/bundles on Linux.
-                  </td>
-                </tr>
-                <tr>
-                  <td><code>--offline</code></td>
-                  <td>
-                    Prevent bundle downloads. A cache miss fails with guidance;
-                    cached content is still reverified. Cluster commands still
-                    require access to Kubernetes.
-                  </td>
-                </tr>
-                <tr>
-                  <td><code>--bundle &lt;directory&gt;</code></td>
-                  <td>
-                    Use local bytes with a required independently trusted
-                    <code>--trusted-inventory sha256:&lt;64-hex-digits&gt;</code
-                    >. Cannot be combined with <code>--release</code>.
-                  </td>
-                </tr>
-                <tr>
-                  <td><code>--trusted-inventory sha256:...</code></td>
-                  <td>
-                    Optionally pin the inventory even for an official
-                    download/cache entry.
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            <p>
-              Online trust comes from the fixed official
-              <code>inferal-oss/kimage</code> repository over verified HTTPS:
-              GitHub's API supplies each asset's SHA-256 and size. The client
-              restricts download origins, verifies the compressed archive,
-              rejects path traversal/links/duplicates and oversized entries, and
-              checks the inventory, static executables, and complete OCI graphs
-              before cluster mutation. Only a fully verified directory enters
-              the cache atomically. Public downloads need no token. If API rate
-              limits require authentication,
-              <code>KIMAGE_GITHUB_TOKEN</code> applies only to the fixed
-              metadata endpoint; it is never sent to asset downloads or
-              redirects.
-            </p>
-            <p>
-              For an air gap, transfer the fetched <code>bundle</code> directory
-              and its inventory digest through your approved channel, then
-              supply both local arguments to the installation phases. Keep an
-              independent copy for recovery when GitHub is unavailable. Cache
-              corruption fails closed; preserve your trusted recovery copy
-              before explicitly removing an invalid cache entry and refetching.
-            </p>
-            <p>
-              Official bundle assets start at <code>0.2.0</code>. Fetching
-              <code>0.1.0</code> cannot supply assets that were never released;
-              use its independently retained local bundle and installer instead.
-            </p>
+<h2>Release images and mirrors</h2>
+<p>Starting with 0.4.0, all eight system components are ordinary public images under <code>ghcr.io/inferal-oss/kimage</code>. GitHub Actions builds native amd64 and arm64 images on release, verifies their complete OCI graphs, and publishes immutable multi-platform indexes. Kubelet selects its node's native manifest.</p>
+<p>The CLI fetches only a small <code>component-images.json</code> asset from its exact GitHub release, never <code>latest</code>. GitHub asset SHA-256 and size are verified, and the catalog must contain the expected roles, versions, schema and both native platforms. The Helm release chart contains the same image pins. No component executable or image layer is uploaded through Kubernetes ConfigMaps, installer Pods or port-forwarding.</p>
+<p>GHCR supplies kimage's components. The included cluster-local registry still retains the application images that kimage builds. Workloads keep using <code>platform://</code> selectors.</p>
+<table><thead><tr><th>Option</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><code>--release 0.4.0</code></td><td>Exact official release; defaults to the CLI package version.</td></tr>
+<tr><td><code>--image-catalog &lt;path&gt;</code></td><td>Explicit administrator-trusted local catalog, including a registry mirror.</td></tr>
+<tr><td><code>images.repository</code></td><td>Helm registry mirror override; retain all published digest pins.</td></tr></tbody></table>
+<p>For disconnected installation, mirror all eight complete indexes with both architectures and preserve their digests. Change only the repository in an independently verified catalog, or set Helm's repository override. Nodes must already trust and reach that mirror using their normal runtime configuration. kimage does not edit node trust stores or transfer images through the API. A saved catalog alone is insufficient.</p>
+<p>Public downloads need no token. Optional <code>KIMAGE_GITHUB_TOKEN</code> applies only to fixed GitHub metadata requests, never asset downloads. Bootstrap bundles and low-level recovery commands remain a legacy path for independently retained older installations.</p>
           </section>
 
           <section id="quickstart">
@@ -549,16 +396,11 @@ source:
               variants. A later consumer can request an additional variant; the index
               is published only after both complete graphs and matching private input
               captures are verified. Changed input captures require a new version.</p>
-            <p>The installer fetches bundles for the selected cluster nodes, regardless
-              of the laptop architecture, and registers one native worker per available
-              architecture. There is no automatic build emulation. Add later native
-              architectures with their matching bundle, <code>join-node</code>, and
-              <code>builder</code> phases. Mixed-cluster local-bundle installation
-              needs explicit per-platform phases; official fetching handles this automatically.</p>
-            <p>Provide architecture-specific inputs for copied executables. Standard
-              BuildKit <code>ARG TARGETARCH</code> lets a Containerfile select
-              <code>COPY hello-${TARGETARCH} /hello</code>. Supply both files if
-              both architectures may be requested. kimage does not translate binaries.</p>
+            <p>The CLI and Helm discover one native worker per available architecture
+              and a read proxy for every eligible node. Kubelet selects native children
+              from the pinned component indexes. Reapply after adding nodes to register
+              new proxies and platforms. There is no QEMU emulation. Provide matching
+              executable inputs for every requested application architecture.</p>
           </section>
           <section id="scope">
             <h2>Namespace or cluster-wide installation</h2>
@@ -578,7 +420,7 @@ source:
               its own <code>service</code> Image. Namespace scope uses application
               Roles; cluster scope grants broader application permissions with runtime
               namespace filters. Node administrators are trusted registry readers.</p>
-            <p>Native Kubernetes E2E runs both installation scopes on amd64 and arm64,
+            <p>Native Kubernetes E2E runs CLI and Helm, both installation scopes on amd64 and arm64,
               covering real build/pull, policy, workload controllers, RBAC, namespace
               boundaries, exclusions, and retained storage on uninstall. The release
               workflow requires this acceptance matrix.</p>
@@ -785,10 +627,9 @@ spec:
             <h2>Optional registry export</h2>
             <p>
               Export copies a verified retained release without rebuilding it.
-              An administrator explicitly starts the separate exporter using
-              <code>kimage-install exporter</code> with the usual installation
-              arguments and one or more
-              <code>--approved-origin https://registry.example/</code> values.
+              An administrator enables the separate exporter with repeated
+              <code>kimage install --export-origin https://registry.example/</code>
+              flags, or Helm <code>exporter.approvedOrigins</code>.
               No configured targets means no external registry requests.
             </p>
             <pre><code># Add under spec on an Image:
@@ -882,7 +723,7 @@ exports:
               The installer checks exact runtime versions. A generic kind, k3d,
               or Docker cluster is not automatically supported: user namespaces,
               idmapped volumes, kernel/filesystem/runtime support, CNI policy,
-              storage, and the cached carrier all matter.
+              storage all matter.
             </p>
             <p>
               The worker uses <code>hostUsers: false</code>, nested namespace
@@ -902,186 +743,53 @@ exports:
           </section>
 
           <section id="cluster-setup">
-            <h2>Cluster setup</h2>
-            <p>
-              This is an explicit administrator workflow. Keep a current and
-              previous trusted bundle independently of the cluster, plus issuer
-              material and a working administrator kubeconfig. Start on a
-              disposable supported development cluster.
-            </p>
-            <ol>
-              <li>
-                <strong>Prepare credentials:</strong> separate registry,
-                admission, and builder identities. See
-                <a href="#credentials">credential files and service names</a>.
-              </li>
-              <li>
-                <strong>Confirm prerequisites:</strong> exact runtime profile,
-                selected node, approved digest-pinned carrier already cached
-                there, storage class or existing claim, distinct
-                system/application namespaces, and an available loopback port at
-                least 1024.
-              </li>
-              <li>
-                <strong>Run one command:</strong> <code>kimage install</code>
-                fetches and verifies the bundle, then runs all standard phases.
-                Preserve identical installation arguments for resume. Keep an
-                independent recovery copy of the bundle and inventory digest.
-              </li>
-            </ol>
-            <details>
-              <summary>Optional: build a custom bundle from source</summary>
-              <p>
-                Normal administrators use automatic release delivery.
-                Maintainers and custom-bundle authors can use the repository
-                packaging script with a prepared Linux/musl toolchain and
-                independently authenticated upstream executables:
-              </p>
-              <pre><code>cargo build --locked --offline --release \
-  --target x86_64-unknown-linux-musl --workspace --bins
-python3 scripts/package-bundle.py \
-  --linux-dir &lt;linux-release-directory&gt; \
-  --registry &lt;trusted-distribution-executable&gt; \
-  --registry-version 3.1.2 --serving-version 0.3.0 \
-  --buildkit-dir &lt;pinned-buildkit-directory&gt; \
-  --include-installers --macos-installer &lt;macos-arm64-installer&gt; \
-  --out dist/complete-linux-amd64
-kimage-install bundle-check --bundle dist/complete-linux-amd64 \
-  --trusted-inventory sha256:&lt;independently-trusted-64-hex-digits&gt;</code></pre>
-              <p>
-                Pass trusted inventory digests as <code>sha256:</code> followed
-                by 64 lowercase hexadecimal characters. An adjacent checksum
-                alone does not authenticate origin. Verification checks
-                inventory bytes, ELF architecture/static linkage, and complete
-                component OCI graphs before cluster mutation. Native executable
-                delivery uses bounded ConfigMap chunks; credentials never enter
-                the OCI archives.
-              </p>
-            </details>
-            <h3 id="standard-install">Install into the cluster</h3>
-            <p>
-              Replace each placeholder with your approved value. No separate
-              bundle-fetch, bundle-check, or phase commands are required.
-            </p>
-            <pre><code>kimage install \
-  --runtime-profile k3s \
-  --namespace kimage-system --application-namespace apps \
-  --installation dev --node &lt;approved-node&gt; \
-  --carrier &lt;cached-image@sha256:digest&gt; \
-  --storage-class &lt;class&gt; --port &lt;loopback-port&gt; \
-  --credentials &lt;registry-directory&gt; \
-  --admission-credentials &lt;admission-directory&gt; \
-  --builder-credentials &lt;builder-directory&gt;</code></pre>
-            <p>
-              The command validates all credential directories before bootstrap
-              writes, then runs bootstrap, seed, handover, control plane, and
-              the default builder. Rerun with identical arguments after
-              interruption. It verifies the retained bundle and configuration
-              checkpoints, resumes an interrupted handover, and checks readiness
-              before continuing. <code>kimage-install</code> is a compatible
-              alias.
-            </p>
-            <details>
-              <summary>Advanced: run individual phases</summary>
-              <p>
-                The following Bash function keeps the common arguments
-                consistent. Replace every placeholder with your approved values;
-                retain this configuration privately for resume/recovery. The
-                example explicitly chooses the full-acceptance k3s profile.
-              </p>
-              <pre><code>ki() {
-  kimage-install "$@" \
-    --runtime-profile k3s \
-    --namespace kimage-system --application-namespace apps \
-    --installation dev --node &lt;approved-node&gt; \
-    --carrier &lt;cached-image@sha256:digest&gt; \
-    --storage-class &lt;class&gt; --port &lt;loopback-port&gt; \
-    --credentials &lt;registry-credential-directory&gt; \
-    --release 0.3.1
-}
-ki bootstrap
-ki seed
-ki handover
-ki control-plane --admission-credentials &lt;admission-directory&gt;
-ki builder --builder-credentials &lt;builder-directory&gt;</code></pre>
-              <p>
-                <code>bootstrap</code> starts carrier serving using
-                API-delivered executables. <code>seed</code> uploads and
-                independently reads back component graphs.
-                <code>handover</code> warms ordinary digest pulls, replaces
-                serving, then cleans executable payloads.
-                <code>control-plane</code> validates schemas before registering
-                admission; <code>builder</code> provisions and authenticates the
-                default worker.
-              </p>
-              <p>
-                Use <code>--pvc &lt;existing-claim&gt;</code> when appropriate,
-                alongside the required storage-class argument. Missing cached
-                carrier or denied namespace policy is a prerequisite failure;
-                administrator RBAC does not override admission policy. Foreign
-                resources or changed installation configuration are refused.
-              </p>
-            </details>
-            <p>
-              The installer uses Kubernetes APIs and authenticated port
-              forwarding. It does not SSH, edit node trust stores, mount the
-              host filesystem, or access a runtime socket. Ordinary workloads
-              pull through kubelet after bootstrap.
-            </p>
+<h2>Cluster setup</h2>
+<p>Supply administrator kubeconfig, Ready Linux amd64/arm64 nodes, persistent storage and the documented runtime/user-namespace prerequisites. Nodes need HTTPS access to GHCR or your mirror; the CLI needs GitHub access for the small catalog. No carrier image or credential-generation script is needed.</p>
+<h3 id="standard-install">Install with the CLI</h3>
+<pre><code>kimage install --application-namespace apps
+
+# Tested K3s profile, explicit storage:
+kimage install --application-namespace apps \
+  --runtime-profile k3s --storage-class local-path
+
+# All ordinary namespaces, with an extra exclusion:
+kimage install --scope cluster --exclude-namespace infrastructure</code></pre>
+<p>The installer creates missing requested namespaces, generates separate service identities and applies ordinary resources. Reapply the same command after interruption. It reuses credentials and preserves the administrator's build policy. Existing foreign resources, scope overlap and a different installation manager are refused. Both installation scopes need administrator access for shared CRDs and webhooks.</p>
+<h3 id="helm">Install with Helm</h3>
+<pre><code>helm repo add kimage https://kimage.dev/charts
+helm repo update
+kubectl create namespace apps
+helm install kimage kimage/kimage --version 0.4.0 \
+  --namespace kimage-system --create-namespace \
+  --set applicationNamespace=apps --wait --wait-for-jobs</code></pre>
+<p>Use Helm 3 or newer. Helm queries live Ready Nodes during install/upgrade, and does not create the application namespace. Add <code>--set runtimeProfile=k3s</code> for the tested K3s profile. For cluster scope, omit the application namespace and set <code>--set scope=cluster</code>. Use a values file for exclusions.</p>
+<table><thead><tr><th>Helm value</th><th>Default / meaning</th></tr></thead><tbody>
+<tr><td><code>applicationNamespace</code></td><td><code>default</code> in namespace scope</td></tr>
+<tr><td><code>scope</code>, <code>excludedNamespaces</code></td><td><code>namespace</code>; extra cluster-scope exclusions</td></tr>
+<tr><td><code>runtimeProfile</code></td><td><code>inferal</code>; use <code>k3s</code> for the tested K3s profile</td></tr>
+<tr><td><code>persistence.storageClass</code>, <code>persistence.size</code></td><td>Cluster default, <code>1Gi</code></td></tr>
+<tr><td><code>persistence.existingClaim</code></td><td>Optional existing Bound claim</td></tr>
+<tr><td><code>registryNode</code></td><td>First eligible node initially; retained on reapply</td></tr>
+<tr><td><code>buildPolicy</code></td><td>Empty preserves the existing setting, otherwise <code>OnDemand</code>; can set <code>Eager</code></td></tr>
+<tr><td><code>port</code></td><td><code>17701</code>; distinct for installations sharing nodes</td></tr>
+<tr><td><code>images.repository</code>, <code>images.digests</code></td><td>Official GHCR repository and eight release-pinned indexes</td></tr>
+<tr><td><code>exporter.approvedOrigins</code></td><td>Empty disables export; explicit HTTPS origins enable the separate exporter</td></tr>
+<tr><td><code>workerNodes</code></td><td>Optional architecture-to-node placement map</td></tr>
+<tr><td><code>nodes</code></td><td>Full Node objects only for offline rendering; normally discovered live</td></tr>
+</tbody></table>
+<p>The operator owns shared CRD compatibility checks; the chart does not delete those CRDs. The source chart has empty image pins until release packaging verifies both native graphs. Published charts are ready to install.</p>
           </section>
 
           <section id="upgrades">
-            <h2>Add nodes, upgrade, and roll back</h2>
-            <p>
-              Use <code>join-node</code> with the original installation/bundle
-              arguments and <code>--target-node &lt;additional-node&gt;</code>.
-              The target needs the same prerequisites and cached carrier.
-              Endpoint approval follows ordinary proxy readiness and binds the
-              Node UID, proxy digest, credentials, and scope.
-              <code>--recover</code> permits replacement of an owned stale proxy
-              after node replacement.
-            </p>
-            <p>
-              <code>upgrade-serving</code> takes target
-              <code>--bundle</code>/<code>--trusted-inventory</code> and
-              independently trusted source
-              <code>--previous-bundle</code
-              >/<code>--previous-trusted-inventory</code>, with the original
-              installation arguments.
-            </p>
-            <pre><code># Supply the usual installation arguments as in cluster setup:
-kimage-install upgrade-serving &lt;installation-arguments&gt; \
-  --bundle &lt;target-bundle&gt; --trusted-inventory &lt;target-sha256&gt; \
-  --previous-bundle &lt;source-bundle&gt; \
-  --previous-trusted-inventory &lt;source-sha256&gt;</code></pre>
-            <p>
-              <strong
-                >Rollback reverses those independently trusted source and target
-                bundles.</strong
-              >
-              Supported actual binaries are Distribution
-              <code>3.1.1 ↔ 3.1.2</code> and gateway/proxy
-              <code>0.1.0 / 0.2.0 / 0.3.0</code>, with the shipped filesystem
-              configuration and the same PVC. Prefer Distribution 3.1.2 for
-              ordinary operation. Every non-serving component version/root and
-              the bundle API revision must match.
-            </p>
-            <p>
-              A renewable Lease and immutable checkpoints serialize the
-              transition. Replacement images warm through normal pulls before
-              rollout; a read-only server uses the retained PVC while the single
-              writer changes. Proxies overlap only after an authenticated
-              configuration proof. Publication pauses during writer replacement;
-              interrupted streams use normal client retry and digest checks.
-            </p>
-            <p>
-              Repeat the same transition after an interrupted installer's Lease
-              expires. A checkpoint can restore a missing writer while read-only
-              serving remains. If both serving paths are lost, use
-              retained-bundle recovery first. The command never downgrades CRDs
-              or migrates persisted data; other binary/storage transitions are
-              refused.
-            </p>
+<h2>Reapply, upgrade and rollback</h2>
+<p>After adding nodes, repeat the identical CLI installation or Helm upgrade with your retained values. This registers new node proxies and any new native architecture. The registry node and UID remain pinned; moving storage or replacing that node requires explicit recovery. Keep scope, port, storage and installation identity consistent.</p>
+<pre><code>helm upgrade kimage kimage/kimage --version 0.4.0 \
+  --namespace kimage-system --reuse-values --wait --wait-for-jobs
+helm history kimage --namespace kimage-system
+helm rollback kimage &lt;compatible-revision&gt; \
+  --namespace kimage-system --wait --wait-for-jobs</code></pre>
+<p>Use the manager that owns the installation. Helm history retains pinned resources and credentials. A rollback must preserve schema and Distribution storage compatibility; it never downgrades shared CRDs. 0.4.0 is the first image-pull chart. Reapplying its CLI resumes the same resources and refuses implicit whole-release changes.</p>
+<p>There is no supported automatic adoption of a 0.3.x bootstrap installation. Keep its original installer and independently trusted bundles. The older guarded serving-binary transitions remain in the <a href="https://github.com/inferal-oss/kimage/blob/main/docs/operations.md">legacy operations reference</a>, with their tested version windows.</p>
           </section>
 
           <p class="docs-callout">
@@ -1092,126 +800,19 @@ kimage-install upgrade-serving &lt;installation-arguments&gt; \
             independently retained bundles for recovery.
           </p>
           <section id="recovery">
-            <h2>Recovery, backups, and retention</h2>
-            <p>
-              <code>recover</code> with the original bootstrap arguments
-              recreates carrier serving on the same PVC when ordinary serving is
-              absent. Continue with seed/handover and the configured
-              control-plane, builder, and joined-node phases. Independent
-              bundles, cached carrier, usable nodes/control plane, and the
-              original PVC remain prerequisites.
-            </p>
-            <ul>
-              <li>
-                <strong>Back up together:</strong> the entire Distribution
-                backend, ImageRelease metadata and UIDs/root descriptors, and
-                schema coordination state. Cache directories and source archives
-                do not replace this backup.
-              </li>
-              <li>
-                <strong>Verify retained bytes:</strong>
-                <code>verify-remote</code> downloads and validates a complete
-                graph without its source archive. Use
-                <code>kimage-install verify-remote --help</code> for descriptor,
-                repository, TLS, and authenticated API-forwarding arguments.
-              </li>
-              <li>
-                <strong>Retain releases:</strong> published releases have
-                permanent alpha pins. The retention webhook denies
-                deletion/unpinning; no automatic release/blob GC or explicit
-                artifact purge is implemented.
-              </li>
-              <li>
-                <strong>Uninstall:</strong> removes owned disposable
-                serving/configuration with UID/resourceVersion guards and keeps
-                PVCs, CRDs, Images, and ImageReleases. It never deletes remote
-                content.
-              </li>
-            </ul>
-            <p>
-              Do not force-remove finalizers or delete the namespace/backend as
-              ordinary cleanup. Administrator bypass, forced deletion, namespace
-              deletion, and storage-provider loss are outside the retention
-              guarantee. Recovery cannot repair a lost PVC or unavailable
-              Kubernetes control plane.
-            </p>
-            <p>
-              Schema revision 5 supports only the shipped transitions
-              from exact revisions 2/3/4, preserving CRD identities and the
-              served/storage API version. Foreign definitions, incompatible
-              owners, arbitrary conversion, storage migration, and schema
-              downgrade are refused.
-            </p>
+<h2>Recovery and retained storage</h2>
+<p>System components can restart by pulling their public or mirrored images independently of the included application registry. Restore service by reapplying the same installation and inspecting normal Pod events. This does not recover lost storage. Back up the complete Distribution backend together with release metadata, UIDs and schema coordination records.</p>
+<pre><code>kimage uninstall --namespace kimage-system --installation kimage
+# For a Helm-managed installation:
+helm uninstall kimage --namespace kimage-system --wait</code></pre>
+<p>Removal keeps PVCs, Images, ImageReleases and shared CRDs. Do not remove namespaces, release pins, finalizers or registry backends during ordinary cleanup. Running containers survive registry downtime; new uncached application starts wait or fail until serving returns. This remains a single-registry deployment, not HA.</p>
           </section>
 
           <section id="credentials">
-            <h2>Credentials and renewal</h2>
-            <table>
-              <thead>
-                <tr>
-                  <th>Directory</th>
-                  <th>Required files and identity</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>Registry</td>
-                  <td>
-                    <code>ca.crt</code>, <code>tls.crt</code>,
-                    <code>tls.key</code>, distinct
-                    <code>reader-password</code> and
-                    <code>publisher-password</code>. Leaf SAN:
-                    <code
-                      >&lt;installation&gt;-registry.&lt;system-namespace&gt;.svc</code
-                    >.
-                  </td>
-                </tr>
-                <tr>
-                  <td>Admission</td>
-                  <td>
-                    <code>ca.crt</code>, <code>tls.crt</code>,
-                    <code>tls.key</code>, and at least 32 bytes in
-                    <code>resolution-key</code>. Leaf SAN:
-                    <code
-                      >&lt;installation&gt;-admission.&lt;system-namespace&gt;.svc</code
-                    >.
-                  </td>
-                </tr>
-                <tr>
-                  <td>Builder</td>
-                  <td>
-                    <code>ca.crt</code>, <code>server.crt</code>,
-                    <code>server.key</code>, <code>client.crt</code>,
-                    <code>client.key</code>. Server SAN:
-                    <code
-                      >&lt;installation&gt;-builder.&lt;system-namespace&gt;.svc</code
-                    >; separate server/client extended key usages.
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            <p>
-              Use an issuer-managed server leaf, keep CA private keys outside
-              Kubernetes, and retain current private directories for recovery.
-              The repository's seven-day test issuer is a development fixture,
-              not production certificate automation.
-            </p>
-            <p>
-              <code>renew-tls</code> takes the cluster arguments and
-              <code>--admission-credentials</code>, without bundle arguments. It
-              validates both registry/admission identities before either write,
-              preserves CA/password/resolution-key material, patches owned TLS
-              fields, and verifies the actual served certificate fingerprints.
-              Repeat with the same issued material to resume a partial
-              operation.
-            </p>
-            <p>
-              CA, password, and resolution-key rotation use a separate
-              maintenance window: preserve the backend/releases/bundles,
-              uninstall disposable serving, and recover with new material.
-              Builder mTLS changes use worker reprovisioning; its cache is
-              disposable.
-            </p>
+<h2>Credentials</h2>
+<p>CLI installation generates registry, admission and worker credentials in process. Helm uses its standard certificate functions. Each service has a separate CA; registry read and publish passwords are independent, and admission has its own resolution key. CA private keys are not deployed. Worker endpoints use authenticated TLS.</p>
+<p>The complete base Secrets are created before their derived views, so interrupted setup resumes with matching server/client identities. Reapplication reuses owned Secrets and preserves their identities. Helm stores release resources in its normal release history; protect that history as credential material.</p>
+<p>Generated leaf certificates last ten years. Reapplication preserves them and is not automatic renewal. Plan certificate maintenance before expiry. CA/password/key rotation needs an explicit maintenance and storage-recovery plan; legacy <code>renew-tls</code> applies to older bootstrap installations, not the new default.</p>
           </section>
 
           <section id="observability">
@@ -1225,7 +826,7 @@ kimage-install upgrade-serving &lt;installation-arguments&gt; \
 kubectl -n apps get image hello -o yaml
 kubectl -n apps describe pod &lt;pod-name&gt;
 kubectl -n kimage-system get pods
-kimage-install &lt;phase&gt; --help</code></pre>
+kimage install --help</code></pre>
             <table>
               <thead>
                 <tr>
@@ -1466,7 +1067,7 @@ kimage-install &lt;phase&gt; --help</code></pre>
               <strong>The registry is included.</strong> Application authors
               do not choose a separate publication service or configure output
               push credentials per Image. Administrators provision the included
-              registry's persistent storage and credentials during installation.
+              registry's persistent storage; installation generates service credentials.
               Exporting to another registry is an optional additional operation.
             </p>
             <p>
@@ -1502,7 +1103,7 @@ python3 scripts/check-site.py</code></pre>
               CI runs Rust tests on macOS/arm64 and native Linux/amd64 and Linux/arm64 musl, plus eleven release-tooling tests,
               formatting, Clippy, documentation/example checks, and package
               verification. These include parser/admission compatibility for
-              readable colon and literal/encoded query ranges, native graph verification, placement and build policy. Native Kubernetes E2E tests both installation scopes on each architecture before release.
+              readable colon and literal/encoded query ranges, native graph verification, placement and build policy. Native Kubernetes E2E tests CLI and Helm, both installation scopes, on each architecture before release.
             </p>
             <p>
               An <a href="https://github.com/inferal-oss/kimage/blob/main/docs/mixed-cluster-e2e.md">explicitly enabled mixed-cluster E2E</a>
@@ -1547,7 +1148,7 @@ python3 scripts/check-site.py</code></pre>
           </section>
         </article>
         <div class="docs-end">
-          <span>kimage 0.3.1 handbook</span><a href="#main">Back to top ↑</a>
+          <span>kimage 0.4.0 handbook</span><a href="#main">Back to top ↑</a>
         </div>
       </main>
     </div>

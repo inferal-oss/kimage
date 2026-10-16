@@ -8,6 +8,7 @@ import subprocess
 import time
 import urllib.request
 import ssl
+import shutil
 
 
 def main():
@@ -38,9 +39,10 @@ def main():
             break
         except (OSError,urllib.error.URLError):time.sleep(1)
     else:raise RuntimeError('fixture registry not ready')
+    trust=directory/'trust';trust.mkdir();shutil.copyfile(directory/'ca.crt',trust/'ca.crt')
     catalog=json.loads((a.images/'component-images.json').read_bytes())
     for role,entry in catalog['components'].items():
-        subprocess.run(['skopeo','copy','--all','--preserve-digests','--dest-cert-dir',str(directory),'oci:'+str((a.images/role).resolve())+':v'+catalog['release'],'docker://127.0.0.1:14901/kimage/'+role+':v'+catalog['release']],check=True)
+        subprocess.run(['skopeo','copy','--all','--preserve-digests','--dest-cert-dir',str(trust),'oci:'+str((a.images/role).resolve())+':v'+catalog['release'],'docker://127.0.0.1:14901/kimage/'+role+':v'+catalog['release']],check=True)
     catalog['repository']='127.0.0.1:14901/kimage'
     (directory/'component-images.json').write_text(json.dumps(catalog))
     # This trust file belongs only to the ephemeral runner's new K3s fixture.

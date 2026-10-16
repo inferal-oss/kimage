@@ -72,7 +72,8 @@
 {{- end -}}
 {{- $workers := dict -}}
 {{- range $name := $names -}}{{- $node := get $byName $name -}}{{- $arch := $node.status.nodeInfo.architecture -}}{{- if not (hasKey $workers $arch) -}}{{- $_ := set $workers $arch $name -}}{{- end -}}{{- end -}}
-{{- range $arch, $name := .Values.workerNodes -}}
+{{- $retainedWorkers := dict -}}{{- if $priorRecord -}}{{- $retainedWorkers = $priorRecord.options.workerNodes | default dict -}}{{- end -}}
+{{- range $arch, $name := mergeOverwrite $retainedWorkers .Values.workerNodes -}}
   {{- if not (hasKey $byName $name) -}}{{- fail "WorkerNodeNotEligible" -}}{{- end -}}
   {{- if ne (get $byName $name).status.nodeInfo.architecture $arch -}}{{- fail "WorkerNodePlatformMismatch" -}}{{- end -}}
   {{- $_ := set $workers $arch $name -}}
@@ -115,7 +116,7 @@
   {{- end -}}
 {{- end -}}
 {{- $storageClass := .Values.persistence.storageClass | default nil -}}{{- $existing := .Values.persistence.existingClaim | default nil -}}
-{{- $options := dict "namespace" $ns "installation" $install "scope" .Values.scope "applicationNamespace" (ternary nil $app $cluster) "excludedNamespaces" (.Values.excludedNamespaces | uniq | sortAlpha) "runtimeProfile" .Values.runtimeProfile "registryNode" $primary "storageClass" $storageClass "storageSize" .Values.persistence.size "existingClaim" $existing "port" .Values.port -}}
+{{- $options := dict "namespace" $ns "installation" $install "scope" .Values.scope "applicationNamespace" (ternary nil $app $cluster) "excludedNamespaces" (.Values.excludedNamespaces | uniq | sortAlpha) "runtimeProfile" .Values.runtimeProfile "registryNode" $primary "workerNodes" $workers "exportOrigins" (.Values.exporter.approvedOrigins | uniq | sortAlpha) "storageClass" $storageClass "storageSize" .Values.persistence.size "existingClaim" $existing "port" .Values.port -}}
 {{- $buildPolicy := .Values.buildPolicy -}}
 {{- if not $buildPolicy -}}{{- $old := lookup "v1" "ConfigMap" $ns (printf "%s-config" $install) -}}{{- if $old -}}{{- $buildPolicy = (get $old.data "configuration.json" | fromJson).buildPolicy -}}{{- end -}}{{- end -}}
 {{- $buildPolicy = default "OnDemand" $buildPolicy -}}{{- if not (has $buildPolicy (list "OnDemand" "Eager")) -}}{{- fail "buildPolicy must be OnDemand or Eager" -}}{{- end -}}
@@ -126,5 +127,18 @@
 {{- $ad := list "--system-namespace" $ns "--installation" $install "--endpoint" (printf "127.0.0.1:%v" .Values.port) "--nodes" $primary "--cert" "/credentials/tls.crt" "--key" "/credentials/tls.key" "--resolution-key" "/credentials/resolution-key" "--operator-identity" (printf "system:serviceaccount:%s:%s-operator" $ns $install) "--input-image" (get $images "input") "--builder-image" (get $images "builder") -}}
 {{- $scopeArgs := list "--namespace" $app -}}{{- if $cluster -}}{{- $scopeArgs = list "--cluster-wide" -}}{{- range $excluded := .Values.excludedNamespaces -}}{{- $scopeArgs = concat $scopeArgs (list "--exclude-namespace" $excluded) -}}{{- end -}}{{- end -}}
 {{- $_ := set $b "operatorArguments" (concat $op $scopeArgs) -}}{{- $_ := set $b "admissionArguments" (concat $ad $scopeArgs) -}}
+{{- $exports := .Values.exporter.approvedOrigins | uniq | sortAlpha -}}
+{{- if gt (len $exports) 8 -}}{{- fail "TooManyApprovedExportOrigins" -}}{{- end -}}
+{{- $exportArgs := list "--system-namespace" $ns "--installation" $install "--internal-origin" $origin "--internal-ca" "/credentials/ca.crt" "--internal-password" "/credentials/reader-password" -}}
+{{- $exportArgs = concat $exportArgs $scopeArgs -}}
+{{- range $origin := $exports -}}
+  {{- if not (regexMatch "^https://[a-zA-Z0-9.-]+(:[0-9]+)?/$" $origin) -}}{{- fail "InvalidApprovedExportOrigin: use an HTTPS origin with trailing slash" -}}{{- end -}}
+  {{- $exportArgs = concat $exportArgs (list "--approved-origin" $origin) -}}
+{{- end -}}
+{{- $_ := set $b "exporterArguments" $exportArgs -}}
+{{- $_ := set $b "exporterRoleKind" (ternary "ClusterRole" "Role" $cluster) -}}
+{{- $_ := set $b "exporterBindingKind" (ternary "ClusterRoleBinding" "RoleBinding" $cluster) -}}
+{{- $_ := set $b "exporterApplicationNamespace" (ternary nil $app $cluster) -}}
+{{- $_ := set $b "exporterApplicationName" (printf "%s-%s" $install (ternary "application-exporter" "exporter" $cluster)) -}}
 {{- dict "bindings" $b "nodes" $byName "nodeNames" $names "workers" $workers "scope" $scope "options" $options "catalog" $catalog | toJson -}}
 {{- end -}}

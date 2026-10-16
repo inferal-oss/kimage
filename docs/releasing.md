@@ -1,16 +1,17 @@
 # Releasing kimage
 
-The public packages are `kimage-core` and `kimage-control`; the latter installs
-eight commands. `kimage-bootstrap` is an unpublished internal bundle helper.
-The unrelated `kimage` crate belongs to another project.
+Public Cargo packages are `kimage-core` and `kimage-control`. The crate named
+`kimage` is unrelated. Starting with 0.4.0, GitHub Actions publishes native
+component images to GHCR and a Helm chart to the website's chart repository.
+The unpublished `kimage-bootstrap` helper remains for legacy recovery tooling.
 
-## Prepare the source
+## Prepare and validate
 
-Update the workspace version and exact core dependency together, then update
-Cargo.lock, crate READMEs, README, changelog, handbook, website commands, and
-llms.txt. Keep the two crate licenses identical to the root Apache 2.0 license.
-Gateway/proxy retain a separate serving compatibility version, currently 0.3.0;
-a Cargo release does not implicitly change that binary compatibility contract.
+Update the workspace version, exact core dependency, Cargo.lock, both crate
+READMEs, README, dated Keep a Changelog section/compare links, chart version and
+appVersion, handbook, website commands, clipboard command and llms.txt together.
+Gateway/proxy retain their separate serving compatibility version, currently
+0.3.0. A Cargo version bump does not change that contract.
 
 ```sh
 cargo fmt --all --check
@@ -18,106 +19,100 @@ cargo clippy --locked --workspace --all-targets -- -D warnings
 cargo test --locked --workspace
 python3 scripts/check-changelog.py
 python3 scripts/test-release.py
+python3 scripts/test-component-images.py
+python3 scripts/test-mixed-e2e.py
 python3 scripts/check-docs.py
 python3 scripts/check-site.py
-cargo publish --dry-run --locked --workspace --exclude kimage-bootstrap
+python3 scripts/check-chart.py --helm helm
+cargo package --locked --workspace --exclude kimage-bootstrap
 ```
 
-Run the supported Linux/musl tests too. Commit and push the reviewed source to
-main. The website validates the new documentation immediately but holds its
-deployment until both crates and the complete GitHub release bundle are public.
-This prevents the live quickstart from advertising an unavailable installation.
+Canonical resource JSON lives in `crates/control/src/pull_install/templates`.
+Run `scripts/sync-chart-resources.py` after changing it. CI compares complete Helm
+and native CLI resources for both scopes and architectures, including optional
+exporter RBAC, credentials, image pins and retained storage.
 
-Maintain an empty `[Unreleased]` section above dated released sections, use the
-Keep a Changelog categories (Added, Changed, Deprecated, Removed, Fixed, Security),
-and update compare links. Record meaningful user behavior in the current release.
-The checker runs in CI and the release validation job.
+Review all eight native Kubernetes acceptance cases: CLI/Helm, namespace/cluster,
+amd64/arm64. Each new disposable K3s fixture pulls components from a TLS registry
+with complete native indexes; kimage images are never imported into containerd.
+The tests cover authenticated workers, real builds and application pulls, demand,
+eager policy, controller compatibility, scope/RBAC, idempotence and retained data
+on uninstall. Mixed-node placement acceptance remains an explicitly enabled
+real-cluster test, separate from the native CI matrix.
 
-Native Kubernetes E2E is a publication gate: both installation scopes must pass on
-native amd64 and arm64 runners. Review the E2E evidence artifacts before tagging.
-The build preview also requires this reusable acceptance workflow.
+## Review a preview
 
-## Build and review release assets
-
-The pinned `publish.yml` workflow can preview a build from main without
-publication or a publishing credential:
+Commit reviewed source to main, then:
 
 ```sh
 gh workflow run publish.yml --ref main -f dry_run=true
 ```
 
-It validates source and docs, builds native Linux/amd64 and Linux/arm64 musl components and all four Linux/macOS
-amd64/arm64 installers, downloads pinned upstream inputs, verifies
-the full inventory/OCI graphs, and uploads `release-assets` to the Actions run.
-The assets are:
+The workflow validates source/docs and runs native acceptance. Linux builds use
+native musl toolchains; macOS installers are also built natively. Pinned upstream
+Distribution 3.1.2 and BuildKit 0.33.0 inputs are size/SHA-256 checked before named
+executables are extracted. Component packaging checks static ELF architecture,
+compressed-layer DiffIDs, complete OCI graphs and independent native manifests.
+The eight deterministic multi-platform indexes contain both amd64 and arm64.
+No QEMU build emulation is used.
 
-- `kimage-bundle-v0.3.1-linux-<amd64|arm64>.tar.gz`, a complete flat offline bundle.
-- `kimage-bundle-v0.3.1-linux-<amd64|arm64>.inventory.json`, also inside the bundle.
-- Four installers: `kimage-v0.3.1-<linux|darwin>-<amd64|arm64>`.
-- `LICENSE`, `THIRD-PARTY-NOTICES.txt`, and `SHA256SUMS`.
+Review `release-assets`:
 
-The input downloader checks pinned archive sizes/SHA-256 for Distribution 3.1.2
-and BuildKit 0.33.0 before extracting only the named regular executables. Update
-those pins deliberately with upstream verification, not by accepting a newly
-adjacent checksum. The packer records the actual Cargo component version,
-separately from registry/serving/builder versions. The release job checks real
-binary version output and natively verifies the complete bundle before upload.
+- Four `kimage-v0.4.0-<linux|darwin>-<amd64|arm64>` installer binaries.
+- `component-images.json`, the bounded catalog with all eight immutable index pins.
+- `kimage-0.4.0.tgz`, containing the same canonical resources and release pins.
+- `LICENSE`, `THIRD-PARTY-NOTICES.txt`, `SHA256SUMS` and release notes.
 
-## Tag, verify OIDC, and publish
+`component-layouts` is an internal build artifact used by publication and CI,
+not an administrator installation input. Source chart digest placeholders are
+filled only after both native graph sets pass verification.
 
-Create the version tag on the reviewed main commit, then dispatch a dry run:
-
-```sh
-git tag -a v0.3.1 -m 'kimage 0.3.1'
-git push origin v0.3.1
-gh workflow run publish.yml --ref v0.3.1 -f dry_run=true
-```
-
-Both crates trust only `inferal-oss/kimage`, workflow filename `publish.yml`, and
-environment `crates-io`. That environment permits only tags matching `v*`. The
-workflow additionally requires the tag to match the workspace version and its
-commit to be on main. Only the tagged publishing job receives OIDC and release
-write permissions. The official Rust authentication action exchanges GitHub's
-identity for a temporary crates.io token and revokes it afterward. No long-lived
-crates.io token is stored in GitHub secrets.
-
-After inspecting the dry run, publish the same tag:
+## Tag and publish
 
 ```sh
-gh workflow run publish.yml --ref v0.3.1 -f dry_run=false
+git tag -a v0.4.0 -m 'kimage 0.4.0'
+git push origin v0.4.0
+gh workflow run publish.yml --ref v0.4.0 -f dry_run=true
+# After reviewing the exact tag preview:
+gh workflow run publish.yml --ref v0.4.0 -f dry_run=false
 ```
 
-The job stages and hashes assets in a draft GitHub release, publishes core then
-control through OIDC, and finalizes the GitHub release only after Cargo succeeds.
-It runs the released Linux installer against the actual public GitHub download,
-checks offline reuse and the independently generated inventory digest, then
-dispatches the website deployment. Administrators can now fetch that exact bundle
-without a checkout, Python script, kubeconfig, or GitHub token.
+The tag must match the workspace version and point at a main commit. Publication
+uses the standard OCI registry protocol with all architectures and preserved
+digests. Images have source/license/version labels and live at
+`ghcr.io/inferal-oss/kimage/<role>:v0.4.0`; installation uses their index digests.
+Existing different release tags are never overwritten.
 
-## Resume and verify
+**First publication:** new GHCR packages can default to private. Set all eight
+component packages to public in the organization's package settings. The job
+waits for and verifies anonymous access to each index, both child manifests and
+configs before publishing the Cargo packages and finalizing the GitHub release.
+Do not advertise an installable release while its images require private access.
+The workflow uses a job-limited `GITHUB_TOKEN` with `packages: write`; no long-lived
+publishing token is stored.
 
-A repeated run preserves exact existing assets and never clobbers different
-bytes. Crates are packaged and verified before checking publication state. An
-already uploaded version is accepted only if its checksum matches the exact
-candidate archive; a conflict stops the release. Partial publication can therefore
-resume without replacing a crate or exposing an incomplete draft asset set.
-Published release assets are treated as immutable. Do not move a published tag.
+Both crates trust only repository `inferal-oss/kimage`, workflow `publish.yml`,
+environment `crates-io`, with tags `v*`. The Rust OIDC action exchanges that
+identity for a temporary crates.io token. Core publishes before control. Exact
+existing crate checksums are verified on retries; conflicting bytes stop the run.
+Assets are staged and SHA-256 checked in a draft release, then made public only
+after image access and Cargo publication succeed. Published tags/assets remain
+immutable. Never move a published tag or bypass digest conflicts during retry.
 
-Verify the consumer path on macOS as well as the workflow's Linux check:
+## Website and Helm repository
 
-```sh
-cargo install kimage-control --version 0.3.1 --locked --root .local/release-install
-.local/release-install/bin/kimage bundle-fetch --bundle-cache .local/release-cache
-.local/release-install/bin/kimage bundle-check --bundle-cache .local/release-cache --offline
-```
+Release completion dispatches Pages. The website gate waits for both Cargo
+packages and all required public assets. Pages fetches every public release chart
+using GitHub's recorded asset SHA-256, validates its archive/version and writes
+`site/charts/index.yaml` plus the versioned `.tgz` files. Earlier charts remain
+available. The apex repository is `https://kimage.dev/charts`.
 
-Check all eight installed commands with `--help` and `--version`, the release and
-site workflows, the live handbook/llms.txt, and a clean pushed main. For air gaps,
-transfer the verified `bundle` directory and inventory digest through the chosen
-trusted channel, then use `--bundle` and `--trusted-inventory sha256:...`.
-Cluster/runtime/TLS/carrier prerequisites still apply. Automatic bundle delivery
-does not create a general operator/schema upgrade or downgrade path.
+Before publishing website changes, preview the installation page and capture a
+screenshot. After deployment verify live handbook/llms.txt versions, anonymous
+GHCR pulls, `helm repo add/update` and `helm show values` for the released chart,
+and the released native installer's version/help/catalog fetch path. Check all
+workflow conclusions and a clean pushed main before reporting completion.
 
-Initial 0.1.0 publication used a local maintainer credential to create the two
-crates before trusted publishers could be registered. That tag has no bundle
-assets; retain its independently trusted local bundles/installers for recovery.
+Older 0.2.x/0.3.x tags keep their original bundle publication workflows. Retain
+those installers and independently trusted bundles for legacy recovery; 0.4.0
+does not perform automatic adoption, storage migration or schema downgrade.

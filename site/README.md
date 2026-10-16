@@ -30,7 +30,7 @@ node --check site/docs/docs.js
 The `Website` GitHub Actions workflow validates and uploads `site/`, then deploys
 it to GitHub Pages. Pushes to `main` that change website files or its workflow
 trigger validation; deployment waits until the workspace version has public crates
-and official bundle assets. A successful release dispatches the website workflow
+and official component catalog/chart assets. A successful release dispatches the website workflow
 automatically. Manual dispatch is also available. Pull requests get the
 static checks through the regular CI workflow without deploying.
 
@@ -45,3 +45,7 @@ keyboard, anchor navigation, and copying the Cargo install command. It also cove
 the handbook's table of contents, details panels, Markdown download, and mobile
 overflow. Manifest snippets
 are labeled as excerpts; the complete hello example lives in `examples/hello/`.
+
+Released Helm charts are fetched with verified GitHub asset SHA-256 values during
+Pages packaging. `scripts/build-chart-repository.py` writes `charts/index.yaml`
+and keeps every published chart version available under the apex domain.

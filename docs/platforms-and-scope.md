@@ -1,6 +1,6 @@
 # Native platforms, build policy, and installation scope
 
-kimage 0.3.0 produces and verifies `linux/amd64` and `linux/arm64` images on
+kimage 0.4.0 produces and verifies `linux/amd64` and `linux/arm64` images on
 native workers. An Image without `spec.platform` or `spec.platforms` uses automatic
 selection. The default build policy is **OnDemand**.
 
@@ -95,21 +95,17 @@ and use a new version for changed content.
 
 ## Native workers and portable inputs
 
-The standard installer chooses the primary node's architecture from Kubernetes,
-fetches its verified bundle, and discovers one Ready schedulable native worker
-node for each other supported architecture. It fetches the additional bundle,
-seeds verified native components through the registry API, joins that node's
-local proxy, and registers its authenticated worker. Bundle selection follows
-the cluster node, even when the administrator uses a different laptop platform.
-Extra nodes of an already registered architecture can use `join-node`.
+The CLI and Helm chart discover Ready nodes and register one native worker per
+available architecture, plus a read proxy on every eligible node. All component
+references are complete amd64/arm64 OCI indexes pinned to release digests; kubelet
+selects the native manifest. Worker selection follows Kubernetes Nodes, regardless
+of the administrator's laptop architecture. No component binaries are transferred
+through the Kubernetes API.
 
-There is no automatic QEMU build emulation. An unavailable architecture remains
-pending or is rejected when placement cannot be satisfied. New architectures
-added after installation need their matching bundle, node join, and worker setup.
-With local `--bundle` input on a mixed cluster, provision each architecture through
-the explicit `join-node` and `builder` phases; automatic official fetching is the
-simple mixed-cluster installation path. `--offline` requires cached bytes for
-every selected architecture.
+There is no QEMU build emulation. Reapply the same installation command or Helm
+upgrade after adding nodes to register their proxies and new architectures. The
+registry's original node and UID remain pinned to protect retained storage. For
+mirrors and disconnected clusters, see [installation](installation.md).
 
 Architecture-specific executables remain your inputs. A portable Containerfile
 can use the standard BuildKit platform argument:
@@ -128,20 +124,19 @@ the output OCI platform; it does not translate an executable copied from inputs.
 ## Namespace or cluster-wide installation
 
 Namespace scope is the default. Add `--application-namespace apps` to manage that
-one application namespace. Both modes use a dedicated system namespace.
+one application namespace. Without that flag, the CLI uses the current kubeconfig
+namespace. Both modes use a dedicated system namespace.
 
 ```sh
 kimage install --scope namespace \
-  --namespace kimage-system --application-namespace apps \
-  <the remaining cluster and credential arguments>
+  --namespace kimage-system --application-namespace apps
 ```
 
 For all ordinary application namespaces, including namespaces created later:
 
 ```sh
 kimage install --scope cluster \
-  --namespace kimage-system --exclude-namespace shared-infrastructure \
-  <the remaining cluster and credential arguments>
+  --namespace kimage-system --exclude-namespace shared-infrastructure
 ```
 
 Omit `--application-namespace` in cluster mode. The installation always excludes
@@ -169,7 +164,7 @@ registry isolation. Uninstall keeps PVCs, CRDs, Images, and retained releases.
 multi-platform graph verification, immutable variant identities, default/eager
 policy, demand generations, and controller API build creation. The
 [Native Kubernetes E2E workflow](../.github/workflows/e2e.yml) runs fresh installs
-for both scopes on native amd64 and arm64 Linux runners. It exercises real
+for CLI and Helm, both scopes, on native amd64 and arm64 Linux runners. It exercises real
 builds/pulls, all supported controller templates, dry-run, pending demand, eager
 production, RBAC and namespace boundaries, and retained storage on uninstall.
 The release workflow requires that matrix to pass before publication.

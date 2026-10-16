@@ -96,6 +96,8 @@ for file in (ROOT / 'llms.txt', ROOT / 'docs/index.md'):
     for reference in re.findall(r'\]\(([^\s)]+)\)', file.read_text()):
         check_reference(file, reference)
 assert (ROOT / 'llms.txt').read_text().startswith('# kimage\n\n> ')
+version = re.search(r'(?ms)^\[workspace\.package\]\s*\n.*?^version\s*=\s*"([^"]+)"', (ROOT.parent/'Cargo.toml').read_text())[1]
+assert f'cargo install kimage-control --version {version} --locked --bin kimage --bin kimage-install' in (ROOT/'site.js').read_text(), 'clipboard install command must match the documented release'
 agent_image = re.search(r'```yaml\n(apiVersion:.*?)\n```', (ROOT / 'llms.txt').read_text(), re.S)
 assert agent_image and agent_image[1].strip() == (ROOT.parent / 'examples/hello/image.yaml').read_text().strip(), 'agent Image example drift'
 for name in ('main.rs', 'image.yaml', 'deployment.yaml'):
