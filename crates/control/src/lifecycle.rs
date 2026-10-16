@@ -853,7 +853,16 @@ pub(crate) async fn replace_owned(
                 .is_some_and(|v| v == manager),
         "InstallationResourceOwnershipConflict: {kind}/{name}"
     );
+    let metadata = metadata_update(desired, &current)?;
     if crate::install::verify_declared(desired, &current).is_ok() {
+        if let Some(metadata) = metadata {
+            api.patch(
+                name,
+                &PatchParams::default(),
+                &Patch::Merge(json!({"metadata":metadata})),
+            )
+            .await?;
+        }
         return Ok(());
     }
     // Existing credentials and retained volumes must only be checked, never replaced.
@@ -901,10 +910,78 @@ async fn create_owned(
                         .is_some_and(|v| v == manager),
                 "InstallationResourceOwnershipConflict"
             );
-            crate::install::verify_declared(desired, &current)
+            crate::install::verify_declared(desired, &current)?;
+            if let Some(metadata) = metadata_update(desired, &current)? {
+                api.patch(
+                    &name,
+                    &PatchParams::default(),
+                    &Patch::Merge(json!({"metadata":metadata})),
+                )
+                .await?;
+            }
+            Ok(())
         }
         Err(error) => Err(error.into()),
     }
+}
+/// Ownership is mutable metadata, independent of the declared resource body.
+/// Add missing installation metadata without restarting an unchanged native
+/// process, but never replace a different owner or Helm release identity.
+fn metadata_update(desired: &Value, current: &DynamicObject) -> Result<Option<Value>> {
+    let actual = serde_json::to_value(&current.metadata)?;
+    let expected = &desired["metadata"];
+    if let Some(owners) = expected.get("ownerReferences") {
+        ensure!(
+            actual["ownerReferences"].is_null()
+                || actual["ownerReferences"] == json!([])
+                || actual["ownerReferences"] == *owners,
+            "InstallationResourceOwnerConflict"
+        );
+    }
+    for key in [
+        "meta.helm.sh/release-name",
+        "meta.helm.sh/release-namespace",
+    ] {
+        if let Some(value) = expected["annotations"].get(key) {
+            ensure!(
+                actual["annotations"][key].is_null() || actual["annotations"][key] == *value,
+                "InstallationResourceOwnershipConflict"
+            );
+        }
+    }
+    if let Some(value) = expected["labels"].get("app.kubernetes.io/managed-by") {
+        ensure!(
+            actual["labels"]["app.kubernetes.io/managed-by"].is_null()
+                || actual["labels"]["app.kubernetes.io/managed-by"] == *value,
+            "InstallationResourceOwnershipConflict"
+        );
+    }
+    let mut patch = json!({});
+    for field in ["labels", "annotations", "ownerReferences"] {
+        if let Some(value) = expected.get(field) {
+            let matches = value.as_object().map_or_else(
+                || actual[field] == *value,
+                |values| {
+                    values
+                        .iter()
+                        .all(|(key, value)| actual[field][key] == *value)
+                },
+            );
+            if !matches {
+                patch[field] = value.clone();
+            }
+        }
+    }
+    if patch.as_object().unwrap().is_empty() {
+        return Ok(None);
+    }
+    patch["uid"] = json!(current.uid().context("MissingInstallationResourceUid")?);
+    patch["resourceVersion"] = json!(
+        current
+            .resource_version()
+            .context("MissingInstallationResourceVersion")?
+    );
+    Ok(Some(patch))
 }
 pub(crate) async fn wait_deleted(api: &Api<DynamicObject>, name: &str) -> Result<()> {
     let deadline = tokio::time::Instant::now() + Duration::from_secs(180);
@@ -1352,6 +1429,87 @@ async fn restore_helm_policy(
 
 #[cfg(test)]
 mod tests {
+    #[tokio::test]
+    async fn unchanged_worker_receives_guarded_ownership_without_restart() {
+        use axum::{Json, Router, routing::get};
+        use std::sync::{
+            Arc,
+            atomic::{AtomicBool, Ordering},
+        };
+        let desired = serde_json::json!({"apiVersion":"v1","kind":"Pod","metadata":{"name":"dev-builder-arm64","namespace":"system","labels":{super::LABEL:"dev","app.kubernetes.io/managed-by":"Helm"},"annotations":{"kimage.dev/manager":"helm","meta.helm.sh/release-name":"dev","meta.helm.sh/release-namespace":"system"},"ownerReferences":[{"apiVersion":"v1","kind":"ConfigMap","name":"dev-installation","uid":"installation","controller":false,"blockOwnerDeletion":false}]},"spec":{"containers":[{"name":"builder","image":"pinned"}]}});
+        let mut current = desired.clone();
+        current["metadata"]
+            .as_object_mut()
+            .unwrap()
+            .remove("ownerReferences");
+        current["metadata"]["uid"] = serde_json::json!("worker");
+        current["metadata"]["resourceVersion"] = serde_json::json!("11");
+        let returned = current.clone();
+        let patched = Arc::new(AtomicBool::new(false));
+        let observed = patched.clone();
+        let owners = desired["metadata"]["ownerReferences"].clone();
+        let app = Router::new().route(
+            "/api/v1/namespaces/system/pods/dev-builder-arm64",
+            get(move || {
+                let value = returned.clone();
+                async move { Json(value) }
+            })
+            .patch(move |Json(value): Json<serde_json::Value>| {
+                let owners = owners.clone();
+                let observed = observed.clone();
+                let current = current.clone();
+                async move {
+                    assert_eq!(value["metadata"]["uid"], "worker");
+                    assert_eq!(value["metadata"]["resourceVersion"], "11");
+                    assert_eq!(value["metadata"]["ownerReferences"], owners);
+                    assert!(value.get("spec").is_none());
+                    observed.store(true, Ordering::SeqCst);
+                    Json(current)
+                }
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let client = kube::Client::try_from(kube::Config::new(
+            format!("http://{address}").parse().unwrap(),
+        ))
+        .unwrap();
+        let context = crate::install::Installer {
+            client,
+            options: crate::install::Options {
+                scope: crate::install::InstallScope::Namespace,
+                excluded_namespaces: Default::default(),
+                application_namespace: Some("app".into()),
+                runtime_profile: crate::install::RuntimeProfile::K3s,
+                namespace: "system".into(),
+                installation: "dev".into(),
+                node: "native".into(),
+                carrier: String::new(),
+                storage_class: String::new(),
+                pvc: None,
+                port: 17700,
+                credentials: Default::default(),
+            },
+        };
+        super::replace_owned(&context, &desired, "helm")
+            .await
+            .unwrap();
+        assert!(patched.load(Ordering::SeqCst));
+        let mut foreign: kube::api::DynamicObject =
+            serde_json::from_value(desired.clone()).unwrap();
+        foreign.metadata.owner_references.as_mut().unwrap()[0].uid = "other".into();
+        assert!(super::metadata_update(&desired, &foreign).is_err());
+        foreign = serde_json::from_value(desired.clone()).unwrap();
+        foreign
+            .metadata
+            .annotations
+            .as_mut()
+            .unwrap()
+            .insert("meta.helm.sh/release-name".into(), "other".into());
+        assert!(super::metadata_update(&desired, &foreign).is_err());
+        server.abort();
+    }
     #[test]
     fn helm_waits_tolerate_restart_backoff_without_waiting_on_recovery_history() {
         assert_eq!(
