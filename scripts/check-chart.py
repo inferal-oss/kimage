@@ -54,12 +54,13 @@ def main():
     subprocess.run(['python3',str(ROOT/'scripts/sync-chart-resources.py'),'--check'],check=True)
     subprocess.run(['cargo','build','--locked','--quiet','-p','kimage-control','--example','pull-plan'],cwd=ROOT,check=True)
     metadata=json.loads(subprocess.check_output(['cargo','metadata','--locked','--no-deps','--format-version','1'],cwd=ROOT,text=True))
+    version=next(p['version'] for p in metadata['packages'] if p['name']=='kimage-control')
     example=Path(metadata['target_directory'])/'debug/examples/pull-plan'
     with tempfile.TemporaryDirectory(prefix='kimage-chart-') as temporary:
         work=Path(temporary)
         digests={role:'sha256:'+'a'*64 for role in ROLES}
-        catalog=dict(schema=1,release='0.4.0',apiSchemaRevision=5,repository='ghcr.io/inferal-oss/kimage',components={role:dict(
-            version='0.3.0' if role in ['gateway','proxy'] else '0.33.0' if role=='builder' else '3.1.2' if role=='registry' else '0.4.0',
+        catalog=dict(schema=1,release=version,apiSchemaRevision=5,repository='ghcr.io/inferal-oss/kimage',components={role:dict(
+            version='0.3.0' if role in ['gateway','proxy'] else '0.33.0' if role=='builder' else '3.1.2' if role=='registry' else version,
             digest=digests[role],platforms=[dict(os='linux',architecture=arch) for arch in ['amd64','arm64']]) for role in ROLES})
         (work/'catalog.json').write_text(json.dumps(catalog))
         for case,(scope,architectures,existing) in enumerate([

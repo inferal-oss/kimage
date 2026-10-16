@@ -7,9 +7,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-16
+
 ### Added
 
 - Recorded [real mixed-cluster acceptance](docs/mixed-install-results.json) for the published 0.4.0 CLI and public Helm chart: native GHCR pulls, fresh unknown/amd64/arm64 placement cases, retained resource identities and complete OCI graph readback after uninstall/reinstall.
+- Repository instructions now require Keep a Changelog entries and synchronized release documentation for future changes.
+
+### Changed
+
+- Updated Cargo and Helm installation examples, README, website and agent essentials for 0.4.1, which includes the CLI uninstall fix.
 
 ### Fixed
 
@@ -166,7 +173,8 @@ credentials, and a supported runtime profile. Builds initially support scratch
 images and provisioned local inputs. See the
 [compatibility limits](README.md#compatibility-and-limits).
 
-[Unreleased]: https://github.com/inferal-oss/kimage/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/inferal-oss/kimage/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/inferal-oss/kimage/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/inferal-oss/kimage/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/inferal-oss/kimage/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/inferal-oss/kimage/compare/v0.2.0...v0.3.0

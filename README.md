@@ -173,9 +173,13 @@ component boundaries and trust assumptions.
 Install [Rust 1.99.0 or newer](https://www.rust-lang.org/tools/install), then:
 
 ```sh
-cargo install kimage-control --version 0.4.0 --locked --bin kimage --bin kimage-install
+cargo install kimage-control --version 0.4.1 --locked --bin kimage --bin kimage-install
 kimage install --application-namespace apps
 ```
+
+Version 0.4.1 fixes an intermittent CLI uninstall identity conflict. For an existing
+0.4.0 installation, updating the CLI is sufficient to use the cleanup fix; its
+UID, specification and ownership guards remain enforced.
 
 No source checkout is needed. With no flags, `kimage install` manages the current
 kubeconfig namespace. Components use public, digest-pinned amd64/arm64 images from
@@ -196,7 +200,7 @@ exact runtime checks; see [prerequisites](docs/installation.md#prerequisites).
 helm repo add kimage https://kimage.dev/charts
 helm repo update
 kubectl create namespace apps
-helm install kimage kimage/kimage --version 0.4.0 \
+helm install kimage kimage/kimage --version 0.4.1 \
   --namespace kimage-system --create-namespace \
   --set applicationNamespace=apps --wait --wait-for-jobs
 ```
@@ -405,7 +409,7 @@ approved cluster. The published 0.4.0 CLI and public Helm chart also passed
 [real mixed-cluster checks](docs/mixed-install-results.json), including native
 GHCR component pulls and full retained image graph readback after
 uninstall/reinstall. The receipt records an intermittent CLI uninstall race,
-its successful retry and the fix on main. Earlier two-node interruption/recovery, binary rollback and
+its successful retry and the fix shipped in 0.4.1. Earlier two-node interruption/recovery, binary rollback and
 external-export harnesses remain separately recorded acceptance evidence.
 
 Contributions are welcome through [issues](https://github.com/inferal-oss/kimage/issues)

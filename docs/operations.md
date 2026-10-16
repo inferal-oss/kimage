@@ -1,6 +1,6 @@
 # Operating kimage
 
-For 0.4.0, start with the [image-pull CLI and Helm installation guide](installation.md).
+For 0.4.1, start with the [image-pull CLI and Helm installation guide](installation.md).
 Components now come from GHCR; the normal installer sends only small Kubernetes
 resources. See [platforms and scope](platforms-and-scope.md) for build policy.
 
@@ -10,7 +10,7 @@ The remaining installer and bundle sections describe **0.3.1 and earlier**.
 Keep the corresponding retained installer for those installations. In the 0.4 CLI,
 the old top-level `install` and `uninstall` entry points are named `legacy-install`
 and `legacy-uninstall`; low-level phase commands remain available but hidden from
-normal help. These paths are not the 0.4.0 default or an automatic migration.
+normal help. These paths are not the current default or an automatic migration.
 Application build and input contracts below still apply.
 
 For 0.3.0 platform selection, default on-demand production, eager configuration,

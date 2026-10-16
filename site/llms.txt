@@ -3,7 +3,7 @@
 > kimage declares immutable, versioned container images as Kubernetes resources,
 > manages their production and verified publication to a retained cluster-local
 > registry, and resolves workload image selectors to digest-pinned pulls. Apache
-> 2.0. Alpha. Public Cargo packages: kimage-core and kimage-control, version 0.4.0.
+> 2.0. Alpha. Public Cargo packages: kimage-core and kimage-control, version 0.4.1.
 
 **When to use it.** Use kimage when inputs are already provisioned in Kubernetes,
 when images should remain available independently of source/build cache, or when
@@ -29,11 +29,11 @@ cache, general base provisioning, signing/attestations,
 HA, arbitrary storage/schema migration, or automatic retained-artifact GC.
 Administrator-managed builder isolation is not a hostile tenant security claim.
 
-**Install (0.4.0).** Rust 1.99.0+, administrator kubeconfig, Ready Linux
+**Install (0.4.1).** Rust 1.99.0+, administrator kubeconfig, Ready Linux
 amd64/arm64 nodes, persistent storage and the supported Pod user-namespace runtime:
 
 ```sh
-cargo install kimage-control --version 0.4.0 --locked --bin kimage --bin kimage-install
+cargo install kimage-control --version 0.4.1 --locked --bin kimage --bin kimage-install
 kimage install --application-namespace apps
 ```
 
@@ -48,7 +48,7 @@ credentials are generated in process, with separate CAs and read/publish identit
 CA private keys are not deployed. Reapply identical arguments to resume, preserving
 Secrets and administrator build policy. kimage-install is a compatible alias.
 The Cargo crate named kimage is unrelated. Prebuilt installers: GitHub releases.
-Gateway/proxy serving version remains 0.3.0 separately from Cargo 0.4.0.
+Gateway/proxy serving version remains 0.3.0 separately from Cargo 0.4.1.
 
 **Helm alternative.** Helm 3.14+ with live cluster access:
 
@@ -56,7 +56,7 @@ Gateway/proxy serving version remains 0.3.0 separately from Cargo 0.4.0.
 helm repo add kimage https://kimage.dev/charts
 helm repo update
 kubectl create namespace apps
-helm install kimage kimage/kimage --version 0.4.0 \
+helm install kimage kimage/kimage --version 0.4.1 \
   --namespace kimage-system --create-namespace \
   --set applicationNamespace=apps --wait --wait-for-jobs
 ```
@@ -310,9 +310,10 @@ Never remove retained namespaces/backends/finalizers as normal cleanup. Back up
 whole registry backend plus release UIDs, roots and schema coordination state.
 No automatic retained-artifact GC or purge. Generated leaves last ten years;
 reapply preserves them and does not perform automatic renewal/CA rotation.
-Published 0.4.0 CLI uninstall may stop with CleanupIdentityConflict during a Pod
-status race. Rerun the same command to resume; never bypass ownership guards or
-remove retained data. The LIST/GET type-metadata fix is on main under Unreleased.
+Version 0.4.1 fixes intermittent CLI uninstall CleanupIdentityConflict during Pod
+status races while retaining UID/spec/ownership guards. For an existing 0.4.0
+installation, update the CLI to 0.4.1 and run the same uninstall command. No
+component reinstallation or data migration is needed for this cleanup fix.
 Published CLI and public Helm mixed-cluster checks cover native GHCR pulls, all
 three fresh-Image placement cases, and complete retained OCI graph readback after
 uninstall/reinstall: https://github.com/inferal-oss/kimage/blob/main/docs/mixed-install-results.json

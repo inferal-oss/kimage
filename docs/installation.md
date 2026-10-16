@@ -36,7 +36,7 @@ preloaded kimage component. A default StorageClass is used unless overridden.
 Install Rust 1.99.0 or newer, then:
 
 ```sh
-cargo install kimage-control --version 0.4.0 --locked --bin kimage --bin kimage-install
+cargo install kimage-control --version 0.4.1 --locked --bin kimage --bin kimage-install
 kimage install --application-namespace apps
 ```
 
@@ -87,7 +87,7 @@ The chart repository is hosted alongside the website:
 helm repo add kimage https://kimage.dev/charts
 helm repo update
 kubectl create namespace apps
-helm install kimage kimage/kimage --version 0.4.0 \
+helm install kimage kimage/kimage --version 0.4.1 \
   --namespace kimage-system --create-namespace \
   --set applicationNamespace=apps --wait --wait-for-jobs
 ```
@@ -166,7 +166,7 @@ Use the manager that installed the system. Helm upgrades and rollbacks use norma
 release history and pinned images:
 
 ```sh
-helm upgrade kimage kimage/kimage --version 0.4.0 \
+helm upgrade kimage kimage/kimage --version 0.4.1 \
   --namespace kimage-system --reset-then-reuse-values --wait --wait-for-jobs
 helm history kimage --namespace kimage-system
 # Select a compatible revision from that history:
@@ -180,7 +180,7 @@ A rollback must preserve schema and Distribution storage compatibility. It does
 not downgrade shared CRDs or restore lost data. 0.4.0 is the first image-pull chart;
 there is no supported automatic adoption of a 0.3.x bootstrap installation. Keep
 its original installer and trusted bundles for legacy recovery. Reapplying the
-0.4.0 CLI resumes the same installation; it refuses changed component resources
+CLI resumes the same installation; it refuses changed component resources
 rather than performing an implicit whole-release upgrade. The older guarded
 binary transitions remain documented as [legacy operations](operations.md).
 
@@ -196,10 +196,11 @@ cleanup. Back up the entire registry backend together with release metadata,
 UIDs and schema state. Generated leaf certificates last ten years. Reapplication
 preserves them; it does not implement automatic certificate renewal or CA rotation.
 
-Published 0.4.0 CLI uninstall can occasionally stop with
-`CleanupIdentityConflict` during a Pod status update. Rerun the same uninstall
-command to resume; do not remove ownership checks or retained resources. The
-LIST/GET type-metadata comparison fix is on main under Unreleased.
+Version 0.4.1 fixes the intermittent `CleanupIdentityConflict` during CLI
+uninstall when Pod status changes between LIST and DELETE. UID, specification
+and ownership checks remain enforced. For an existing 0.4.0 installation, update
+the CLI with the Cargo command above, then run the same uninstall command; no
+component reinstallation or data migration is needed for this cleanup fix.
 
 ## Acceptance evidence
 

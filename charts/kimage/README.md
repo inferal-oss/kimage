@@ -6,7 +6,7 @@ image pins:
 ```sh
 helm repo add kimage https://kimage.dev/charts
 helm repo update
-helm install kimage kimage/kimage --version 0.4.0 \
+helm install kimage kimage/kimage --version 0.4.1 \
   --namespace kimage-system --create-namespace \
   --set applicationNamespace=apps --wait --wait-for-jobs
 ```

@@ -8,7 +8,7 @@ workload delivery.
 ## Install
 
 ```sh
-cargo install kimage-control --version 0.4.0 --locked --bin kimage --bin kimage-install
+cargo install kimage-control --version 0.4.1 --locked --bin kimage --bin kimage-install
 kimage install --application-namespace apps
 ```
 

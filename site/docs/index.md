@@ -23,7 +23,7 @@ A release belongs to an Image UID and exact version. Once published, different c
 Use Rust 1.99.0 or newer. No source checkout is needed:
 
 ```
-cargo install kimage-control --version 0.4.0 --locked --bin kimage --bin kimage-install
+cargo install kimage-control --version 0.4.1 --locked --bin kimage --bin kimage-install
 kimage install --application-namespace apps
 ```
 
@@ -31,7 +31,7 @@ kimage install --application-namespace apps
 
 With no flags, `kimage install` manages the current kubeconfig namespace, uses `kimage-system` for components, a 1Gi retained PVC and the cluster's default StorageClass. It discovers native workers, generates credentials and waits for authenticated readiness. Use administrator kubeconfig and the [supported runtime](https://kimage.dev/docs/#compatibility). For the tested K3s profile, add `--runtime-profile k3s`.
 
-Server binaries are also available from `kimage-control` if needed. Gateway and proxy retain serving protocol version 0.3.0 independently of package version 0.4.0.
+Server binaries are also available from `kimage-control` if needed. Gateway and proxy retain serving protocol version 0.3.0 independently of package version 0.4.1.
 
 ## Release images and mirrors
 
@@ -43,7 +43,7 @@ GHCR supplies kimage's components. The included cluster-local registry still ret
 
 | Option | Purpose |
 | --- | --- |
-| `--release 0.4.0` | Exact official release; defaults to the CLI package version. |
+| `--release 0.4.1` | Exact official release; defaults to the CLI package version. |
 | `--image-catalog <path>` | Explicit administrator-trusted local catalog, including a registry mirror. |
 | `images.repository` | Helm registry mirror override; retain all published digest pins. |
 
@@ -351,7 +351,7 @@ The installer creates missing requested namespaces, generates separate service i
 helm repo add kimage https://kimage.dev/charts
 helm repo update
 kubectl create namespace apps
-helm install kimage kimage/kimage --version 0.4.0 \
+helm install kimage kimage/kimage --version 0.4.1 \
   --namespace kimage-system --create-namespace \
   --set applicationNamespace=apps --wait --wait-for-jobs
 ```
@@ -380,7 +380,7 @@ The operator owns shared CRD compatibility checks; the chart does not delete tho
 After adding nodes, repeat the identical CLI installation or Helm upgrade with your retained values. This registers new node proxies and any new native architecture. The registry node and UID remain pinned; moving storage or replacing that node requires explicit recovery. Keep scope, port, storage and installation identity consistent.
 
 ```
-helm upgrade kimage kimage/kimage --version 0.4.0 \
+helm upgrade kimage kimage/kimage --version 0.4.1 \
   --namespace kimage-system --reset-then-reuse-values --wait --wait-for-jobs
 helm history kimage --namespace kimage-system
 helm rollback kimage <compatible-revision> \
@@ -405,7 +405,7 @@ helm uninstall kimage --namespace kimage-system --wait
 
 Removal keeps PVCs, Images, ImageReleases and shared CRDs. Do not remove namespaces, release pins, finalizers or registry backends during ordinary cleanup. Running containers survive registry downtime; new uncached application starts wait or fail until serving returns. This remains a single-registry deployment, not HA.
 
-Published 0.4.0 CLI uninstall can occasionally stop with `CleanupIdentityConflict` during a Pod status update. Rerun the same uninstall command to resume. Do not bypass ownership checks or remove retained data. The LIST/GET type-metadata comparison fix is on main under Unreleased in the changelog.
+Version 0.4.1 fixes intermittent `CleanupIdentityConflict` errors during CLI uninstall when Pod status changes between LIST and DELETE. UID, specification and ownership checks remain enforced. For an existing 0.4.0 installation, update the CLI with the Cargo command above, then run the same uninstall command. This cleanup fix requires no component reinstallation or data migration.
 
 ## Credentials
 
@@ -513,7 +513,7 @@ CI runs Rust tests on macOS/arm64 and native Linux/amd64 and Linux/arm64 musl, p
 
 An [explicitly enabled mixed-cluster E2E](https://github.com/inferal-oss/kimage/blob/main/docs/mixed-cluster-e2e.md) uses fresh Images for unknown, amd64, and arm64 workload placement. It checks exact native variants and native consumption of an OCI index or manifest. Standard CI validates the harness and skips the live test; running it requires an approved real mixed cluster. [Two independent runs passed](https://github.com/inferal-oss/kimage/blob/main/docs/mixed-cluster-results.json) with the official 0.3.0 binaries on real RKE2 amd64/arm64 nodes. Each case used a fresh Image. Unknown placement built both variants and ran both architectures from one index; explicit placement built only the requested platform. Both runs removed their consumer Deployments and Pods.
 
-The published 0.4.0 CLI and public Helm chart also passed [real mixed-cluster acceptance](https://github.com/inferal-oss/kimage/blob/main/docs/mixed-install-results.json): fresh Images for all three placement cases, native GHCR component pulls, and full retained OCI graph readback after uninstall and reinstall. The receipt records the published CLI's uninstall retry and the cleanup fix on main.
+The published 0.4.0 CLI and public Helm chart also passed [real mixed-cluster acceptance](https://github.com/inferal-oss/kimage/blob/main/docs/mixed-install-results.json): fresh Images for all three placement cases, native GHCR component pulls, and full retained OCI graph readback after uninstall and reinstall. The receipt records the published CLI's uninstall retry and the cleanup fix shipped in 0.4.1.
 
 The separate owned two-node fixture passed installation, build/input matrices, normal uncached pulls, interruption and cold recovery, actual binary upgrade/rollback, and retained-release export. Those cluster harnesses are not ordinary CI jobs. Historical receipts predate later selector/CLI changes; they remain unchanged evidence for their recorded bundle.
 

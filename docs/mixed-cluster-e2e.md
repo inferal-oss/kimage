@@ -25,7 +25,7 @@ The published CLI's first uninstall encountered a status-race
 `CleanupIdentityConflict`; rerunning the same command succeeded. The regression
 reproduces Kubernetes LIST items without type metadata followed by GET objects
 with it. The fix preserves UID/spec/ownership checks and is recorded under
-Unreleased in the changelog. Final fixture cleanup also exercises the fixed CLI.
+0.4.1 in the changelog. Final fixture cleanup also exercises the fixed CLI.
 
 Two independent runs passed on 2026-10-15 using the official 0.3.0 binaries, real
 Linux/amd64 and Linux/arm64 nodes, RKE2 `v1.36.5+rke2r1`, and containerd

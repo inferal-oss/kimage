@@ -1,6 +1,6 @@
 # Native platforms, build policy, and installation scope
 
-kimage 0.4.0 produces and verifies `linux/amd64` and `linux/arm64` images on
+kimage 0.4.1 produces and verifies `linux/amd64` and `linux/arm64` images on
 native workers. An Image without `spec.platform` or `spec.platforms` uses automatic
 selection. The default build policy is **OnDemand**.
 

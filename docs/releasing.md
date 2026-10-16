@@ -21,6 +21,7 @@ python3 scripts/check-changelog.py
 python3 scripts/test-release.py
 python3 scripts/test-component-images.py
 python3 scripts/test-mixed-e2e.py
+python3 scripts/test-install-e2e.py
 python3 scripts/check-docs.py
 python3 scripts/check-site.py
 python3 scripts/check-chart.py --helm helm
@@ -58,9 +59,9 @@ No QEMU build emulation is used.
 
 Review `release-assets`:
 
-- Four `kimage-v0.4.0-<linux|darwin>-<amd64|arm64>` installer binaries.
+- Four `kimage-v0.4.1-<linux|darwin>-<amd64|arm64>` installer binaries.
 - `component-images.json`, the bounded catalog with all eight immutable index pins.
-- `kimage-0.4.0.tgz`, containing the same canonical resources and release pins.
+- `kimage-0.4.1.tgz`, containing the same canonical resources and release pins.
 - `LICENSE`, `THIRD-PARTY-NOTICES.txt`, `SHA256SUMS` and release notes.
 
 `component-layouts` is an internal build artifact used by publication and CI,
@@ -70,17 +71,17 @@ filled only after both native graph sets pass verification.
 ## Tag and publish
 
 ```sh
-git tag -a v0.4.0 -m 'kimage 0.4.0'
-git push origin v0.4.0
-gh workflow run publish.yml --ref v0.4.0 -f dry_run=true
+git tag -a v0.4.1 -m 'kimage 0.4.1'
+git push origin v0.4.1
+gh workflow run publish.yml --ref v0.4.1 -f dry_run=true
 # After reviewing the exact tag preview:
-gh workflow run publish.yml --ref v0.4.0 -f dry_run=false
+gh workflow run publish.yml --ref v0.4.1 -f dry_run=false
 ```
 
 The tag must match the workspace version and point at a main commit. Publication
 uses the standard OCI registry protocol with all architectures and preserved
 digests. Images have source/license/version labels and live at
-`ghcr.io/inferal-oss/kimage/<role>:v0.4.0`; installation uses their index digests.
+`ghcr.io/inferal-oss/kimage/<role>:v0.4.1`; installation uses their index digests.
 Existing different release tags are never overwritten.
 
 **First publication:** new GHCR packages can default to private. Set all eight

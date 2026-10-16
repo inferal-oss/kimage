@@ -6,12 +6,14 @@ import importlib.util
 import io
 import json
 from pathlib import Path
+import re
 import struct
 import tarfile
 import tempfile
 import unittest
 
 SCRIPTS=Path(__file__).resolve().parent
+VERSION=re.search(r'(?ms)^\[workspace\.package\]\s*\n.*?^version\s*=\s*"([^"]+)"', (SCRIPTS.parent/'Cargo.toml').read_text())[1]
 def module(name):
     spec=importlib.util.spec_from_file_location(name,SCRIPTS/(name+'.py'))
     result=importlib.util.module_from_spec(spec);spec.loader.exec_module(result);return result
@@ -30,7 +32,7 @@ def fixture(root,arch):
     for name in ['buildkitd','buildctl','buildkit-runc']:(buildkit/name).write_bytes(elf)
     (root/'registry').write_bytes(elf)
     with contextlib.redirect_stdout(io.StringIO()):
-        pack.package(linux,root/'registry',buildkit,root/'images',arch,'0.4.0')
+        pack.package(linux,root/'registry',buildkit,root/'images',arch,VERSION)
     return root/'images'
 
 
@@ -55,7 +57,7 @@ class ImagesTests(unittest.TestCase):
                 self.assertEqual((root/'assembled'/(role+'.oci.tar')).read_bytes(),(root/'again'/(role+'.oci.tar')).read_bytes())
             self.assertFalse((root/'assembled'/'launcher').exists())
             self.assertEqual(catalog['components']['gateway']['version'],'0.3.0')
-            self.assertEqual(catalog['components']['operator']['version'],'0.4.0')
+            self.assertEqual(catalog['components']['operator']['version'],VERSION)
 
     def test_packaged_chart_contains_exact_catalog_pins_and_is_deterministic(self):
         chart=module('package-chart')
@@ -108,7 +110,7 @@ class ImagesTests(unittest.TestCase):
             root=Path(temporary);amd=fixture(root/'amd','amd64')
             with self.assertRaises(AssertionError):assemble.assemble([amd],root/'bad','ghcr.io/inferal-oss/kimage')
             self.assertFalse((root/'bad'/'component-images.json').exists())
-            with self.assertRaises(ValueError):pack.package(root/'amd'/'linux',root/'amd'/'registry',root/'amd'/'buildkit',root/'wrong','arm64','0.4.0')
+            with self.assertRaises(ValueError):pack.package(root/'amd'/'linux',root/'amd'/'registry',root/'amd'/'buildkit',root/'wrong','arm64',VERSION)
             self.assertFalse((root/'wrong'/'native-images.json').exists())
 
     def test_archive_checksums_do_not_replace_blob_integrity_checks(self):

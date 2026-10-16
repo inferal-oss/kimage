@@ -124,11 +124,11 @@
           <section id="install">
 <h2>Install the CLI</h2>
 <p>Use Rust 1.99.0 or newer. No source checkout is needed:</p>
-<pre><code>cargo install kimage-control --version 0.4.0 --locked --bin kimage --bin kimage-install
+<pre><code>cargo install kimage-control --version 0.4.1 --locked --bin kimage --bin kimage-install
 kimage install --application-namespace apps</code></pre>
 <p><code>kimage-install</code> is a compatible alias. The crate named <code>kimage</code> belongs to another project. Prebuilt Linux and macOS installers for amd64 and arm64 are available in <a href="https://github.com/inferal-oss/kimage/releases">GitHub releases</a>.</p>
 <p>With no flags, <code>kimage install</code> manages the current kubeconfig namespace, uses <code>kimage-system</code> for components, a 1Gi retained PVC and the cluster's default StorageClass. It discovers native workers, generates credentials and waits for authenticated readiness. Use administrator kubeconfig and the <a href="#compatibility">supported runtime</a>. For the tested K3s profile, add <code>--runtime-profile k3s</code>.</p>
-<p>Server binaries are also available from <code>kimage-control</code> if needed. Gateway and proxy retain serving protocol version 0.3.0 independently of package version 0.4.0.</p>
+<p>Server binaries are also available from <code>kimage-control</code> if needed. Gateway and proxy retain serving protocol version 0.3.0 independently of package version 0.4.1.</p>
           </section>
 
           <section id="bundle-delivery">
@@ -137,7 +137,7 @@ kimage install --application-namespace apps</code></pre>
 <p>The CLI fetches only a small <code>component-images.json</code> asset from its exact GitHub release, never <code>latest</code>. GitHub asset SHA-256 and size are verified, and the catalog must contain the expected roles, versions, schema and both native platforms. The Helm release chart contains the same image pins. No component executable or image layer is uploaded through Kubernetes ConfigMaps, installer Pods or port-forwarding.</p>
 <p>GHCR supplies kimage's components. The included cluster-local registry still retains the application images that kimage builds. Workloads keep using <code>platform://</code> selectors.</p>
 <table><thead><tr><th>Option</th><th>Purpose</th></tr></thead><tbody>
-<tr><td><code>--release 0.4.0</code></td><td>Exact official release; defaults to the CLI package version.</td></tr>
+<tr><td><code>--release 0.4.1</code></td><td>Exact official release; defaults to the CLI package version.</td></tr>
 <tr><td><code>--image-catalog &lt;path&gt;</code></td><td>Explicit administrator-trusted local catalog, including a registry mirror.</td></tr>
 <tr><td><code>images.repository</code></td><td>Helm registry mirror override; retain all published digest pins.</td></tr></tbody></table>
 <p>For disconnected installation, mirror all eight complete indexes with both architectures and preserve their digests. Change only the repository in an independently verified catalog, or set Helm's repository override. Nodes must already trust and reach that mirror using their normal runtime configuration. kimage does not edit node trust stores or transfer images through the API. A saved catalog alone is insufficient.</p>
@@ -759,7 +759,7 @@ kimage install --scope cluster --exclude-namespace infrastructure</code></pre>
 <pre><code>helm repo add kimage https://kimage.dev/charts
 helm repo update
 kubectl create namespace apps
-helm install kimage kimage/kimage --version 0.4.0 \
+helm install kimage kimage/kimage --version 0.4.1 \
   --namespace kimage-system --create-namespace \
   --set applicationNamespace=apps --wait --wait-for-jobs</code></pre>
 <p>Use Helm 3.14 or newer. Helm queries live Ready Nodes during install/upgrade, and does not create the application namespace. Add <code>--set runtimeProfile=k3s</code> for the tested K3s profile. For cluster scope, omit the application namespace and set <code>--set scope=cluster</code>. Use a values file for exclusions.</p>
@@ -783,7 +783,7 @@ helm install kimage kimage/kimage --version 0.4.0 \
           <section id="upgrades">
 <h2>Reapply, upgrade and rollback</h2>
 <p>After adding nodes, repeat the identical CLI installation or Helm upgrade with your retained values. This registers new node proxies and any new native architecture. The registry node and UID remain pinned; moving storage or replacing that node requires explicit recovery. Keep scope, port, storage and installation identity consistent.</p>
-<pre><code>helm upgrade kimage kimage/kimage --version 0.4.0 \
+<pre><code>helm upgrade kimage kimage/kimage --version 0.4.1 \
   --namespace kimage-system --reset-then-reuse-values --wait --wait-for-jobs
 helm history kimage --namespace kimage-system
 helm rollback kimage &lt;compatible-revision&gt; \
@@ -806,7 +806,7 @@ helm rollback kimage &lt;compatible-revision&gt; \
 # For a Helm-managed installation:
 helm uninstall kimage --namespace kimage-system --wait</code></pre>
 <p>Removal keeps PVCs, Images, ImageReleases and shared CRDs. Do not remove namespaces, release pins, finalizers or registry backends during ordinary cleanup. Running containers survive registry downtime; new uncached application starts wait or fail until serving returns. This remains a single-registry deployment, not HA.</p>
-<p>Published 0.4.0 CLI uninstall can occasionally stop with <code>CleanupIdentityConflict</code> during a Pod status update. Rerun the same uninstall command to resume. Do not bypass ownership checks or remove retained data. The LIST/GET type-metadata comparison fix is on main under Unreleased in the changelog.</p>
+<p>Version 0.4.1 fixes intermittent <code>CleanupIdentityConflict</code> errors during CLI uninstall when Pod status changes between LIST and DELETE. UID, specification and ownership checks remain enforced. For an existing 0.4.0 installation, update the CLI with the Cargo command above, then run the same uninstall command. This cleanup fix requires no component reinstallation or data migration.</p>
           </section>
 
           <section id="credentials">
@@ -1123,7 +1123,7 @@ python3 scripts/check-site.py</code></pre>
               <a href="https://github.com/inferal-oss/kimage/blob/main/docs/mixed-install-results.json">real mixed-cluster acceptance</a>:
               fresh Images for all three placement cases, native GHCR component pulls,
               and full retained OCI graph readback after uninstall and reinstall.
-              The receipt records the published CLI's uninstall retry and the cleanup fix on main.
+              The receipt records the published CLI's uninstall retry and the cleanup fix shipped in 0.4.1.
             </p>
             <p>
               The separate owned two-node fixture passed installation,
@@ -1155,7 +1155,7 @@ python3 scripts/check-site.py</code></pre>
           </section>
         </article>
         <div class="docs-end">
-          <span>kimage 0.4.0 handbook</span><a href="#main">Back to top ↑</a>
+          <span>kimage 0.4.1 handbook</span><a href="#main">Back to top ↑</a>
         </div>
       </main>
     </div>
