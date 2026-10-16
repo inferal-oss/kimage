@@ -75,7 +75,7 @@ jobs:
           run-id: ${{ inputs.source_run }}
           name: component-catalog-chart
           path: .local/chart
-      - name: Prepare native cluster and encrypted diagnostic wrapper
+      - name: Prepare native cluster and optional diagnostic wrapper
         env:
           KIMAGE_HELM_DIAGNOSTIC_CERT: ${{ inputs.diagnostic_certificate }}
         run: |
@@ -87,8 +87,10 @@ jobs:
           tar -xzf .local/e2e-native-${{ matrix.architecture }}.tar.gz -C .local/e2e
           tar -xzf .local/component-layouts.tar.gz -C .local/components
           python3 scripts/prepare-image-pull-fixture.py --images .local/components --registry .local/e2e/registry --directory .local/e2e-registry
-          python3 scripts/helm-diagnostics.py --setup .local/e2e/helm-diagnostics --helm /usr/local/bin/helm
-          printf '%s\n' "$GITHUB_WORKSPACE/.local/e2e/helm-diagnostics/bin" >> "$GITHUB_PATH"
+          if [ -n "$KIMAGE_HELM_DIAGNOSTIC_CERT" ]; then
+            python3 scripts/helm-diagnostics.py --setup .local/e2e/helm-diagnostics --helm /usr/local/bin/helm
+            printf '%s\n' "$GITHUB_WORKSPACE/.local/e2e/helm-diagnostics/bin" >> "$GITHUB_PATH"
+          fi
       - name: Start pinned disposable Kubernetes fixture
         run: python3 scripts/prepare-e2e-cluster.py --directory .local/e2e-cluster
       - name: Exercise the preceding fresh-install stage
