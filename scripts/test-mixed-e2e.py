@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import subprocess
 import unittest
+from types import SimpleNamespace
 
 SCRIPT = Path(__file__).with_name('e2e-mixed-cluster.py')
 spec = importlib.util.spec_from_file_location('mixed_e2e', SCRIPT)
@@ -47,6 +48,24 @@ class Contracts(unittest.TestCase):
     def test_disabled_test_has_no_cluster_access(self):
         result = subprocess.run(['python3',str(SCRIPT)],capture_output=True,text=True,check=True)
         self.assertIn('SKIP:',result.stdout)
+
+    def test_creates_are_namespaced_strict_and_record_deployment_cleanup_identity(self):
+        runner = mixed.MixedCluster.__new__(mixed.MixedCluster)
+        runner.namespace, runner.run_id, runner.deployments = 'test-apps','fresh-run',[]
+        calls = []
+        def create(arguments, body):
+            calls.append((arguments,body))
+            value = copy.deepcopy(body)
+            value['metadata']['uid'] = 'created-uid'
+            return SimpleNamespace(stdout=json.dumps(value))
+        runner.call = create
+        runner.create(mixed.deployment_body('fresh','test-apps','amd64'))
+        self.assertEqual(runner.deployments,[('fresh','created-uid')])
+        self.assertIn('/apis/apps/v1/namespaces/test-apps/deployments?fieldValidation=Strict',calls[0][0])
+        self.assertEqual(calls[0][1]['metadata']['labels'][mixed.RUN_LABEL],'fresh-run')
+        with self.assertRaisesRegex(RuntimeError,'Unsupported fixture resource'):
+            runner.create(dict(apiVersion='v1',kind='Secret',metadata=dict(name='unexpected')))
+        self.assertEqual(len(calls),1)
 
     def test_platform_cases_do_not_predeclare_image_platforms(self):
         names = set()

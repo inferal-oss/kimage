@@ -131,7 +131,7 @@ class MixedCluster:
         require(isinstance(config['context'],str) and config['context'].strip(), 'Explicit kubeconfig context required')
         self.config = config
         self.command = ['kubectl','--kubeconfig',str(Path(config['kubeconfig']).expanduser().resolve()),
-            '--context',config['context'],'--request-timeout=60s']
+            '--context',config['context'],'--request-timeout=120s']
         self.namespace, self.system = config['namespace'], config['systemNamespace']
         self.run_id = uuid.uuid4().hex[:12]
         self.prefix = 'mixed-e2e-'+self.run_id
@@ -143,7 +143,7 @@ class MixedCluster:
 
     def call(self, arguments, value=None, ok=True):
         result = subprocess.run(self.command+arguments, input=None if value is None else json.dumps(value), text=True,
-            capture_output=True, timeout=75)
+            capture_output=True, timeout=135)
         if ok and result.returncode:
             raise RuntimeError('kubectl '+str(arguments[:3])+': '+result.stderr[-2000:])
         return result
@@ -168,7 +168,16 @@ class MixedCluster:
         body['metadata'].setdefault('labels', {})[RUN_LABEL] = self.run_id
         if body['kind'] == 'Deployment':
             body['spec']['template']['metadata']['labels'][RUN_LABEL] = self.run_id
-        result = json.loads(self.call(['create','-f','-','-o','json'], body).stdout)
+        resources = {('v1','ConfigMap'): ('/api/v1','configmaps'),
+            ('kimage.dev/v1alpha1','Image'): ('/apis/kimage.dev/v1alpha1','images'),
+            ('apps/v1','Deployment'): ('/apis/apps/v1','deployments')}
+        key = (body['apiVersion'],body['kind'])
+        require(key in resources,'Unsupported fixture resource')
+        # Avoid kubectl's large OpenAPI discovery download on remote clusters.
+        # Keep strict field validation on the actual server-side create.
+        prefix, plural = resources[key]
+        path = prefix+'/namespaces/'+self.namespace+'/'+plural+'?fieldValidation=Strict'
+        result = json.loads(self.call(['create','--raw',path,'-f','-'], body).stdout)
         if body['kind'] == 'Deployment':
             self.deployments.append((result['metadata']['name'],result['metadata']['uid']))
         return result

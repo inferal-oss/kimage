@@ -11,7 +11,10 @@ Use a dedicated application namespace managed by an existing kimage installation
 Both native workers must be Ready on matching physical node architectures, with
 node-local image serving available on nodes eligible for the consumers. The
 installation must already use the default `OnDemand` build policy. The test
-checks the policy and never changes it or installs components.
+checks the policy and never changes it or installs components. Installation
+uses shared cluster CRDs even in namespace scope. Those definitions must already
+be compatible with the current release; experimental revision-1 CRDs are not
+supported. The runner does not migrate or replace existing schemas.
 
 The kubeconfig identity needs to read Nodes and the installation's configuration,
 workers, and ImageDemands, and to create/read Images, ConfigMaps, Deployments,

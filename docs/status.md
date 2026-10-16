@@ -102,10 +102,13 @@ the default builder and is tested in the separate owned two-node K3s fixture.
 | 4 | Passed: independent retained-artifact export, authenticated separate registry, exact remote graph/tag verification, idempotence/conflicts, interruption/retry, credential rotation, external-downtime independence and removal without remote deletion. Final-binary initial-status and retained-export checks also passed. See `milestone-4-acceptance.md` and `export-design.md` for the HTTPS Basic/anonymous profile and limits. |
 | Cross-cutting final checks | Passed: fixed-cardinality build/publication/pull latency and transfer counters, queue/readiness/freshness gauges, real HTTP completion/truncation regression, actual fresh build/pull aggregate metrics, post-upgrade retained export with publisher absent, and final exact-image readiness on both nodes. |
 
-The shared cluster retains revision-1 experimental CRDs. The current operator refuses
-to adopt or overwrite them. Native acceptance uses a separate owned QEMU cluster;
-no shared Inferal resources or node configuration are touched by these tests.
+At the milestone acceptance checkpoint, the shared cluster retained revision-1
+experimental CRDs. The current operator refuses to adopt or overwrite those
+unsupported definitions. Those native acceptance runs used a separate owned QEMU
+cluster and left shared Inferal resources and node configuration untouched.
 Earlier evidence tables below/above are historical and retain their original limits.
+The later [opt-in mixed-cluster test](mixed-cluster-e2e.md) uses its separately
+approved fixture and requires a compatible current installation.
 
 ## Reproducible checks
 
