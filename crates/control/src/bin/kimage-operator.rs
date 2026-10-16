@@ -54,6 +54,14 @@ struct Args {
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt().json().init();
+    if std::env::args().nth(1).as_deref() == Some("provision") {
+        let args: Vec<_> = std::env::args().skip(2).collect();
+        anyhow::ensure!(
+            args.len() == 2 && args[0] == "--configuration",
+            "Usage: kimage-operator provision --configuration PATH"
+        );
+        return kimage_control::gitops::run(std::path::Path::new(&args[1])).await;
+    }
     let a = Args::parse();
     let namespace = a.namespace.clone().unwrap_or_else(|| "*".into());
     let scope = a

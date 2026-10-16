@@ -176,19 +176,19 @@ component boundaries and trust assumptions.
 Install [Rust 1.99.0 or newer](https://www.rust-lang.org/tools/install), then:
 
 ```sh
-cargo install kimage-control --version 0.5.0 --locked --bin kimage --bin kimage-install
+cargo install kimage-control --version 0.5.1 --locked --bin kimage --bin kimage-install
 kimage install --application-namespace apps
 ```
 
-For an existing 0.4.1 installation, update the CLI, then use the guarded release
+For an existing 0.5.0 installation, update the CLI, then use the guarded release
 transition. Helm installations keep their Helm ownership and history:
 
 ```sh
-kimage upgrade --to 0.5.0 --check
-kimage upgrade --to 0.5.0
+kimage upgrade --to 0.5.1 --check
+kimage upgrade --to 0.5.1
 kimage doctor
 # Compatible reversal, when needed:
-kimage rollback --to 0.4.1
+kimage rollback --to 0.5.0
 ```
 
 An interrupted operation resumes with the same command. Running application
@@ -214,7 +214,7 @@ exact runtime checks; see [prerequisites](docs/installation.md#prerequisites).
 helm repo add kimage https://kimage.dev/charts
 helm repo update
 kubectl create namespace apps
-helm install kimage kimage/kimage --version 0.5.0 \
+helm install kimage kimage/kimage --version 0.5.1 \
   --namespace kimage-system --create-namespace \
   --set applicationNamespace=apps --wait --wait-for-jobs
 ```
@@ -223,6 +223,15 @@ The release chart contains the same immutable image pins as the CLI. Its reposit
 is published with the website on GitHub Pages. Add `--set runtimeProfile=k3s` for
 the tested K3s profile. The included registry stores application releases;
 GHCR supplies kimage's system components.
+
+### Or install with Argo CD
+
+From 0.5.1, the same published chart supports Argo CD with `gitops.enabled: true`.
+Use the [copyable Application](examples/argocd/cluster.yaml) and [Argo CD guide](docs/argocd.md).
+The chart renders offline; an in-cluster provisioner discovers nodes, generates
+credentials once and waits for readiness. Repeated syncs preserve credentials and
+registry data. Argo CD deletion leaves the runtime and retained data in place;
+the guide explains explicit removal, health and version boundaries.
 
 Both methods support namespace or cluster scope. Use `kimage install --scope cluster`
 or Helm `--set scope=cluster` to manage ordinary namespaces, with configurable
@@ -389,7 +398,7 @@ access are outside its current scope. External exports support verified HTTPS
 with Basic authentication or explicit anonymous access; Bearer/token-helper
 authentication is not implemented.
 
-Whole-installation upgrades support **0.4.1 ↔ 0.5.0** through the guarded CLI,
+Whole-installation upgrades support **0.5.0 ↔ 0.5.1** through the guarded CLI,
 including Helm installations. The earlier serving-only acceptance covered Distribution **3.1.1 ↔ 3.1.2** and
 gateway/proxy **0.1.0 / 0.2.0 / 0.3.0** (cluster scope requires 0.3.0) with the documented filesystem storage profile.
 High availability, arbitrary storage/schema migrations, hostile-tenant isolation,
@@ -454,7 +463,7 @@ changing supported behavior.
 
 ## Documentation
 
-- [Installation with CLI or Helm](docs/installation.md)
+- [Installation with CLI or Helm](docs/installation.md) and [Argo CD](docs/argocd.md)
 - [Legacy operations and build reference](docs/operations.md)
 - [Architecture](docs/architecture.md)
 - [Build contracts and execution](docs/build-design.md)

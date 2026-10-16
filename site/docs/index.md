@@ -23,7 +23,7 @@ A release belongs to an Image UID and exact version. Once published, different c
 Use Rust 1.99.0 or newer. No source checkout is needed:
 
 ```
-cargo install kimage-control --version 0.5.0 --locked --bin kimage --bin kimage-install
+cargo install kimage-control --version 0.5.1 --locked --bin kimage --bin kimage-install
 kimage install --application-namespace apps
 ```
 
@@ -31,7 +31,7 @@ kimage install --application-namespace apps
 
 With no flags, `kimage install` manages the current kubeconfig namespace, uses `kimage-system` for components, a 1Gi retained PVC and the cluster's default StorageClass. It discovers native workers, generates credentials and waits for authenticated readiness. Use administrator kubeconfig and the [supported runtime](https://kimage.dev/docs/#compatibility). For the tested K3s profile, add `--runtime-profile k3s`.
 
-Server binaries are also available from `kimage-control` if needed. Gateway and proxy retain serving protocol version 0.3.0 independently of package version 0.5.0.
+Server binaries are also available from `kimage-control` if needed. Gateway and proxy retain serving protocol version 0.3.0 independently of package version 0.5.1.
 
 ## Release images and mirrors
 
@@ -43,7 +43,7 @@ GHCR supplies kimage's components. The included cluster-local registry still ret
 
 | Option | Purpose |
 | --- | --- |
-| `--release 0.5.0` | Exact official release; defaults to the CLI package version. |
+| `--release 0.5.1` | Exact official release; defaults to the CLI package version. |
 | `--image-catalog <path>` | Explicit administrator-trusted local catalog, including a registry mirror. |
 | `images.repository` | Helm registry mirror override; retain all published digest pins. |
 
@@ -351,7 +351,7 @@ The installer creates missing requested namespaces, generates separate service i
 helm repo add kimage https://kimage.dev/charts
 helm repo update
 kubectl create namespace apps
-helm install kimage kimage/kimage --version 0.5.0 \
+helm install kimage kimage/kimage --version 0.5.1 \
   --namespace kimage-system --create-namespace \
   --set applicationNamespace=apps --wait --wait-for-jobs
 ```
@@ -376,17 +376,81 @@ Use Helm 3.14 or newer. Helm queries live Ready Nodes during install/upgrade, an
 
 The operator owns shared CRD compatibility checks; the chart does not delete those CRDs. The source chart has empty image pins until release packaging verifies both native graphs. Published charts are ready to install.
 
-## Reapply, upgrade and rollback
+## Install with Argo CD
 
-Install the new CLI first; this changes no cluster components. The supported release edge is **0.4.1 to 0.5.0 and back**. Use the same guarded commands for CLI and Helm installations:
+From 0.5.1, set `gitops.enabled: true` on the published Helm chart. Rendering is deterministic and offline. An in-cluster provisioner discovers native nodes, generates credentials once and waits for authenticated readiness. Argo CD manages desired state; kimage manages its runtime resources.
 
 ```
-kimage upgrade --to 0.5.0 --check
-kimage upgrade --to 0.5.0
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kimage
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://kimage.dev/charts
+    chart: kimage
+    targetRevision: 0.5.1
+    helm:
+      releaseName: kimage
+      valuesObject:
+        gitops:
+          enabled: true
+        scope: cluster
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kimage-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+```
+
+For one application namespace, use `scope: namespace` and `applicationNamespace: apps`. The provisioner creates that namespace when missing. Use the [cluster Application](https://kimage.dev/examples/argocd/cluster.yaml) or [namespace Application](https://kimage.dev/examples/argocd/namespace.yaml). The AppProject must permit the chart's administrator installation RBAC and destination. Both scopes use a privileged provisioner; runtime identities enforce the selected application scope.
+
+### Configuration and stable credentials
+
+Use normal chart values for runtime profile, storage, mirrors, exports and placement. Do not put full Nodes or inline credentials in Git. Optional `gitops.credentialSecrets` maps `registry`, `admission` and `builder` to existing Secret names in the system namespace. Missing roles are generated inside the cluster. Credentials are reused across syncs and restarts; changing supplied material is refused instead of silently rotating it.
+
+Keep `buildPolicy` empty and `nodePolicy` null to preserve administrator edits, or set them explicitly to manage policy from Git. Use `nodePolicy.workerPins` for fixed native worker placement. Registry Node UID and volume placement never move automatically.
+
+### Readiness and version changes
+
+Wait for Healthy and Synced. Provisioner readiness includes component and doctor checks. Inspect safely bounded failure reasons and installation health:
+
+```
+kubectl -n argocd get application kimage
+kubectl -n kimage-system logs deployment/kimage-provisioner
+kimage status
+kimage doctor
+```
+
+Interrupted provisioning retries automatically. Compatible version changes use the lifecycle Lease, exact-target journal and retained-identity checks. Keep the desired target unchanged while an operation is pending. Pin an exact chart version; a future release must declare and test the transition. Argo CD ownership starts at 0.5.1, so the 0.5.0 chart and runtime are not Argo CD rollback targets. Existing CLI/Helm installations are not adopted automatically. Their tested 0.5.0 to 0.5.1 transition and rollback remain supported.
+
+### Deletion and retained data
+
+Application deletion or pruning removes the provisioner and desired-state resources, leaving the runtime, registry PVC, Images, ImageReleases and shared CRDs. Runtime objects do not inherit Argo CD tracking or ownership from the provisioner. Recreating the same Application resumes with the same credentials and data.
+
+For runtime removal, first delete the Application and wait for its provisioner Deployment to disappear, then run `kimage uninstall --namespace kimage-system --installation kimage`. Uninstall refuses while the provisioner is active and preserves retained data. Deleting the system namespace discards that protection.
+
+The [complete Argo CD guide](https://github.com/inferal-oss/kimage/blob/main/docs/argocd.md) lists credential keys, advanced target catalogs, retention and ownership boundaries. No repo-server plugin, broad diff exclusions or manual credential-generation script is required.
+
+## Reapply, upgrade and rollback
+
+Install the new CLI first; this changes no cluster components. The supported release edge is **0.5.0 to 0.5.1 and back**. Use the same guarded commands for CLI and Helm installations:
+
+```
+kimage upgrade --to 0.5.1 --check
+kimage upgrade --to 0.5.1
 kimage status --json
 kimage doctor --json
-kimage rollback --to 0.4.1 --check
-kimage rollback --to 0.4.1
+kimage rollback --to 0.5.0 --check
+kimage rollback --to 0.5.0
 ```
 
 Add `--namespace` and `--installation` for a non-default system identity. Checks are read-only. The operation records exact catalogs and resumable phases, stops new reconciliation, terminates old clients and workers, and replaces components under an exclusive Lease. Completion verifies readiness and retained storage, CRD and credential identities. New builds, managed Pod admission and uncached pulls may pause; running application containers remain under their workload controller.

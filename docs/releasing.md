@@ -27,6 +27,7 @@ python3 scripts/test-helm-diagnostics.py
 python3 scripts/check-docs.py
 python3 scripts/check-site.py
 python3 scripts/check-chart.py --helm helm
+python3 scripts/test-gitops-chart.py --helm helm
 cargo package --locked --workspace --exclude kimage-bootstrap
 ```
 
@@ -61,10 +62,10 @@ No QEMU build emulation is used.
 
 Review `release-assets`:
 
-- Four `kimage-v0.5.0-<linux|darwin>-<amd64|arm64>` installer binaries.
+- Four `kimage-v0.5.1-<linux|darwin>-<amd64|arm64>` installer binaries.
 - `component-images.json`, the bounded catalog with all eight immutable index pins.
 - `release-compatibility.json`, matching the compiled transition edges and persisted formats.
-- `kimage-0.5.0.tgz`, containing the same canonical resources and release pins.
+- `kimage-0.5.1.tgz`, containing the same canonical resources and release pins.
 - `LICENSE`, `THIRD-PARTY-NOTICES.txt`, `SHA256SUMS` and release notes.
 
 `component-layouts` is an internal build artifact used by publication and CI,
@@ -74,17 +75,17 @@ filled only after both native graph sets pass verification.
 ## Tag and publish
 
 ```sh
-git tag -a v0.5.0 -m 'kimage 0.5.0'
-git push origin v0.5.0
-gh workflow run publish.yml --ref v0.5.0 -f dry_run=true
+git tag -a v0.5.1 -m 'kimage 0.5.1'
+git push origin v0.5.1
+gh workflow run publish.yml --ref v0.5.1 -f dry_run=true
 # After reviewing the exact tag preview:
-gh workflow run publish.yml --ref v0.5.0 -f dry_run=false
+gh workflow run publish.yml --ref v0.5.1 -f dry_run=false
 ```
 
 The tag must match the workspace version and point at a main commit. Publication
 uses the standard OCI registry protocol with all architectures and preserved
 digests. Images have source/license/version labels and live at
-`ghcr.io/inferal-oss/kimage/<role>:v0.5.0`; installation uses their index digests.
+`ghcr.io/inferal-oss/kimage/<role>:v0.5.1`; installation uses their index digests.
 Existing different release tags are never overwritten.
 
 **First publication:** new GHCR packages can default to private. Set all eight
@@ -172,3 +173,19 @@ failures while preserving the normal acceptance assertions.
 
 Native failure summaries report only allowlisted phase/public status codes and bounded output
 metadata. They do not upload private attempt Secrets or raw build output.
+
+## Argo CD acceptance
+
+From 0.5.1, native E2E also provisions an isolated Argo CD v3.5.3 controller
+and installs the exact source chart through a real Application. The upstream
+manifest is size/SHA-256 pinned. The same opt-in harness,
+`scripts/e2e-argocd.py --run --config PRIVATE_CONFIG.json`, targets the existing
+Argo CD in the real mixed cluster. It never restarts shared Argo controllers,
+modifies unrelated Applications, deletes Nodes or deletes retained data.
+Check both scopes, initial interruption/recovery, repeated sync, self-heal,
+isolated controller restart, administrator policy, native builds/pulls,
+unsupported transition refusal and retained identity after Application removal
+and reinstall. Mixed acceptance additionally changes only reversible fixture
+Node labels to test lost/new native architectures and proxies.
+Before final publication, preserve a sanitized receipt for the tested candidate.
+After publication, run the public chart through its Helm repository too.

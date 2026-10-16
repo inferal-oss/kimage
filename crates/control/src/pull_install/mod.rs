@@ -138,6 +138,23 @@ fn selected_template(name: &str, bindings: &BTreeMap<String, Value>) -> Result<&
             _ => anyhow::bail!("UnknownPredecessorTemplate"),
         });
     }
+    if bindings.get("release").and_then(Value::as_str) == Some("0.5.0") {
+        return Ok(match name {
+            "base.json" => include_str!("templates/v0.5.0/base.json"),
+            "builder-check.json" => include_str!("templates/v0.5.0/builder-check.json"),
+            "builder-pod.json" => include_str!("templates/v0.5.0/builder-pod.json"),
+            "builder.json" => include_str!("templates/v0.5.0/builder.json"),
+            "control.json" => include_str!("templates/v0.5.0/control.json"),
+            "exporter.json" => include_str!("templates/v0.5.0/exporter.json"),
+            "node-policy.json" => include_str!("templates/v0.5.0/node-policy.json"),
+            "proxy.json" => include_str!("templates/v0.5.0/proxy.json"),
+            "scope-cluster.json" => include_str!("templates/v0.5.0/scope-cluster.json"),
+            "scope-namespace.json" => include_str!("templates/v0.5.0/scope-namespace.json"),
+            "storage.json" => include_str!("templates/v0.5.0/storage.json"),
+            "webhooks.json" => include_str!("templates/v0.5.0/webhooks.json"),
+            _ => anyhow::bail!("UnknownPredecessorTemplate"),
+        });
+    }
     template(name)
 }
 
@@ -291,7 +308,7 @@ impl Plan {
         manager: &str,
     ) -> Result<Self> {
         ensure!(
-            matches!(manager, "cli" | "helm"),
+            matches!(manager, "cli" | "helm" | "argocd"),
             "InvalidInstallationManager"
         );
         options.validate()?;

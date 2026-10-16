@@ -209,6 +209,17 @@ async fn recovering_workers_defer_capture_until_pod_and_service_endpoints_are_re
         )
         .await
         .unwrap();
+        lifecycle::transition(
+            client.clone(),
+            "system",
+            "dev",
+            &catalog(env!("CARGO_PKG_VERSION")),
+            false,
+            false,
+            None,
+        )
+        .await
+        .unwrap();
         let image: kimage_control::api::Image = serde_json::from_value(json!({
             "apiVersion":"kimage.dev/v1alpha1","kind":"Image",
             "metadata":{"name":"fresh","namespace":"apps","uid":"fresh-uid","generation":1},
@@ -234,12 +245,16 @@ async fn recovering_workers_defer_capture_until_pod_and_service_endpoints_are_re
                 architecture: Some("amd64".into()),
                 system_namespace: "system".into(),
                 installation: "dev".into(),
-                builder_image: catalog("0.5.0").reference("builder").unwrap(),
+                builder_image: catalog(env!("CARGO_PKG_VERSION"))
+                    .reference("builder")
+                    .unwrap(),
             }),
             client,
             namespace: "apps".into(),
             node: "node".into(),
-            input_image: catalog("0.5.0").reference("input").unwrap(),
+            input_image: catalog(env!("CARGO_PKG_VERSION"))
+                .reference("input")
+                .unwrap(),
             registry_origin: "https://dev-registry.system.svc:5443/".parse().unwrap(),
             registry_ca: "unused".into(),
             publisher_password: "unused".into(),
@@ -550,6 +565,17 @@ async fn node_replacement_revokes_new_builds_before_waiting_for_an_active_worker
     )
     .await
     .unwrap();
+    lifecycle::transition(
+        client.clone(),
+        "system",
+        "dev",
+        &catalog(env!("CARGO_PKG_VERSION")),
+        false,
+        false,
+        None,
+    )
+    .await
+    .unwrap();
     let mut second = node();
     second.metadata.name = Some("second".into());
     second.metadata.uid = Some("second-node-uid".into());
@@ -573,12 +599,16 @@ async fn node_replacement_revokes_new_builds_before_waiting_for_an_active_worker
             architecture: None,
             system_namespace: "system".into(),
             installation: "dev".into(),
-            builder_image: catalog("0.5.0").reference("builder").unwrap(),
+            builder_image: catalog(env!("CARGO_PKG_VERSION"))
+                .reference("builder")
+                .unwrap(),
         }),
         client: client.clone(),
         namespace: "apps".into(),
         node: "node".into(),
-        input_image: catalog("0.5.0").reference("input").unwrap(),
+        input_image: catalog(env!("CARGO_PKG_VERSION"))
+            .reference("input")
+            .unwrap(),
         registry_origin: "https://dev-registry.system.svc:5443/".parse().unwrap(),
         registry_ca: "unused".into(),
         publisher_password: "unused".into(),
@@ -668,4 +698,90 @@ async fn doctor_reports_actionable_drift_and_certificate_health_without_writes_o
         }
     }
     server.abort();
+}
+
+#[tokio::test]
+async fn gitops_refuses_cli_and_helm_adoption_before_any_write() {
+    for manager in ["cli", "helm"] {
+        let (client, store, server) = fixture().await;
+        {
+            let mut data = store.lock().unwrap();
+            data.objects
+                .get_mut("/api/v1/namespaces/system/configmaps/dev-installation")
+                .unwrap()["metadata"]["annotations"]["kimage.dev/manager"] = json!(manager);
+        }
+        let (_, options, _) = lifecycle::state(client.clone(), "system", "dev")
+            .await
+            .unwrap();
+        let desired = kimage_control::gitops::Desired {
+            schema: 1,
+            options,
+            catalog: catalog("0.5.1"),
+            credential_secrets: BTreeMap::new(),
+            node_policy: None,
+            build_policy: None,
+        };
+        let error = kimage_control::gitops::reconcile(client, &desired)
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains("InstallationManagerConflict"));
+        assert_eq!(store.lock().unwrap().writes, 0);
+        server.abort();
+    }
+}
+
+#[test]
+fn gitops_configuration_refuses_unknown_releases_old_targets_and_private_material() {
+    let options:Options=serde_json::from_value(json!({"namespace":"system","installation":"dev","scope":"namespace","applicationNamespace":"apps","excludedNamespaces":[],"runtimeProfile":"inferal","storageSize":"1Gi","port":17701})).unwrap();
+    let mut desired = kimage_control::gitops::Desired {
+        schema: 1,
+        options,
+        catalog: catalog("0.5.1"),
+        credential_secrets: BTreeMap::new(),
+        node_policy: None,
+        build_policy: None,
+    };
+    desired.validate().unwrap();
+    desired.catalog = catalog("0.5.0");
+    assert!(
+        desired
+            .validate()
+            .unwrap_err()
+            .to_string()
+            .contains("TargetDoesNotSupportArgoCD")
+    );
+    desired.catalog = catalog("0.6.0");
+    assert!(
+        desired
+            .validate()
+            .unwrap_err()
+            .to_string()
+            .contains("UnsupportedReleaseTransition")
+    );
+    desired.catalog = catalog("0.5.1");
+    desired
+        .credential_secrets
+        .insert("registry".into(), "existing-credentials".into());
+    desired.validate().unwrap();
+    desired
+        .credential_secrets
+        .insert("ca.key".into(), "private".into());
+    assert!(desired.validate().is_err());
+    desired.credential_secrets.remove("ca.key");
+    desired.node_policy =
+        Some(serde_json::from_value(json!({"schema":1,"workerPins":{"riscv64":"node"}})).unwrap());
+    assert!(desired.validate().is_err());
+    desired.node_policy = None;
+    desired.build_policy = Some("invalid".into());
+    assert!(desired.validate().is_err());
+    let mut value = serde_json::to_value(&desired).unwrap();
+    value["credentials"] = json!({"password":"private"});
+    assert!(serde_json::from_value::<kimage_control::gitops::Desired>(value).is_err());
+}
+
+#[test]
+fn patch_release_compatibility_is_exact_and_does_not_authorize_skipping_versions() {
+    lifecycle::compatible(&catalog("0.5.0"), &catalog("0.5.1")).unwrap();
+    lifecycle::compatible(&catalog("0.5.1"), &catalog("0.5.0")).unwrap();
+    assert!(lifecycle::compatible(&catalog("0.4.1"), &catalog("0.5.1")).is_err());
 }

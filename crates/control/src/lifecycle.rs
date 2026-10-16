@@ -299,7 +299,7 @@ fn manager(state: &ConfigMap) -> Result<String> {
         .context("MissingInstallationManager")?
         .clone();
     ensure!(
-        matches!(manager.as_str(), "cli" | "helm"),
+        matches!(manager.as_str(), "cli" | "helm" | "argocd"),
         "UnsupportedInstallationManager"
     );
     Ok(manager)
@@ -360,6 +360,13 @@ pub async fn transition(
         );
     }
     compatible(&source, target)?;
+    if manager(&installed)? == "argocd" {
+        ensure!(
+            kimage_core::selector::exact(&target.release)?
+                >= kimage_core::selector::exact("0.5.1")?,
+            "TargetDoesNotSupportArgoCD"
+        );
+    }
     ensure!(
         is_rollback(&source.release, &target.release)? == rollback,
         "TransitionDirectionConflict"
@@ -644,9 +651,9 @@ pub async fn transition(
                 // A partial rollback can have restarted the predecessor, which
                 // cannot honor the new journal. Fence it again on every resume.
                 quiesce(&context,&options,&lease).await?;
-                prepare_workers(&context,&plan.resources,&installed,"cli",&lease).await?;
-                for resource in &plan.resources {lease.check().await?;replace_owned(&context,resource,"cli").await?;}
-                for resource in &plan.webhooks {lease.check().await?;replace_owned(&context,resource,"cli").await?;}
+                prepare_workers(&context,&plan.resources,&installed,&record.manager,&lease).await?;
+                for resource in &plan.resources {lease.check().await?;replace_owned(&context,resource,&record.manager).await?;}
+                for resource in &plan.webhooks {lease.check().await?;replace_owned(&context,resource,&record.manager).await?;}
             }
             record.phase=Phase::Verifying;save(client.clone(),&record).await?;
         }

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fetch the immutable published 0.4.1 predecessor for real upgrade acceptance.
+"""Fetch the immutable published 0.5.0 predecessor for real upgrade acceptance.
 
 Only metadata requests may carry GitHub authentication. Public asset downloads
 are independently checked against GitHub's recorded SHA-256 and size.
@@ -12,7 +12,7 @@ import re
 from pathlib import Path
 import urllib.request
 
-VERSION = '0.4.1'
+VERSION = '0.5.0'
 API = 'https://api.github.com/repos/inferal-oss/kimage/releases/tags/v'+VERSION
 ASSETS = 'https://github.com/inferal-oss/kimage/releases/download/v'+VERSION+'/'
 

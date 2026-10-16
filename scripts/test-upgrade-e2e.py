@@ -36,7 +36,7 @@ class Boundaries(unittest.TestCase):
                 events.append('scale');return types.SimpleNamespace(returncode=0)
             def wait(self,predicate,message):assert predicate()
         fixture=upgrade.Upgrade.__new__(upgrade.Upgrade)
-        fixture.api=API();fixture.config=dict(mode='helm');fixture.system='system';fixture.id='fixture'
+        fixture.api=API();fixture.source=fetch.VERSION;fixture.config=dict(mode='helm');fixture.system='system';fixture.id='fixture'
         fixture.architectures=set()
         fixture.check=lambda message:None
         def command(args):
@@ -68,7 +68,7 @@ class Boundaries(unittest.TestCase):
                     assert body==self_body and args[2]=='/api/v1/namespaces/system/pods/fixture-builder-arm64'
                     events.append('delete');return types.SimpleNamespace(returncode=0)
                 def wait(self,predicate,message):assert predicate()
-            fixture=upgrade.Upgrade.__new__(upgrade.Upgrade);fixture.api=API();fixture.system='system';fixture.id='fixture';fixture.check=lambda text:None
+            fixture=upgrade.Upgrade.__new__(upgrade.Upgrade);fixture.api=API();fixture.source=fetch.VERSION;fixture.system='system';fixture.id='fixture';fixture.check=lambda text:None
             if changed not in ('none','defaults'):
                 with self.assertRaisesRegex(RuntimeError,'ownership or specification|foreign owner'):fixture.retire_previous_worker('arm64')
                 self.assertEqual(events,[])
@@ -124,10 +124,10 @@ class Boundaries(unittest.TestCase):
         self.assertNotIn('FileNotFoundError',result.stderr)
 
     def test_published_predecessor_digest_size_and_metadata_only_authentication(self):
-        names=['kimage-v0.4.1-linux-amd64','component-images.json','kimage-0.4.1.tgz']
+        names=['kimage-v0.5.0-linux-amd64','component-images.json','kimage-0.5.0.tgz']
         bodies={name:(name+'-published').encode() for name in names}
         assets=[dict(name=name,state='uploaded',size=len(bodies[name]),digest='sha256:'+hashlib.sha256(bodies[name]).hexdigest(),browser_download_url=fetch.ASSETS+name) for name in names]
-        release=dict(tag_name='v0.4.1',draft=False,prerelease=False,assets=assets)
+        release=dict(tag_name='v0.5.0',draft=False,prerelease=False,assets=assets)
         class Metadata:
             def open(self,request,timeout):
                 assert request.full_url==fetch.API and request.get_header('Authorization')=='Bearer fixture-token'

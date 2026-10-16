@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Explicitly enabled acceptance of published 0.4.1 -> 0.5.0 -> 0.4.1.
+"""Explicitly enabled acceptance of the published predecessor, candidate and reverse transition.
 
 Uses fresh dedicated namespaces. Only fixture Node labels may be changed; Nodes
 are never deleted or cordoned. Images, releases, inputs and registry PVC remain.
@@ -47,15 +47,17 @@ class Upgrade:
         self.output=self.api.output
         self.previous=Path(config['previous']).resolve()
         self.installer=Path(config['installer']).resolve()
-        self.previous_binary=next(self.previous.glob('kimage-v0.4.1-*'))
         self.target=json.loads(Path(config['catalog']).read_bytes())
-        require(self.target['release']=='0.5.0','Test requires an exact 0.5.0 catalog')
+        self.version=self.target['release']
+        require(self.version=='0.5.1','Test requires an exact 0.5.1 catalog')
         verified=json.loads((self.previous/'verified.json').read_bytes())
-        require(verified['release']=='0.4.1','Published predecessor verification is required')
+        self.source=verified['release']
+        require(self.source==self.version,'Published predecessor verification is required')
+        self.previous_binary=next(self.previous.glob('kimage-v'+self.source+'-*'))
         for asset in verified['assets']:
             data=(self.previous/asset['name']).read_bytes()
             require(len(data)==asset['size'] and 'sha256:'+hashlib.sha256(data).hexdigest()==asset['sha256'],'Predecessor asset changed')
-        self.report=dict(schema=1,test='installation-lifecycle',source='0.4.1',target='0.5.0',manager=config['mode'],scope=config['scope'],checks=[],complete=False)
+        self.report=dict(schema=1,test='installation-lifecycle',source=self.source,target=self.version,manager=config['mode'],scope=config['scope'],checks=[],complete=False)
         self.report['harnessSha256']='sha256:'+hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
         self.report['artifacts']={key:'sha256:'+hashlib.sha256(Path(config[key]).read_bytes()).hexdigest() for key in ['installer','catalog','chart']}
         self.report['predecessor']=verified
@@ -117,7 +119,7 @@ class Upgrade:
 
     def install_previous(self):
         actual=self.run_command([self.previous_binary,'--version']).stdout.strip()
-        require(actual in ('kimage 0.4.1','kimage-install 0.4.1'),'Must execute the published predecessor binary')
+        require(actual in ('kimage '+self.source,'kimage-install '+self.source),'Must execute the published predecessor binary')
         common=self.common()
         if self.config['mode']=='cli':
             self.run_command([self.previous_binary,'install',*common,'--image-catalog',self.previous/'component-images.json'])
@@ -126,9 +128,9 @@ class Upgrade:
             if self.config['scope']=='namespace':values['applicationNamespace']=self.app
             else:values['excludedNamespaces']=self.excluded
             path=self.output/'helm-values.json';path.write_text(json.dumps(values))
-            self.run_command(['helm','install',self.id,self.previous/'kimage-0.4.1.tgz','--namespace',self.system,'-f',path,'--wait','--wait-for-jobs','--timeout','10m'])
-        self.assert_images('0.4.1',json.loads((self.previous/'component-images.json').read_bytes()))
-        self.check('actual published 0.4.1 installed with native component pulls')
+            self.run_command(['helm','install',self.id,self.previous/('kimage-'+self.source+'.tgz'),'--namespace',self.system,'-f',path,'--wait','--wait-for-jobs','--timeout','10m'])
+        self.assert_images(self.source,json.loads((self.previous/'component-images.json').read_bytes()))
+        self.check('actual published '+self.source+' installed with native component pulls')
 
     def assert_images(self,version,catalog):
         record=json.loads(self.api.get('configmap',self.id+'-installation',self.system)['data']['installation.json'])
@@ -166,7 +168,7 @@ class Upgrade:
                 if doctor['issues']!=last_issues:print('WAIT: installation health '+json.dumps(doctor['issues']),flush=True);last_issues=doctor['issues']
                 return False
             status=json.loads(self.run_command([self.installer,'status','--namespace',self.system,'--installation',self.id,'--json']).stdout)
-            return status['healthy'] and status['release']=='0.5.0'
+            return status['healthy'] and status['release']==self.version
         self.api.wait(healthy,'read-only doctor reports healthy installation')
         require(self.operation()==before,'Diagnostics changed the operation journal')
         self.check('status and doctor report healthy placement, resource pins, retained storage and certificates without changing the journal')
@@ -251,7 +253,7 @@ class Upgrade:
             if result.returncode==0:break
             require('Conflict' in result.stderr and attempt<2,'Predecessor operator shutdown failed')
         self.api.wait(lambda:not self.api.get('pods',namespace=self.system,selector='kimage.dev/installation='+self.id+',kimage.dev/role=operator')['items'],'published predecessor operator stops before Helm removal')
-        self.check('published 0.4.1 operator drained before Helm uninstall')
+        self.check('published '+self.source+' operator drained before Helm uninstall')
         # The predecessor recreates workers without Helm's original tracking
         # metadata. Retire only exact template-matching workers after shutdown;
         # a raw UID/RV precondition cannot delete a replacement Pod.
@@ -298,7 +300,7 @@ class Upgrade:
             if result.returncode==0:break
             require(('Conflict' in result.stderr or 'NotFound' in result.stderr) and attempt<2,'Predecessor worker retirement failed')
         self.api.wait(lambda:self.api.get('pod',name,self.system) is None,'published predecessor worker retires before Helm removal')
-        self.check('published 0.4.1 native '+architecture+' worker retired with guarded identity before Helm uninstall')
+        self.check('published '+self.source+' native '+architecture+' worker retired with guarded identity before Helm uninstall')
 
     def assert_removed(self):
         remaining={}
@@ -322,9 +324,9 @@ class Upgrade:
             raise RuntimeError('Disposable resources remain (metadata only): '+json.dumps(remaining,sort_keys=True)) from None
 
     def transition(self,version,interrupt=False):
-        command='upgrade' if version=='0.5.0' else 'rollback'
-        catalog=Path(self.config['catalog']) if version=='0.5.0' else self.previous/'component-images.json'
-        chart=Path(self.config['chart']) if version=='0.5.0' else self.previous/'kimage-0.4.1.tgz'
+        command='upgrade' if version==self.version else 'rollback'
+        catalog=Path(self.config['catalog']) if version==self.version else self.previous/'component-images.json'
+        chart=Path(self.config['chart']) if version==self.version else self.previous/('kimage-'+self.source+'.tgz')
         args=[self.installer,command,'--to',version,'--namespace',self.system,'--installation',self.id,'--image-catalog',catalog,'--chart',chart]
         old_operation=self.operation()
         self.run_command(args+['--check'])
@@ -359,7 +361,7 @@ class Upgrade:
         self.run_command(args)
         require(self.operation()['phase']=='Complete','Operation did not verify completion')
         self.assert_retained(before)
-        self.assert_images(version,self.target if version=='0.5.0' else json.loads((self.previous/'component-images.json').read_bytes()))
+        self.assert_images(version,self.target if version==self.version else json.loads((self.previous/'component-images.json').read_bytes()))
         self.check(command+' completed with retained registry, credentials, Images and releases')
 
     def diagnostics(self,arch):
@@ -443,7 +445,7 @@ class Upgrade:
             self.preflight();self.install_previous()
             self.build('before')
             self.verify_graphs('before-upgrade')
-            self.transition('0.5.0',True)
+            self.transition(self.version,True)
             self.installation_diagnostics()
             for image,expected,architecture in list(self.images):self.consume(image,expected,architecture)
             self.build('after')
@@ -453,10 +455,10 @@ class Upgrade:
                 for _ in range(repetitions):self.diagnostics(architecture)
             if self.config.get('nodeChanges'):self.node_changes()
             self.installation_diagnostics()
-            self.transition('0.4.1',True)
+            self.transition(self.source,True)
             self.build('rolled-back')
             for image,expected,architecture in self.images:self.consume(image,expected,architecture)
-            self.check('published 0.4.1 consumes releases produced before and after the upgrade')
+            self.check('published '+self.source+' consumes releases produced before and after the upgrade')
             self.check_rollback_log_privacy()
             self.verify_graphs('after-rollback')
             retained=self.retained()

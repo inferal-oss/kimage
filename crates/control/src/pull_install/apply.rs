@@ -42,6 +42,7 @@ fn resume_options(
     options: &Options,
     nodes: &[Node],
     state: Option<&k8s_openapi::api::core::v1::ConfigMap>,
+    manager: &str,
 ) -> Result<Options> {
     let mut resolved = options.clone();
     if let Some(state) = state {
@@ -53,7 +54,7 @@ fn resume_options(
                 && state
                     .annotations()
                     .get("kimage.dev/manager")
-                    .is_some_and(|manager| manager == "cli"),
+                    .is_some_and(|existing| existing == manager),
             "InstallationManagerConflict"
         );
         let record: Value = serde_json::from_str(
@@ -112,7 +113,7 @@ fn build_configuration(map: Option<&ConfigMap>, installation: &str) -> Result<St
         &crate::configuration::Configuration::default(),
     )?)
 }
-async fn apply_one(context: &Installer, resource: &Value) -> Result<()> {
+async fn apply_one(context: &Installer, resource: &Value, manager: &str) -> Result<()> {
     let kind = resource["kind"]
         .as_str()
         .context("MissingInstallResourceKind")?;
@@ -126,16 +127,42 @@ async fn apply_one(context: &Installer, resource: &Value) -> Result<()> {
             existing
                 .annotations()
                 .get("kimage.dev/manager")
-                .is_some_and(|manager| manager == "cli")
+                .is_some_and(|existing| existing == manager)
                 && !existing
                     .annotations()
                     .contains_key("meta.helm.sh/release-name"),
             "InstallationManagerConflict: {kind}/{name}; use the manager that owns this installation"
         );
     }
+    if manager == "argocd"
+        && kind == "ConfigMap"
+        && [
+            format!("{}-config", context.options.installation),
+            format!("{}-node-policy", context.options.installation),
+        ]
+        .contains(&name.to_string())
+    {
+        return crate::lifecycle::replace_owned(context, resource, manager).await;
+    }
     context.owned_at(resource.clone(), ns).await
 }
 pub async fn install(client: Client, options: &Options, catalog: &ImageCatalog) -> Result<()> {
+    install_managed(client, options, catalog, "cli", None, None, None).await
+}
+
+pub(crate) async fn install_managed(
+    client: Client,
+    options: &Options,
+    catalog: &ImageCatalog,
+    manager: &str,
+    supplied: Option<Credentials>,
+    requested_policy: Option<&crate::node_reconcile::Policy>,
+    requested_build_policy: Option<&str>,
+) -> Result<()> {
+    ensure!(
+        matches!(manager, "cli" | "argocd"),
+        "InvalidInstallationManager"
+    );
     options.validate()?;
     catalog.validate(&catalog.release, false)?;
     let node_api: Api<Node> = Api::all(client.clone());
@@ -172,16 +199,24 @@ pub async fn install(client: Client, options: &Options, catalog: &ImageCatalog) 
             "InstallationOperationPending: resume the explicit upgrade or rollback"
         );
     }
-    let mut resolved = resume_options(options, &page.items, previous.as_ref())?;
-    let node_policy =
-        crate::node_reconcile::policy(client.clone(), &options.namespace, &options.installation)
-            .await?;
+    let mut resolved = resume_options(options, &page.items, previous.as_ref(), manager)?;
+    let node_policy = match requested_policy {
+        Some(policy) => policy.clone(),
+        None => {
+            crate::node_reconcile::policy(client.clone(), &options.namespace, &options.installation)
+                .await?
+        }
+    };
     let (selected, workers) = crate::node_reconcile::select(&resolved, &node_policy, &page.items)?;
     resolved.worker_nodes = workers;
     let options = &resolved;
-    let credentials =
-        Credentials::resolve(client.clone(), &options.namespace, &options.installation).await?;
-    let mut plan = Plan::new(options, catalog, &selected, &credentials)?;
+    let credentials = match supplied {
+        Some(credentials) => credentials,
+        None => {
+            Credentials::resolve(client.clone(), &options.namespace, &options.installation).await?
+        }
+    };
+    let mut plan = Plan::with_manager(options, catalog, &selected, &credentials, manager)?;
     let context = context(client.clone(), options, &plan.primary_node)?;
     context.ensure_scope_available().await?;
     let maps = context.api_at("ConfigMap", Some(&options.namespace))?;
@@ -204,18 +239,29 @@ pub async fn install(client: Client, options: &Options, catalog: &ImageCatalog) 
     let previous_configuration = configuration_maps
         .get_opt(&format!("{}-config", options.installation))
         .await?;
-    let configuration =
-        build_configuration(previous_configuration.as_ref(), &options.installation)?;
+    let configuration = match requested_build_policy {
+        Some(policy) => {
+            ensure!(matches!(policy, "OnDemand" | "Eager"), "InvalidBuildPolicy");
+            json!({"schema":1,"buildPolicy":policy}).to_string()
+        }
+        None => build_configuration(previous_configuration.as_ref(), &options.installation)?,
+    };
     for resource in &mut plan.resources {
+        if resource["kind"] == "ConfigMap"
+            && resource["metadata"]["name"] == format!("{}-node-policy", options.installation)
+        {
+            resource["data"]["policy.json"] = json!(serde_json::to_string(&node_policy)?);
+        }
         if resource["kind"] == "ConfigMap"
             && resource["metadata"]["name"] == format!("{}-config", options.installation)
         {
             resource["data"]["configuration.json"] = json!(configuration);
         }
     }
-    if let Some(policy) = configuration_maps
-        .get_opt(&format!("{}-node-policy", options.installation))
-        .await?
+    if requested_policy.is_none()
+        && let Some(policy) = configuration_maps
+            .get_opt(&format!("{}-node-policy", options.installation))
+            .await?
     {
         crate::lifecycle::owned(&policy, &options.installation)?;
         for resource in &mut plan.resources {
@@ -276,12 +322,12 @@ pub async fn install(client: Client, options: &Options, catalog: &ImageCatalog) 
     let applied = async {
         for resource in &plan.resources {
             lease.check().await?;
-            apply_one(&context, resource).await?;
+            apply_one(&context, resource, manager).await?;
         }
         wait_ready(&context, &plan).await?;
         for resource in &plan.webhooks {
             lease.check().await?;
-            apply_one(&context, resource).await?;
+            apply_one(&context, resource, manager).await?;
         }
         Ok::<(), anyhow::Error>(())
     }
@@ -376,9 +422,23 @@ pub async fn uninstall(client: Client, options: &Options) -> Result<()> {
             && state
                 .annotations()
                 .get("kimage.dev/manager")
-                .is_some_and(|manager| manager == "cli"),
+                .is_some_and(|manager| matches!(manager.as_str(), "cli" | "argocd")),
         "InstallationManagerConflict: use helm uninstall for a Helm-managed installation"
     );
+    if state
+        .annotations()
+        .get("kimage.dev/manager")
+        .is_some_and(|m| m == "argocd")
+    {
+        ensure!(
+            context
+                .api_at("Deployment", Some(&options.namespace))?
+                .get_opt(&format!("{}-provisioner", options.installation))
+                .await?
+                .is_none(),
+            "ArgoCDProvisionerActive: remove the Application before uninstalling its retained runtime"
+        );
+    }
     // Foreground deletion fences supervisors before deleting individual workers
     // and their active build sessions. Their PVC and release catalog remain.
     for kind in ["Deployment", "Job"] {
@@ -391,7 +451,9 @@ pub async fn uninstall(client: Client, options: &Options) -> Result<()> {
                 object
                     .annotations()
                     .get("kimage.dev/manager")
-                    .is_some_and(|manager| manager == "cli"),
+                    .is_some_and(
+                        |manager| state.annotations().get("kimage.dev/manager") == Some(manager)
+                    ),
                 "InstallationManagerConflict"
             );
             crate::install::delete_foreground_snapshot(&api, &object).await?;
@@ -424,7 +486,7 @@ pub async fn uninstall_installed(
             && state
                 .annotations()
                 .get("kimage.dev/manager")
-                .is_some_and(|manager| manager == "cli"),
+                .is_some_and(|manager| matches!(manager.as_str(), "cli" | "argocd")),
         "InstallationManagerConflict"
     );
     let configuration: Value = serde_json::from_str(
@@ -518,32 +580,33 @@ mod tests {
             node("added-first", "added-uid"),
             node("original", "original-uid"),
         ];
-        let resolved = resume_options(&requested, &nodes, Some(&state)).unwrap();
+        let resolved = resume_options(&requested, &nodes, Some(&state), "cli").unwrap();
         assert_eq!(resolved.registry_node.as_deref(), Some("original"));
         assert_eq!(resolved.worker_nodes["amd64"], "original");
         assert!(
             resume_options(
                 &requested,
                 &[node("original", "replacement-uid")],
-                Some(&state)
+                Some(&state),
+                "cli"
             )
             .is_err()
         );
         let mut changed = requested.clone();
         changed.registry_node = Some("added-first".into());
-        assert!(resume_options(&changed, &nodes, Some(&state)).is_err());
+        assert!(resume_options(&changed, &nodes, Some(&state), "cli").is_err());
         changed = requested.clone();
         changed.application_namespace = Some("other".into());
-        assert!(resume_options(&changed, &nodes, Some(&state)).is_err());
+        assert!(resume_options(&changed, &nodes, Some(&state), "cli").is_err());
         changed = requested.clone();
         changed.port += 1;
-        assert!(resume_options(&changed, &nodes, Some(&state)).is_err());
+        assert!(resume_options(&changed, &nodes, Some(&state), "cli").is_err());
         state
             .metadata
             .annotations
             .as_mut()
             .unwrap()
             .insert("kimage.dev/manager".into(), "helm".into());
-        assert!(resume_options(&requested, &nodes, Some(&state)).is_err());
+        assert!(resume_options(&requested, &nodes, Some(&state), "cli").is_err());
     }
 }

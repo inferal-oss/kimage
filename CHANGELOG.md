@@ -7,9 +7,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-10-16
+
 ### Added
 
-- A [0.5.1 plan for Argo CD installation](docs/0.5.1-plan.md), covering deterministic rendering, in-cluster bootstrap, guarded transitions, retention and real-controller acceptance. Argo CD support remains planned.
+- Argo CD chart mode with deterministic offline rendering, an in-cluster provisioner, automatic native node discovery and generated or externally supplied credentials. Applications expose readiness through the provisioner Deployment and support both installation scopes.
+- Argo CD ownership, guarded runtime transitions and explicit removal that preserves registry data, Images, releases and shared CRDs. Existing CLI/Helm installations are not adopted automatically; Argo CD ownership requires 0.5.1 or newer.
+- Copyable Argo CD Applications and installation, configuration, health and retention guidance in the README, handbook and agent essentials.
+
+### Changed
+
+- CLI and Helm transition acceptance now targets published 0.5.0 to 0.5.1 and back. Published 0.5.0 resource templates are frozen for rollback; historical acceptance evidence remains unchanged.
 
 ## [0.5.0] - 2026-10-16
 
@@ -213,7 +221,8 @@ credentials, and a supported runtime profile. Builds initially support scratch
 images and provisioned local inputs. See the
 [compatibility limits](README.md#compatibility-and-limits).
 
-[Unreleased]: https://github.com/inferal-oss/kimage/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/inferal-oss/kimage/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/inferal-oss/kimage/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/inferal-oss/kimage/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/inferal-oss/kimage/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/inferal-oss/kimage/compare/v0.3.1...v0.4.0

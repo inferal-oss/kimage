@@ -3,6 +3,7 @@ pub mod api;
 pub mod bundle;
 pub mod diagnostics;
 pub mod gateway;
+pub mod gitops;
 pub mod install;
 pub mod kubernetes;
 pub mod lifecycle;

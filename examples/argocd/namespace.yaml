@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kimage
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://kimage.dev/charts
+    chart: kimage
+    targetRevision: 0.5.1
+    helm:
+      releaseName: kimage
+      valuesObject:
+        gitops:
+          enabled: true
+        scope: namespace
+        applicationNamespace: apps
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kimage-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

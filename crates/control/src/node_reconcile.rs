@@ -47,6 +47,10 @@ pub async fn policy(client: Client, namespace: &str, id: &str) -> Result<Policy>
             .and_then(|d| d.get("policy.json"))
             .context("MissingNodePolicy")?,
     )?;
+    validate_policy(&result)?;
+    Ok(result)
+}
+pub(crate) fn validate_policy(result: &Policy) -> Result<()> {
     ensure!(
         result.schema == 1
             && result.node_selector.len() <= 32
@@ -61,7 +65,7 @@ pub async fn policy(client: Client, namespace: &str, id: &str) -> Result<Policy>
                 .all(|a| matches!(a.as_str(), "amd64" | "arm64")),
         "InvalidNodePolicy"
     );
-    Ok(result)
+    Ok(())
 }
 pub fn select(
     options: &Options,

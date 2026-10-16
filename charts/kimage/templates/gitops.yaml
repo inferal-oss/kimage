@@ -1,0 +1,419 @@
+{{- if .Values.gitops.enabled -}}
+{{- $ns := .Release.Namespace -}}{{- $id := default .Release.Name .Values.installation -}}
+{{- if or (eq $ns "default") (hasPrefix "kube-" $ns) (gt (len $id) 32) (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" $id)) -}}{{- fail "InvalidGitOpsInstallationIdentity" -}}{{- end -}}
+{{- if not (has .Values.scope (list "namespace" "cluster")) -}}{{- fail "InvalidInstallationScope" -}}{{- end -}}
+{{- $cluster := eq .Values.scope "cluster" -}}
+{{- $app := default "default" .Values.applicationNamespace -}}
+{{- if or (and $cluster .Values.applicationNamespace) (and (not $cluster) .Values.excludedNamespaces) -}}{{- fail "InvalidApplicationNamespaceOrExclusions" -}}{{- end -}}
+{{- if or .Values.nodes .Values.credentials.registry .Values.credentials.admission .Values.credentials.builder -}}{{- fail "GitOpsUsesInClusterDiscoveryAndSecretReferences" -}}{{- end -}}
+{{- $components := dict -}}
+{{- range $role, $digest := .Values.images.digests -}}
+  {{- if not (regexMatch "^sha256:[0-9a-f]{64}$" $digest) -}}{{- fail (printf "MissingComponentDigest: %s" $role) -}}{{- end -}}
+  {{- $version := $.Chart.AppVersion -}}{{- if has $role (list "gateway" "proxy") -}}{{- $version = "0.3.0" -}}{{- else if eq $role "registry" -}}{{- $version = "3.1.2" -}}{{- else if eq $role "builder" -}}{{- $version = "0.33.0" -}}{{- end -}}
+  {{- $_ := set $components $role (dict "version" $version "digest" $digest "platforms" (list (dict "os" "linux" "architecture" "amd64") (dict "os" "linux" "architecture" "arm64"))) -}}
+{{- end -}}
+{{- $catalog := dict "schema" 1 "release" .Chart.AppVersion "apiSchemaRevision" 5 "repository" .Values.images.repository "components" $components -}}
+{{- $target := default $catalog .Values.gitops.targetCatalog -}}
+{{- if not (semverCompare ">=0.5.1-0" $target.release) -}}{{- fail "TargetDoesNotSupportArgoCD" -}}{{- end -}}
+{{- $options := dict "namespace" $ns "installation" $id "scope" .Values.scope "applicationNamespace" (ternary nil $app $cluster) "excludedNamespaces" .Values.excludedNamespaces "runtimeProfile" .Values.runtimeProfile "registryNode" (default nil .Values.registryNode) "storageClass" (default nil .Values.persistence.storageClass) "storageSize" .Values.persistence.size "existingClaim" (default nil .Values.persistence.existingClaim) "port" .Values.port "exportOrigins" .Values.exporter.approvedOrigins "workerNodes" (dict) -}}
+{{- $policy := .Values.nodePolicy -}}{{- if and (not $policy) .Values.workerNodes -}}{{- $policy = dict "schema" 1 "nodeSelector" (dict) "workerPins" .Values.workerNodes -}}{{- end -}}
+{{- $desired := dict "schema" 1 "options" $options "catalog" $target "credentialSecrets" .Values.gitops.credentialSecrets "nodePolicy" $policy "buildPolicy" (default nil .Values.buildPolicy) -}}
+{{- $configuration := $desired | toJson -}}
+{{- $name := printf "%s-provisioner" $id -}}
+{{- $image := printf "%s/operator@%s" .Values.images.repository (get .Values.images.digests "operator") -}}
+{
+  "apiVersion": "v1",
+  "kind": "ServiceAccount",
+  "metadata": {
+    "name": {{ $name | toJson }},
+    "namespace": {{ $ns | toJson }},
+    "labels": {
+      "kimage.dev/provisioner": {{ $id | toJson }},
+      "app.kubernetes.io/name": "kimage-provisioner"
+    }
+  }
+}
+---
+{
+  "apiVersion": "rbac.authorization.k8s.io/v1",
+  "kind": "ClusterRole",
+  "metadata": {
+    "name": {{ printf "%s-%s" $ns $name | toJson }},
+    "labels": {
+      "kimage.dev/provisioner": {{ $id | toJson }},
+      "app.kubernetes.io/name": "kimage-provisioner"
+    }
+  },
+  "rules": [
+    {
+      "apiGroups": [
+        ""
+      ],
+      "resources": [
+        "nodes",
+        "persistentvolumes"
+      ],
+      "verbs": [
+        "get",
+        "list",
+        "watch"
+      ]
+    },
+    {
+      "apiGroups": [
+        ""
+      ],
+      "resources": [
+        "namespaces"
+      ],
+      "verbs": [
+        "get",
+        "list",
+        "watch",
+        "create"
+      ]
+    },
+    {
+      "apiGroups": [
+        ""
+      ],
+      "resources": [
+        "configmaps",
+        "secrets",
+        "pods",
+        "pods/exec",
+        "pods/log",
+        "services",
+        "serviceaccounts",
+        "persistentvolumeclaims"
+      ],
+      "verbs": [
+        "get",
+        "list",
+        "watch",
+        "create",
+        "update",
+        "patch",
+        "delete"
+      ]
+    },
+    {
+      "apiGroups": [
+        "apps"
+      ],
+      "resources": [
+        "deployments"
+      ],
+      "verbs": [
+        "get",
+        "list",
+        "watch",
+        "create",
+        "update",
+        "patch",
+        "delete"
+      ]
+    },
+    {
+      "apiGroups": [
+        "batch"
+      ],
+      "resources": [
+        "jobs"
+      ],
+      "verbs": [
+        "get",
+        "list",
+        "watch",
+        "create",
+        "update",
+        "patch",
+        "delete"
+      ]
+    },
+    {
+      "apiGroups": [
+        "networking.k8s.io"
+      ],
+      "resources": [
+        "networkpolicies"
+      ],
+      "verbs": [
+        "get",
+        "list",
+        "watch",
+        "create",
+        "update",
+        "patch",
+        "delete"
+      ]
+    },
+    {
+      "apiGroups": [
+        "coordination.k8s.io"
+      ],
+      "resources": [
+        "leases"
+      ],
+      "verbs": [
+        "get",
+        "list",
+        "watch",
+        "create",
+        "update",
+        "patch",
+        "delete"
+      ]
+    },
+    {
+      "apiGroups": [
+        "apiextensions.k8s.io"
+      ],
+      "resources": [
+        "customresourcedefinitions"
+      ],
+      "verbs": [
+        "get",
+        "list",
+        "watch",
+        "create",
+        "update",
+        "patch"
+      ]
+    },
+    {
+      "apiGroups": [
+        "admissionregistration.k8s.io"
+      ],
+      "resources": [
+        "mutatingwebhookconfigurations",
+        "validatingwebhookconfigurations"
+      ],
+      "verbs": [
+        "get",
+        "list",
+        "watch",
+        "create",
+        "update",
+        "patch",
+        "delete"
+      ]
+    },
+    {
+      "apiGroups": [
+        "rbac.authorization.k8s.io"
+      ],
+      "resources": [
+        "roles",
+        "rolebindings",
+        "clusterroles",
+        "clusterrolebindings"
+      ],
+      "verbs": [
+        "get",
+        "list",
+        "watch",
+        "create",
+        "update",
+        "patch",
+        "delete",
+        "bind",
+        "escalate"
+      ]
+    },
+    {
+      "apiGroups": [
+        "authorization.k8s.io"
+      ],
+      "resources": [
+        "selfsubjectaccessreviews"
+      ],
+      "verbs": [
+        "create"
+      ]
+    },
+    {
+      "apiGroups": [
+        "kimage.dev"
+      ],
+      "resources": [
+        "images",
+        "images/status",
+        "imagereleases",
+        "imagereleases/status",
+        "imagedemands",
+        "imagedemands/status",
+        "imageexports",
+        "imageexports/status"
+      ],
+      "verbs": [
+        "get",
+        "list",
+        "watch",
+        "create",
+        "update",
+        "patch",
+        "delete"
+      ]
+    }
+  ]
+}
+---
+{
+  "apiVersion": "rbac.authorization.k8s.io/v1",
+  "kind": "ClusterRoleBinding",
+  "metadata": {
+    "name": {{ printf "%s-%s" $ns $name | toJson }},
+    "labels": {
+      "kimage.dev/provisioner": {{ $id | toJson }},
+      "app.kubernetes.io/name": "kimage-provisioner"
+    }
+  },
+  "roleRef": {
+    "apiGroup": "rbac.authorization.k8s.io",
+    "kind": "ClusterRole",
+    "name": {{ printf "%s-%s" $ns $name | toJson }}
+  },
+  "subjects": [
+    {
+      "kind": "ServiceAccount",
+      "name": {{ $name | toJson }},
+      "namespace": {{ $ns | toJson }}
+    }
+  ]
+}
+---
+{
+  "apiVersion": "v1",
+  "kind": "ConfigMap",
+  "metadata": {
+    "name": {{ $name | toJson }},
+    "namespace": {{ $ns | toJson }},
+    "labels": {
+      "kimage.dev/provisioner": {{ $id | toJson }},
+      "app.kubernetes.io/name": "kimage-provisioner"
+    }
+  },
+  "data": {
+    "desired.json": {{ $configuration | toJson }}
+  }
+}
+---
+{
+  "apiVersion": "apps/v1",
+  "kind": "Deployment",
+  "metadata": {
+    "name": {{ $name | toJson }},
+    "namespace": {{ $ns | toJson }},
+    "labels": {
+      "kimage.dev/provisioner": {{ $id | toJson }},
+      "app.kubernetes.io/name": "kimage-provisioner"
+    }
+  },
+  "spec": {
+    "replicas": 1,
+    "strategy": {
+      "type": "Recreate"
+    },
+    "progressDeadlineSeconds": 900,
+    "selector": {
+      "matchLabels": {
+        "kimage.dev/provisioner": {{ $id | toJson }},
+        "app.kubernetes.io/name": "kimage-provisioner"
+      }
+    },
+    "template": {
+      "metadata": {
+        "labels": {
+          "kimage.dev/provisioner": {{ $id | toJson }},
+          "app.kubernetes.io/name": "kimage-provisioner"
+        },
+        "annotations": {
+          "checksum/configuration": {{ sha256sum $configuration | toJson }}
+        }
+      },
+      "spec": {
+        "serviceAccountName": {{ $name | toJson }},
+        "automountServiceAccountToken": true,
+        "securityContext": {
+          "runAsNonRoot": true,
+          "runAsUser": 65532,
+          "runAsGroup": 65532,
+          "seccompProfile": {
+            "type": "RuntimeDefault"
+          }
+        },
+        "containers": [
+          {
+            "name": "provisioner",
+            "image": {{ $image | toJson }},
+            "imagePullPolicy": "IfNotPresent",
+            "command": [
+              "/kimage-operator",
+              "provision",
+              "--configuration",
+              "/desired/desired.json"
+            ],
+            "ports": [
+              {
+                "name": "health",
+                "containerPort": 8080
+              }
+            ],
+            "securityContext": {
+              "allowPrivilegeEscalation": false,
+              "readOnlyRootFilesystem": true,
+              "capabilities": {
+                "drop": [
+                  "ALL"
+                ]
+              }
+            },
+            "resources": {
+              "requests": {
+                "cpu": "25m",
+                "memory": "64Mi"
+              },
+              "limits": {
+                "cpu": "1000m",
+                "memory": "256Mi"
+              }
+            },
+            "readinessProbe": {
+              "httpGet": {
+                "path": "/readyz",
+                "port": "health"
+              },
+              "periodSeconds": 5,
+              "failureThreshold": 2
+            },
+            "livenessProbe": {
+              "httpGet": {
+                "path": "/livez",
+                "port": "health"
+              },
+              "periodSeconds": 10,
+              "failureThreshold": 6
+            },
+            "volumeMounts": [
+              {
+                "name": "desired",
+                "mountPath": "/desired",
+                "readOnly": true
+              }
+            ]
+          }
+        ],
+        "volumes": [
+          {
+            "name": "desired",
+            "configMap": {
+              "name": {{ $name | toJson }}
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+{{- end -}}

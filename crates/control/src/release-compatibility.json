@@ -1,8 +1,17 @@
 {
   "schema": 1,
-  "release": "0.5.0",
+  "release": "0.5.1",
   "transitions": [
-    {"from": "0.4.1", "to": "0.5.0", "rollbackSafe": true}
+    {
+      "from": "0.4.1",
+      "to": "0.5.0",
+      "rollbackSafe": true
+    },
+    {
+      "from": "0.5.0",
+      "to": "0.5.1",
+      "rollbackSafe": true
+    }
   ],
   "formats": {
     "apiSchemaRevision": 5,
@@ -12,9 +21,21 @@
     "registryStorage": "distribution-filesystem-v1",
     "servingProtocol": "0.3.0"
   },
-  "components": {"registry": "3.1.2", "builder": "0.33.0"},
+  "components": {
+    "registry": "3.1.2",
+    "builder": "0.33.0"
+  },
   "migratesStorage": false,
   "downgradesSharedSchema": false,
-  "rollbackConstraints": ["Restore the default node selector before returning to 0.4.1."],
-  "privateBuildLogs": {"format": 1, "requiredToReadReleases": false}
+  "rollbackConstraints": [
+    "Restore the default node selector before returning to 0.4.1."
+  ],
+  "privateBuildLogs": {
+    "format": 1,
+    "requiredToReadReleases": false
+  },
+  "argoCD": {
+    "minimumRelease": "0.5.1",
+    "adoptsExistingManagers": false
+  }
 }

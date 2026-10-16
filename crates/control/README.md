@@ -8,7 +8,7 @@ workload delivery.
 ## Install
 
 ```sh
-cargo install kimage-control --version 0.5.0 --locked --bin kimage --bin kimage-install
+cargo install kimage-control --version 0.5.1 --locked --bin kimage --bin kimage-install
 kimage install --application-namespace apps
 ```
 
@@ -29,7 +29,7 @@ Gateway/proxy retain serving protocol version 0.3.0 independently of Cargo's
 package version. The crate named `kimage` is a separate project.
 
 For an existing 0.4.1 installation, update this CLI, then run
-`kimage upgrade --to 0.5.0 --check` and `kimage upgrade --to 0.5.0`.
+`kimage upgrade --to 0.5.1 --check` and `kimage upgrade --to 0.5.1`.
 `kimage rollback --to 0.4.1` performs the compatible reverse transition. Both
 managers preserve their ownership, registry storage and release metadata.
 `kimage status` and `kimage doctor` report installation health. Use

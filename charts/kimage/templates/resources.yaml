@@ -1,3 +1,4 @@
+{{- if not .Values.gitops.enabled -}}
 {{- $environment := include "kimage.environment" . | fromJson -}}
 {{- $b := $environment.bindings -}}
 {{- if not .Values.persistence.existingClaim -}}{{ include "kimage.resourceFile" (dict "root" . "name" "storage.json" "bindings" $b) }}{{- end -}}
@@ -41,3 +42,5 @@
   {{ include "kimage.resourceFile" (dict "root" $ "name" "builder-check.json" "bindings" $b) }}
 {{- end -}}
 {{ include "kimage.resourceFile" (dict "root" . "name" "webhooks.json" "bindings" $b) }}
+
+{{- end -}}

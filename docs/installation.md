@@ -36,7 +36,7 @@ preloaded kimage component. A default StorageClass is used unless overridden.
 Install Rust 1.99.0 or newer, then:
 
 ```sh
-cargo install kimage-control --version 0.5.0 --locked --bin kimage --bin kimage-install
+cargo install kimage-control --version 0.5.1 --locked --bin kimage --bin kimage-install
 kimage install --application-namespace apps
 ```
 
@@ -87,7 +87,7 @@ The chart repository is hosted alongside the website:
 helm repo add kimage https://kimage.dev/charts
 helm repo update
 kubectl create namespace apps
-helm install kimage kimage/kimage --version 0.5.0 \
+helm install kimage kimage/kimage --version 0.5.1 \
   --namespace kimage-system --create-namespace \
   --set applicationNamespace=apps --wait --wait-for-jobs
 ```
@@ -121,6 +121,12 @@ The published chart contains the release's image pins. The repository's source
 chart intentionally has empty pins until release packaging verifies both native
 image graphs. The operator manages the shared CRDs with guarded schema compatibility
 checks; Helm does not own or delete them.
+
+## Install with Argo CD
+
+Use `gitops.enabled: true` with the published chart. Rendering is deterministic
+and independent of live Kubernetes data. See the [Argo CD guide](argocd.md) for
+copyable Applications, in-cluster credentials, readiness, upgrades and retention.
 
 ## Nodes, storage and reapplication
 
@@ -179,15 +185,15 @@ only fixed GitHub metadata requests and is never forwarded to asset downloads.
 ## Upgrades, rollback and removal
 
 Install the new CLI first. Updating the Cargo package does not change cluster
-components. The initial supported release edge is **0.4.1 to 0.5.0 and back**:
+components. The initial supported release edge is **0.5.0 to 0.5.1 and back**:
 
 ```sh
-kimage upgrade --to 0.5.0 --check
-kimage upgrade --to 0.5.0
+kimage upgrade --to 0.5.1 --check
+kimage upgrade --to 0.5.1
 kimage status --json
 kimage doctor --json
-kimage rollback --to 0.4.1 --check
-kimage rollback --to 0.4.1
+kimage rollback --to 0.5.0 --check
+kimage rollback --to 0.5.0
 ```
 
 Add `--namespace` and `--installation` for a non-default system identity. Checks
