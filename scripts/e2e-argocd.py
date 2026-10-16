@@ -155,6 +155,16 @@ class Argo:
             require(self.api.get('configmap',self.id+'-installation',self.system)['metadata']['annotations']['kimage.dev/manager']=='argocd','Wrong installation manager')
             self.sync();self.sync();require(self.fingerprint()==identity,'Repeated sync changed retained identities')
             self.check('repeated sync preserves credential bytes/UIDs, registry claim and installation identity')
+            tracked=self.api.get('configmap',self.id+'-provisioner',self.system)['metadata']
+            extra=self.id+'-prune-check'
+            annotations={k:(v.rsplit('/',1)[0]+'/'+extra if k=='argocd.argoproj.io/tracking-id' else v) for k,v in tracked.get('annotations',{}).items() if k.startswith('argocd.argoproj.io/')}
+            self.raw('create','/api/v1/namespaces/'+self.system+'/configmaps?fieldValidation=Strict',dict(apiVersion='v1',kind='ConfigMap',metadata=dict(name=extra,labels=tracked.get('labels',{}),annotations=annotations),data=dict(fixture='prune-check')))
+            self.patch('applications.argoproj.io',self.id,dict(metadata=dict(annotations={'argocd.argoproj.io/refresh':'hard'})),'argocd')
+            self.api.wait(lambda:self.api.get('configmap',extra,self.system) is None or self.application_state().get('status',{}).get('sync',{}).get('status')=='OutOfSync','Argo observes an extraneous tracked fixture')
+            if self.api.get('configmap',extra,self.system) is not None:self.sync()
+            self.api.wait(lambda:self.api.get('configmap',extra,self.system) is None,'Argo prunes only its extraneous desired-state fixture')
+            self.wait_ready();require(self.fingerprint()==identity,'Pruning changed runtime retained identities')
+            self.check('actual Argo pruning removes an extraneous tracked fixture while retaining runtime data')
             self.patch('deployment',self.id+'-provisioner',dict(spec=dict(replicas=0)),self.system)
             self.api.wait(lambda:self.api.get('deployment',self.id+'-provisioner',self.system)['spec']['replicas']==1,'Argo self-healing of direct desired resource')
             self.wait_ready();require(self.fingerprint()==identity,'Self-heal changed retained identities')

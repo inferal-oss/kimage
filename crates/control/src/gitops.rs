@@ -174,6 +174,8 @@ pub async fn reconcile(client: Client, desired: &Desired) -> Result<()> {
             )
             .await?;
             let changed=async {
+                let latest=maps.get(&format!("{}-installation",o.installation)).await?;
+                ensure!(latest.uid()==state.uid() && latest.annotations().get("kimage.dev/manager").is_some_and(|m|m=="argocd"),"InstallationChangedDuringPreflight");
                 ensure!(!crate::lifecycle::active(client.clone(),&o.namespace,&o.installation).await?,"InstallationOperationPending");
                 let context=crate::pull_install::apply::context(client.clone(),o,"")?;
                 for (suffix,key,value) in [

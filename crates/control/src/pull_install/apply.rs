@@ -320,6 +320,20 @@ pub(crate) async fn install_managed(
     )
     .await?;
     let applied = async {
+        let latest = configuration_maps
+            .get_opt(&format!("{}-installation", options.installation))
+            .await?;
+        ensure!(
+            latest.as_ref().map(ResourceExt::uid) == previous.as_ref().map(ResourceExt::uid)
+                && latest.as_ref().map(|state| &state.data)
+                    == previous.as_ref().map(|state| &state.data),
+            "InstallationChangedDuringPreflight"
+        );
+        ensure!(
+            !crate::lifecycle::active(client.clone(), &options.namespace, &options.installation)
+                .await?,
+            "InstallationOperationPending"
+        );
         for resource in &plan.resources {
             lease.check().await?;
             apply_one(&context, resource, manager).await?;

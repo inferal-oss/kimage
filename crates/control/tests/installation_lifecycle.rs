@@ -710,9 +710,10 @@ async fn gitops_refuses_cli_and_helm_adoption_before_any_write() {
                 .get_mut("/api/v1/namespaces/system/configmaps/dev-installation")
                 .unwrap()["metadata"]["annotations"]["kimage.dev/manager"] = json!(manager);
         }
-        let (_, options, _) = lifecycle::state(client.clone(), "system", "dev")
+        let (_, mut options, _) = lifecycle::state(client.clone(), "system", "dev")
             .await
             .unwrap();
+        options.worker_nodes.clear();
         let desired = kimage_control::gitops::Desired {
             schema: 1,
             options,
@@ -724,7 +725,10 @@ async fn gitops_refuses_cli_and_helm_adoption_before_any_write() {
         let error = kimage_control::gitops::reconcile(client, &desired)
             .await
             .unwrap_err();
-        assert!(error.to_string().contains("InstallationManagerConflict"));
+        assert!(
+            error.to_string().contains("InstallationManagerConflict"),
+            "{error}"
+        );
         assert_eq!(store.lock().unwrap().writes, 0);
         server.abort();
     }
@@ -784,4 +788,83 @@ fn patch_release_compatibility_is_exact_and_does_not_authorize_skipping_versions
     lifecycle::compatible(&catalog("0.5.0"), &catalog("0.5.1")).unwrap();
     lifecycle::compatible(&catalog("0.5.1"), &catalog("0.5.0")).unwrap();
     assert!(lifecycle::compatible(&catalog("0.4.1"), &catalog("0.5.1")).is_err());
+}
+
+#[tokio::test]
+async fn patch_upgrade_interruption_resume_and_rollback_preserve_frozen_predecessor() {
+    let (client, store, server) = fixture().await;
+    lifecycle::transition(
+        client.clone(),
+        "system",
+        "dev",
+        &catalog("0.5.0"),
+        false,
+        false,
+        None,
+    )
+    .await
+    .unwrap();
+    let before = store.lock().unwrap().objects.clone();
+    let writes = store.lock().unwrap().writes;
+    lifecycle::transition(
+        client.clone(),
+        "system",
+        "dev",
+        &catalog("0.5.1"),
+        true,
+        false,
+        None,
+    )
+    .await
+    .unwrap();
+    assert_eq!(store.lock().unwrap().writes, writes);
+    store.lock().unwrap().fail_after = Some(writes + 16);
+    assert!(
+        lifecycle::transition(
+            client.clone(),
+            "system",
+            "dev",
+            &catalog("0.5.1"),
+            false,
+            false,
+            None
+        )
+        .await
+        .is_err()
+    );
+    lifecycle::transition(
+        client.clone(),
+        "system",
+        "dev",
+        &catalog("0.5.1"),
+        false,
+        false,
+        None,
+    )
+    .await
+    .unwrap();
+    lifecycle::transition(
+        client.clone(),
+        "system",
+        "dev",
+        &catalog("0.5.0"),
+        false,
+        true,
+        None,
+    )
+    .await
+    .unwrap();
+    let after = store.lock().unwrap().objects.clone();
+    for (path, old) in &before {
+        if old["kind"] == "PersistentVolumeClaim"
+            || old["kind"] == "PersistentVolume"
+            || old["kind"] == "Secret"
+        {
+            assert_eq!(old["metadata"]["uid"], after[path]["metadata"]["uid"]);
+            assert_eq!(old["data"], after[path]["data"]);
+        }
+    }
+    let (_, _, version) = lifecycle::state(client, "system", "dev").await.unwrap();
+    assert_eq!(version, "0.5.0");
+    server.abort();
 }

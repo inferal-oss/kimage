@@ -19,6 +19,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 - CLI and Helm transition acceptance now targets published 0.5.0 to 0.5.1 and back. Published 0.5.0 resource templates are frozen for rollback; historical acceptance evidence remains unchanged.
 
+### Fixed
+
+- Installation and GitOps policy updates recheck installation identity and pending operations after acquiring the lifecycle lock, refusing stale preflight state before applying resources.
+
 ## [0.5.0] - 2026-10-16
 
 ### Added
