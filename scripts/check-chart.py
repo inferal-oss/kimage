@@ -88,6 +88,16 @@ def main():
                 assert actual[key]==expected[key],f'{scope}/{architectures}: Helm/native mismatch in {key}'
             subprocess.run([helm,'lint',str(ROOT/'charts/kimage'),'--namespace','kimage-system','-f',str(work/'values.json')],check=True,stdout=subprocess.DEVNULL)
             print(f'{scope}, {"+".join(architectures)}: {len(actual)} matching resources, retained storage and pinned images')
+        # Invalid administrator inputs must fail during rendering, before any API writes.
+        for changes,reason in [
+            (dict(scope='cluster',applicationNamespace='apps'),'applicationNamespace'),
+            (dict(credentials=dict(registry={'ca.key':'private-ca-must-not-be-deployed'})),'InvalidInstallationCredentialKeys'),
+            (dict(exporter=dict(approvedOrigins=['http://registry.example/'])),'InvalidApprovedExportOrigin'),
+            (dict(images=dict(digests=dict(digests,operator='latest'))),'MissingComponentDigest')]:
+            bad=copy.deepcopy(values);bad.update(changes)
+            (work/'bad.json').write_text(json.dumps(bad))
+            result=subprocess.run([helm,'template','kimage',str(ROOT/'charts/kimage'),'--namespace','kimage-system','-f',str(work/'bad.json')],text=True,capture_output=True)
+            assert result.returncode and reason in result.stderr, reason+': invalid chart inputs were accepted'
         print('Helm/native manifests match for both scopes and native platforms.')
 
 

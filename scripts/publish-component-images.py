@@ -28,6 +28,8 @@ def public_json(role,kind,digest):
 
 def verify(catalog):
     assert catalog['repository']==REPOSITORY
+    assert catalog['schema']==1 and catalog['apiSchemaRevision']==5
+    assert set(catalog['components'])=={'admission','builder','exporter','gateway','input','operator','proxy','registry'}
     for role,entry in catalog['components'].items():
         root=public_json(role,'manifests',entry['digest'])
         assert root['mediaType']=='application/vnd.oci.image.index.v1+json'
@@ -54,7 +56,16 @@ def main():
                 if previous.returncode==0:
                     assert 'sha256:'+hashlib.sha256(previous.stdout).hexdigest()==entry['digest'],'refusing to overwrite an existing release image'
                 else:
-                    assert any(code in previous.stderr.lower() for code in [b'manifest unknown',b'name unknown',b'not found']), 'could not safely check existing image tag: '+previous.stderr.decode()[-500:]
+                    missing=any(code in previous.stderr.lower() for code in [b'manifest unknown',b'name unknown',b'not found'])
+                    if not missing:
+                        # GHCR can report DENIED before a repository's first push.
+                        # Verify absence through the authenticated owner package API
+                        # rather than treating an arbitrary registry failure as absence.
+                        path='orgs/inferal-oss/packages/container/'+urllib.parse.quote('kimage/'+role,safe='')
+                        environment=dict(os.environ,GH_TOKEN=os.environ['GHCR_TOKEN'])
+                        package=subprocess.run(['gh','api',path],capture_output=True,env=environment,timeout=60)
+                        missing=package.returncode!=0 and b'HTTP 404' in package.stderr
+                    assert missing, 'could not safely check existing image tag: '+previous.stderr.decode()[-500:]
                     subprocess.run(['skopeo','copy','--authfile',str(auth),'--all','--preserve-digests','oci:'+str((a.images/role).resolve())+':v'+catalog['release'],target],check=True,timeout=900)
                 print('Published immutable component: '+role,flush=True)
     deadline=time.monotonic()+a.public_wait

@@ -387,11 +387,11 @@ python3 -m compileall -q scripts
 [GitHub Actions](https://github.com/inferal-oss/kimage/actions/workflows/ci.yml)
 runs formatting, Clippy, documentation/example checks, and the workspace tests
 on macOS/arm64 and native Linux/amd64 and Linux/arm64 musl. Eleven Python
-release-tooling tests verify pinned inputs, deterministic native packaging, and
+legacy release-tooling tests and five component/chart tests verify pinned inputs, deterministic native packaging, and
 immutable asset checks. The Rust suite includes loopback HTTP, platform selection,
 build policy and mocked Kubernetes API recovery regressions.
 
-Native Kubernetes E2E runs both namespace and cluster installations on amd64 and
+Native Kubernetes E2E runs CLI and Helm in both namespace and cluster scope on amd64 and
 arm64, including actual native build execution and workload pulls, dry-run,
 on-demand/eager policy, controller templates, RBAC and namespace boundaries.
 This matrix gates releases. The separate [opt-in mixed-cluster E2E](docs/mixed-cluster-e2e.md)
@@ -409,7 +409,8 @@ changing supported behavior.
 
 ## Documentation
 
-- [Installation and operations](docs/operations.md)
+- [Installation with CLI or Helm](docs/installation.md)
+- [Legacy operations and build reference](docs/operations.md)
 - [Architecture](docs/architecture.md)
 - [Build contracts and execution](docs/build-design.md)
 - [Binary upgrade and rollback](docs/binary-upgrade-design.md)

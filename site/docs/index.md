@@ -356,7 +356,7 @@ helm install kimage kimage/kimage --version 0.4.0 \
   --set applicationNamespace=apps --wait --wait-for-jobs
 ```
 
-Use Helm 3 or newer. Helm queries live Ready Nodes during install/upgrade, and does not create the application namespace. Add `--set runtimeProfile=k3s` for the tested K3s profile. For cluster scope, omit the application namespace and set `--set scope=cluster`. Use a values file for exclusions.
+Use Helm 3.14 or newer. Helm queries live Ready Nodes during install/upgrade, and does not create the application namespace. Add `--set runtimeProfile=k3s` for the tested K3s profile. For cluster scope, omit the application namespace and set `--set scope=cluster`. Use a values file for exclusions.
 
 | Helm value | Default / meaning |
 | --- | --- |
@@ -381,13 +381,13 @@ After adding nodes, repeat the identical CLI installation or Helm upgrade with y
 
 ```
 helm upgrade kimage kimage/kimage --version 0.4.0 \
-  --namespace kimage-system --reuse-values --wait --wait-for-jobs
+  --namespace kimage-system --reset-then-reuse-values --wait --wait-for-jobs
 helm history kimage --namespace kimage-system
 helm rollback kimage <compatible-revision> \
   --namespace kimage-system --wait --wait-for-jobs
 ```
 
-Use the manager that owns the installation. Helm history retains pinned resources and credentials. A rollback must preserve schema and Distribution storage compatibility; it never downgrades shared CRDs. 0.4.0 is the first image-pull chart. Reapplying its CLI resumes the same resources and refuses implicit whole-release changes.
+Use the manager that owns the installation. Helm history retains pinned resources and credentials. The upgrade command takes new chart defaults while preserving explicit overrides; plain `--reuse-values` can retain old image pins. A rollback must preserve schema and Distribution storage compatibility; it never downgrades shared CRDs. 0.4.0 is the first image-pull chart. Reapplying its CLI resumes the same resources and refuses implicit whole-release changes.
 
 There is no supported automatic adoption of a 0.3.x bootstrap installation. Keep its original installer and independently trusted bundles. The older guarded serving-binary transitions remain in the [legacy operations reference](https://github.com/inferal-oss/kimage/blob/main/docs/operations.md), with their tested version windows.
 

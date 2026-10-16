@@ -96,6 +96,7 @@ jobs:
             .local/amd64/kimage-install verify --archive .local/components/$role.oci.tar --root .local/components/$role.root.json
           done
           python3 scripts/package-chart.py --catalog .local/components/component-images.json --out .local/chart
+          cp .local/components/component-images.json .local/chart/component-images.json
           rm .local/components/*.oci.tar
           tar -czf .local/component-layouts.tar.gz -C .local/components .
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
@@ -107,9 +108,7 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: component-catalog-chart
-          path: |
-            .local/components/component-images.json
-            .local/chart/*.tgz
+          path: .local/chart/*
           retention-days: 7
 
   install:
@@ -162,7 +161,7 @@ jobs:
       - name: Exercise registry pulls, native builds, controllers and scope boundaries
         run: |
           python3 scripts/e2e-install.py --scope ${{ matrix.scope }} --mode ${{ matrix.mode }} \
-            --image-catalog "$KIMAGE_E2E_IMAGE_CATALOG" --chart .local/chart/kimage-0.4.0.tgz \
+            --image-catalog "$KIMAGE_E2E_IMAGE_CATALOG" --chart .local/chart/kimage-*.tgz \
             --installer .local/e2e/kimage-install --probe .local/e2e/probe --output .local/e2e/results
       - name: Upload non-sensitive acceptance evidence
         if: always()

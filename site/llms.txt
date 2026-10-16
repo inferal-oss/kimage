@@ -50,7 +50,7 @@ Secrets and administrator build policy. kimage-install is a compatible alias.
 The Cargo crate named kimage is unrelated. Prebuilt installers: GitHub releases.
 Gateway/proxy serving version remains 0.3.0 separately from Cargo 0.4.0.
 
-**Helm alternative.** Helm 3+ with live cluster access:
+**Helm alternative.** Helm 3.14+ with live cluster access:
 
 ```sh
 helm repo add kimage https://kimage.dev/charts

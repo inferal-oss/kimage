@@ -110,6 +110,15 @@ def main():
         assert not any('launcher' in json.dumps(v) or 'chunk-' in v['metadata']['name'] for v in maps)
         check('components use ordinary digest-pinned registry pulls with no executable ConfigMaps')
         credential_uids={v['metadata']['name']:v['metadata']['uid'] for v in get('secrets',ns=system)['items'] if v['metadata'].get('labels',{}).get('kimage.dev/installation')==installation}
+        # A second installation may not intercept an existing scope.
+        if args.mode=='cli':
+            overlap_common=list(common);overlap_common[overlap_common.index(installation)]='e2e-overlap'
+            overlap=run([args.installer.resolve(),'install',*overlap_common,'--image-catalog',args.image_catalog.resolve()],timeout=90,ok=False)
+        else:
+            overlap=run(['helm','install','e2e-overlap',args.chart.resolve(),'--namespace',system,'-f',args.output/'helm-values.json'],timeout=90,ok=False)
+        assert overlap.returncode and 'InstallationScopeOverlap' in overlap.stderr, 'overlapping installation was not refused before mutation'
+        assert not any(v['metadata'].get('labels',{}).get('kimage.dev/installation')=='e2e-overlap' for v in get('configmaps',ns=system)['items'])
+        check('overlapping installation refused before creating resources')
         pvc = get('pvc', 'e2e-data', system)
         assert pvc, 'registry PVC missing'
         pvc_uid = pvc['metadata']['uid']

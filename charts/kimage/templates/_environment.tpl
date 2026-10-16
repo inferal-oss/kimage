@@ -115,8 +115,16 @@
     {{- $builder = dict "ca.crt" ($ca.Cert | b64enc) "server.crt" ($server.Cert | b64enc) "server.key" ($server.Key | b64enc) "client.crt" ($client.Cert | b64enc) "client.key" ($client.Key | b64enc) -}}
   {{- end -}}
 {{- end -}}
+{{- range $entry := list (dict "material" $registry "keys" (list "ca.crt" "tls.crt" "tls.key" "reader-password" "publisher-password")) (dict "material" $admission "keys" (list "ca.crt" "tls.crt" "tls.key" "resolution-key")) (dict "material" $builder "keys" (list "ca.crt" "server.crt" "server.key" "client.crt" "client.key")) -}}
+  {{- if ne ((keys $entry.material | sortAlpha) | toJson) (($entry.keys | sortAlpha) | toJson) -}}{{- fail "InvalidInstallationCredentialKeys: only the documented leaf material is accepted" -}}{{- end -}}
+  {{- range $value := $entry.material -}}{{- if or (not $value) (gt (len ($value | b64dec)) 65536) -}}{{- fail "InvalidInstallationCredentialSize" -}}{{- end -}}{{- end -}}
+{{- end -}}
+{{- if or (eq (get $registry "reader-password") (get $registry "publisher-password")) (lt (len (get $admission "resolution-key" | b64dec)) 32) -}}{{- fail "IndependentInstallationCredentialsRequired" -}}{{- end -}}
 {{- $storageClass := .Values.persistence.storageClass | default nil -}}{{- $existing := .Values.persistence.existingClaim | default nil -}}
 {{- $options := dict "namespace" $ns "installation" $install "scope" .Values.scope "applicationNamespace" (ternary nil $app $cluster) "excludedNamespaces" (.Values.excludedNamespaces | uniq | sortAlpha) "runtimeProfile" .Values.runtimeProfile "registryNode" $primary "workerNodes" $workers "exportOrigins" (.Values.exporter.approvedOrigins | uniq | sortAlpha) "storageClass" $storageClass "storageSize" .Values.persistence.size "existingClaim" $existing "port" .Values.port -}}
+{{- if $priorRecord -}}
+  {{- if ne ((omit $options "workerNodes" "exportOrigins") | toJson) ((omit $priorRecord.options "workerNodes" "exportOrigins") | toJson) -}}{{- fail "InstallationConfigurationChanged: preserve scope, storage, port and registry placement" -}}{{- end -}}
+{{- end -}}
 {{- $buildPolicy := .Values.buildPolicy -}}
 {{- if not $buildPolicy -}}{{- $old := lookup "v1" "ConfigMap" $ns (printf "%s-config" $install) -}}{{- if $old -}}{{- $buildPolicy = (get $old.data "configuration.json" | fromJson).buildPolicy -}}{{- end -}}{{- end -}}
 {{- $buildPolicy = default "OnDemand" $buildPolicy -}}{{- if not (has $buildPolicy (list "OnDemand" "Eager")) -}}{{- fail "buildPolicy must be OnDemand or Eager" -}}{{- end -}}

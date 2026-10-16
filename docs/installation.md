@@ -92,7 +92,7 @@ helm install kimage kimage/kimage --version 0.4.0 \
   --set applicationNamespace=apps --wait --wait-for-jobs
 ```
 
-Use Helm 3 or newer. The chart queries live Ready Nodes during install/upgrade;
+Use Helm 3.14 or newer. The chart queries live Ready Nodes during install/upgrade;
 `helm template` offline requires explicit full Node objects in `nodes`. Helm does
 not create the application namespace. Add `--set runtimeProfile=k3s` for the tested
 K3s profile, or `--set persistence.storageClass=local-path` when needed.
@@ -167,11 +167,14 @@ release history and pinned images:
 
 ```sh
 helm upgrade kimage kimage/kimage --version 0.4.0 \
-  --namespace kimage-system --reuse-values --wait --wait-for-jobs
+  --namespace kimage-system --reset-then-reuse-values --wait --wait-for-jobs
 helm history kimage --namespace kimage-system
 # Select a compatible revision from that history:
 helm rollback kimage <revision> --namespace kimage-system --wait --wait-for-jobs
 ```
+
+Use `--reset-then-reuse-values` to take new chart image defaults while preserving
+your explicit overrides. `--reuse-values` can retain old image pins.
 
 A rollback must preserve schema and Distribution storage compatibility. It does
 not downgrade shared CRDs or restore lost data. 0.4.0 is the first image-pull chart;
