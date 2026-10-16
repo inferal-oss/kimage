@@ -29,6 +29,13 @@ class Preflight(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'Invalid bounded retained output'):
             assertions.verify(tail, burst, receipt, 'fixture')
 
+    def test_public_diagnostic_context_only_contains_allowlisted_status_codes(self):
+        summary=install.log_assertions.image_summary([dict(metadata=dict(name='private-name'),
+            status=dict(operation=dict(phase='Executing'),conditions=[dict(reason='StaleOperation',message='private-message'),dict(reason='private-reason')]))])
+        self.assertIn('StaleOperation',summary)
+        self.assertIn('Executing',summary)
+        self.assertNotIn('private',summary)
+
     def test_incomplete_kubelet_reports_keep_waiting(self):
         for status in [{}, {'images': None}, {'images': []}, {'images': [{'names': None}]},
                        {'images': [{'names': ['unrelated:latest']}]}]:

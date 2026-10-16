@@ -314,7 +314,7 @@ Inspect `status.exports` for phase, selected release UID, local/remote digest, r
 
 | Layer | Tested profile |
 | --- | --- |
-| Native CI acceptance | Native Linux/amd64 and Linux/arm64 E2E; Kubernetes `v1.36.5+k3s1`; containerd `2.3.4-k3s1.36`; Ubuntu 24.04.5, kernel `6.8.0-142`. Select `--runtime-profile k3s`. |
+| Native CI acceptance | Native Linux/amd64 and Linux/arm64 E2E; Kubernetes `v1.36.5+k3s1`; containerd `2.3.4-k3s1.36`; native Ubuntu 24.04 runners. Acceptance receipts record each runner's kernel. Select `--runtime-profile k3s`. |
 | Mixed-platform acceptance | RKE2 `v1.36.5+rke2r1`; containerd `2.3.4-k3s1`. Real amd64/arm64 placement, native builds, and index/manifest pulls passed twice using 0.3.0. Select the default `inferal` profile. The separate complete lifecycle proof uses the k3s fixture. |
 | Builder | BuildKit 0.33.0, builtin Dockerfile frontend 1.27.0, OCI/runc worker, native snapshotter. |
 | Serving | Distribution 3.1.2; gateway/proxy 0.3.0. Explicit rollback window described below. |

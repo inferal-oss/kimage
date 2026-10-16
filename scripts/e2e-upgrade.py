@@ -329,7 +329,12 @@ class Upgrade:
         output=self.run_command([self.installer,'logs',name,'-n',self.app,'--platform','linux/'+arch,'--attempt',attempt,'--follow'],timeout=180)
         retained=self.api.wait(lambda:attempts().get('retained'),'private failed attempt survives Pod cleanup')
         archived=self.run_command([self.installer,'logs',name,'-n',self.app,'--attempt',attempt])
-        log_assertions.verify(output.stdout, archived.stdout, retained, attempt)
+        try:
+            log_assertions.verify(output.stdout, archived.stdout, retained, attempt)
+        except RuntimeError as error:
+            variants=self.api.get('images.kimage.dev',namespace=self.app,selector='kimage.dev/platform-parent='+image['metadata']['uid'])['items']
+            current=self.api.get('images.kimage.dev',name,self.app)
+            raise RuntimeError(str(error)+'; public status: '+log_assertions.image_summary([current]+variants)) from None
         secrets=self.api.get('secrets',namespace=self.app,selector='kimage.dev/build-log='+image['metadata']['uid'])['items']
         require(len(secrets)==1 and secrets[0]['immutable'] and secrets[0]['metadata']['labels'].get('kimage.dev/build-state')==image['metadata']['uid'],'Private output lacks the predecessor reserved-input marker')
         public=json.dumps(self.api.get('images.kimage.dev',namespace=self.app))+json.dumps(self.api.get('imagereleases.kimage.dev',namespace=self.app))

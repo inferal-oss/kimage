@@ -7,6 +7,25 @@ PHASES = {'Capturing','Captured','Submitted','Completed','Interrupted','Unavaila
     'Failed:'+reason for reason in ['ContainerfileSolveFailed','BuildProgressLineLimit',
     'BuildProgressLimit','BuildInputOrEngineFailed','OperationCancelled','BuilderClientUnavailable',
     'BuilderProgressUnavailable','BuildExportTooLarge','UnsupportedWorkerPlatform']}
+REASONS = {'Backoff','BuildClientStopped','BuildDeadlineExceeded','BuildExportDeadline',
+    'BuildExportTooLarge','BuildExportTransferFailed','BuildExportUnavailable','BuildFailed',
+    'BuildPermissionOrAdmissionDenied','BuildProgressLimit','BuildProgressLineLimit',
+    'BuildSessionRecordMissing','BuildUnavailable','BuilderBusy','BuilderUnavailable',
+    'BuilderWorkerChanged','CancellationPending','Captured','Capturing','Completed',
+    'ContainerfileSolveFailed','Executing','Failed','InputChangedDuringBuild',
+    'OperationCancelled','Published','StaleOperation','Submitted'}
+
+
+def image_summary(images):
+    """Only allowlisted public status codes, never messages or arbitrary values."""
+    result = []
+    for image in images[:8]:
+        status = image.get('status') or {}
+        phase = (status.get('operation') or {}).get('phase')
+        result.append(dict(phase=phase if phase in REASONS else 'unexpected',
+            reasons=[c.get('reason') if c.get('reason') in REASONS else 'unexpected'
+                     for c in status.get('conditions', [])[:8]]))
+    return json.dumps(result, sort_keys=True)
 
 
 def summary(live, archived, retained):

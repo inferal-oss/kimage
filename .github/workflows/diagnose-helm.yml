@@ -11,9 +11,10 @@ on:
         type: string
         required: true
       diagnostic_certificate:
-        description: Public X.509 recipient certificate; keep its private key outside CI
+        description: Optional public X.509 recipient certificate; keep its private key outside CI
         type: string
-        required: true
+        required: false
+        default: ""
 permissions:
   contents: read
   actions: read
