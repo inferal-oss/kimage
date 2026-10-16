@@ -389,6 +389,15 @@ hostile-tenant image confidentiality. Native clients keep TLS verification on.
 Rust tests run on macOS/arm64 and native Linux/amd64 and Linux/arm64 musl. Separate two-node
 acceptance harnesses cover lifecycle/recovery/binary rollback/export and remain historical evidence; native amd64/arm64 namespace/cluster install E2E is now a release gate; historical live bundles predate the latest selector/CLI metadata.
 
+0.5.0 acceptance: eight native CLI/Helm × namespace/cluster × amd64/arm64 cases
+and two real mixed-cluster CLI/Helm round trips from actual published 0.4.1 to
+0.5.0 and back. Includes interruptions/resume, fresh native builds/pulls, private
+failed-attempt logs, OCI graph readback and retained identities after removal and
+reinstallation. Mixed tests also cover reversible node eligibility and worker pin
+changes; no shared Node deletion/cordon or registry storage move.
+Receipts: https://github.com/inferal-oss/kimage/blob/main/docs/native-upgrade-results.json
+and https://github.com/inferal-oss/kimage/blob/main/docs/mixed-upgrade-results.json
+
 ## Reference
 
 - [Handbook, Markdown](https://kimage.dev/docs/index.md): Full tutorial, installation commands, field reference, operations, troubleshooting, and trust model.

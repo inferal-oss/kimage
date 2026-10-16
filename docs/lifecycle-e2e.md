@@ -1,7 +1,7 @@
 # Installation lifecycle acceptance
 
 Native CI tests the published 0.4.1 predecessor against the 0.5.0 candidate on
-physical amd64 and arm64 runners, with CLI/Helm and namespace/cluster scope. Each
+native amd64 and arm64 runners, with CLI/Helm and namespace/cluster scope. Each
 case uses a disposable, single-node K3s cluster. It does not emulate a mixed
 cluster with QEMU or nested multi-platform Docker.
 

@@ -1,5 +1,12 @@
 # Original brief acceptance audit
 
+Current 0.5.0 installation lifecycle evidence is separate from this original
+brief audit: [native eight-case acceptance](native-upgrade-results.json) and
+[real mixed-cluster CLI/Helm acceptance](mixed-upgrade-results.json) cover actual
+published 0.4.1 → 0.5.0 → 0.4.1, interruption/resume, native image pulls/builds,
+node eligibility/worker changes, private diagnostics and retained-data recovery.
+Historical requirements and receipts below retain their original scope.
+
 The controlling requirements are `implementation-prompt.md`, including its four
 ordered milestones and required deliverables. This audit distinguishes actual
 runtime evidence from unit checks and explicitly deferred extensions.

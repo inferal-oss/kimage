@@ -18,6 +18,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ### Changed
 
+- Recorded [eight native lifecycle cases](docs/native-upgrade-results.json) and [real mixed-cluster CLI/Helm round trips](docs/mixed-upgrade-results.json) through actual published 0.4.1, including interruption/resume, native pulls/builds, node eligibility/worker changes, private failure logs and retained-image recovery after uninstall/reinstall.
+
 - After rollback to the published 0.4.1 controller, the documented Helm removal procedure stops its operator and retires its recreated workers before chart removal. Acceptance guards worker identity/specification, recognizes Kubernetes' omitted false defaults, and refuses foreign Kubernetes or Helm owners. Fresh 0.5.0 Helm removal is tested directly.
 
 ### Fixed

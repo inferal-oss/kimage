@@ -1,5 +1,15 @@
 # Clean implementation acceptance ledger
 
+2026-10-16, 0.5.0: [eight native cases](native-upgrade-results.json) and
+[real mixed-cluster CLI and Helm cases](mixed-upgrade-results.json) passed the
+actual published 0.4.1 → 0.5.0 → 0.4.1 round trip. Evidence covers interrupted
+upgrade/rollback and resume, native pulls/builds, status/doctor, retained private
+failed-attempt diagnostics, retained identities and full OCI graph readback after
+rollback and uninstall/reinstall. Mixed cases also cover reversible node eligibility,
+new native workers and worker pin replacement, with selection restored before
+rollback. No shared Node deletion/cordon or registry storage migration occurs.
+Earlier receipts and their recorded limits below remain unchanged.
+
 For 0.3.0 platform selection, default on-demand production, eager configuration,
 and namespace/cluster installation, see [native platforms and scope](platforms-and-scope.md).
 Earlier acceptance receipts below describe the historical amd64 fixture; native

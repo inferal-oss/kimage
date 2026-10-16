@@ -427,6 +427,14 @@ Native Kubernetes E2E runs CLI and Helm in both namespace and cluster scope on a
 arm64, including actual native build execution and workload pulls, dry-run,
 on-demand/eager policy, controller templates, RBAC and namespace boundaries.
 The [0.4.0 acceptance record](docs/native-install-results.json) covers all eight cases.
+The [0.5.0 native lifecycle record](docs/native-upgrade-results.json) adds actual
+published 0.4.1 → 0.5.0 → 0.4.1 transitions in all eight cases, with interrupted
+upgrade/rollback, private failed-build logs and complete retained-image readback.
+The same round trip passed with CLI and Helm on our
+[real mixed cluster](docs/mixed-upgrade-results.json), including native GHCR pulls,
+fresh unknown/explicit placement builds, node eligibility and worker pin changes,
+and retained registry/PVC and ImageRelease identities after uninstall/reinstall.
+Node changes use reversible fixture labels; shared Nodes are never deleted or cordoned.
 This matrix gates releases. The separate [opt-in mixed-cluster E2E](docs/mixed-cluster-e2e.md)
 passed twice on real amd64 and arm64 RKE2 nodes with the published 0.3.0 binaries.
 Fresh Images confirm unknown placement builds both variants and explicit placement
