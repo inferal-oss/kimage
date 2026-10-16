@@ -501,7 +501,7 @@ For an independently revalidated API access path, set both `KIMAGE_API_SERVER=ht
 
 The operator publishes complete verified graphs before sealing immutable release metadata. Publication is not one atomic registry/API transaction: durable operation identity, topological uploads, independent readback, and guarded status writes make retries recoverable.
 
-Admission reads a coherent catalog and approved node records; it does not build, publish, or modify cluster objects. Kubernetes patches actual Pods to digest references and eligible-node constraints. Kubelet uses the normal runtime to pull from `127.0.0.1:<port>/<namespace>/<image-uid>@sha256:...`.
+Admission reads a coherent catalog and approved node records. Real Pod creation can record bounded missing-platform demand; admission does not build or publish. Kubernetes applies its returned Pod patches for digest references and eligible-node constraints. Kubelet uses the normal runtime to pull from `127.0.0.1:<port>/<namespace>/<image-uid>@sha256:...`.
 
 The proxy allows digest-only GET/HEAD with a fixed verified HTTPS upstream and separate read identity. Distribution binds Pod loopback behind its TLS gateway. Publisher, reader, operator, admission, input, and exporter permissions are separate. Registry/proxy/input processes need no Kubernetes token.
 
@@ -520,7 +520,7 @@ These tools have different scopes. A configured registry can be local or remote,
 
 ### kimage and kpack: image requests versus registry references
 
-Both declare an `Image` and let a controller manage its production. Declarative images, digest-pinned output, and ARM64 support are shared capabilities. kimage is an integrated **image catalog, builder, and delivery system**. Its distinction is connecting a workload's image and version request to retained releases and platform-appropriate delivery.
+Both declare an `Image` and let a controller manage its production. Declarative images, digest-pinned output, and [ARM64 support](https://github.com/buildpacks-community/kpack/blob/main/docs/stack.md#building-for-arm64) are shared capabilities. kimage is an integrated **image catalog, builder, and delivery system**. Its distinction is connecting a workload's image and version request to retained releases and platform-appropriate delivery.
 
 | Area | kpack | kimage |
 | --- | --- | --- |

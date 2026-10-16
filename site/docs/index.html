@@ -1337,9 +1337,10 @@ kimage-install &lt;phase&gt; --help</code></pre>
               retries recoverable.
             </p>
             <p>
-              Admission reads a coherent catalog and approved node records; it
-              does not build, publish, or modify cluster objects. Kubernetes
-              patches actual Pods to digest references and eligible-node
+              Admission reads a coherent catalog and approved node records. Real
+              Pod creation can record bounded missing-platform demand; admission
+              does not build or publish. Kubernetes applies its returned Pod
+              patches for digest references and eligible-node
               constraints. Kubelet uses the normal runtime to pull from
               <code
                 >127.0.0.1:&lt;port&gt;/&lt;namespace&gt;/&lt;image-uid&gt;@sha256:...</code
@@ -1423,8 +1424,9 @@ kimage-install &lt;phase&gt; --help</code></pre>
             <h3 id="kpack">kimage and kpack: image requests versus registry references</h3>
             <p>
               Both declare an <code>Image</code> and let a controller manage its
-              production. Declarative images, digest-pinned output, and ARM64
-              support are shared capabilities. kimage is an integrated
+              production. Declarative images, digest-pinned output, and
+              <a href="https://github.com/buildpacks-community/kpack/blob/main/docs/stack.md#building-for-arm64">ARM64 support</a>
+              are shared capabilities. kimage is an integrated
               <strong>image catalog, builder, and delivery system</strong>.
               Its distinction is connecting a workload's image and version
               request to retained releases and platform-appropriate delivery.

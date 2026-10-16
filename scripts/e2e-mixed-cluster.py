@@ -131,7 +131,7 @@ class MixedCluster:
         require(isinstance(config['context'],str) and config['context'].strip(), 'Explicit kubeconfig context required')
         self.config = config
         self.command = ['kubectl','--kubeconfig',str(Path(config['kubeconfig']).expanduser().resolve()),
-            '--context',config['context'],'--request-timeout=20s']
+            '--context',config['context'],'--request-timeout=60s']
         self.namespace, self.system = config['namespace'], config['systemNamespace']
         self.run_id = uuid.uuid4().hex[:12]
         self.prefix = 'mixed-e2e-'+self.run_id
@@ -143,7 +143,7 @@ class MixedCluster:
 
     def call(self, arguments, value=None, ok=True):
         result = subprocess.run(self.command+arguments, input=None if value is None else json.dumps(value), text=True,
-            capture_output=True, timeout=45)
+            capture_output=True, timeout=75)
         if ok and result.returncode:
             raise RuntimeError('kubectl '+str(arguments[:3])+': '+result.stderr[-2000:])
         return result

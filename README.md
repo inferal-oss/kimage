@@ -83,7 +83,7 @@ automation. A separately configured registry can be local or remote.
 ### kimage and kpack
 
 Both projects declare an `Image` and let a controller manage production. That
-shared model, digest-pinned output, and ARM64 support are useful capabilities,
+shared model, digest-pinned output, and [ARM64 support](https://github.com/buildpacks-community/kpack/blob/main/docs/stack.md#building-for-arm64) are useful capabilities,
 not distinguishing features on their own.
 
 | Area | kpack | kimage |
