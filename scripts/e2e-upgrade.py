@@ -232,11 +232,19 @@ class Upgrade:
         return json.loads(value['data']['operation.json']) if value else None
 
     def assert_removed(self):
+        remaining={}
         def absent():
+            remaining.clear()
             for kind in ['pods','deployments','jobs','configmaps','secrets','services','networkpolicies','roles','rolebindings','serviceaccounts']:
-                if self.api.get(kind,namespace=self.system,selector='kimage.dev/installation='+self.id)['items']:return False
-            return True
-        self.api.wait(absent,'all disposable system resources removed, including controller-created resources and operation journal')
+                items=self.api.get(kind,namespace=self.system,selector='kimage.dev/installation='+self.id)['items']
+                if items:
+                    remaining[kind]=[dict(name=v['metadata']['name'],deleting=bool(v['metadata'].get('deletionTimestamp')),
+                                         owners=[dict(kind=o['kind'],name=o['name'],uid=o['uid']) for o in v['metadata'].get('ownerReferences',[])]) for v in items]
+            return not remaining
+        try:
+            self.api.wait(absent,'all disposable system resources removed, including controller-created resources and operation journal')
+        except Exception:
+            raise RuntimeError('Disposable resources remain (metadata only): '+json.dumps(remaining,sort_keys=True)) from None
 
     def transition(self,version,interrupt=False):
         command='upgrade' if version=='0.5.0' else 'rollback'

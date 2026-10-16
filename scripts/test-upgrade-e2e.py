@@ -24,6 +24,19 @@ publish=module('publish-component-images')
 upgrade=module('e2e-upgrade')
 
 class Boundaries(unittest.TestCase):
+    def test_uninstall_timeout_inventory_excludes_secret_values(self):
+        class API:
+            def get(self,kind,**kwargs):
+                return dict(items=[dict(metadata=dict(name='fixture-secret',ownerReferences=[]),data={'credential':'private'})] if kind=='secrets' else [])
+            def wait(self,predicate,message):
+                assert not predicate()
+                raise TimeoutError('fixture')
+        fixture=upgrade.Upgrade.__new__(upgrade.Upgrade)
+        fixture.api=API();fixture.system='system';fixture.id='install'
+        with self.assertRaisesRegex(RuntimeError,'fixture-secret') as error:fixture.assert_removed()
+        self.assertNotIn('credential',str(error.exception))
+        self.assertNotIn('private',str(error.exception))
+
     def test_fixture_preflight_creates_a_private_shared_minified_kubeconfig(self):
         import types
         node=dict(metadata=dict(name='native'),status=dict(nodeInfo=dict(operatingSystem='linux',architecture='amd64'),conditions=[dict(type='Ready',status='True')]))
