@@ -7,6 +7,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+### Fixed
+
+- Removed the 30-second socket read timeout from the Kubernetes client. Healthy
+  quiet watches and long-lived exec/port-forward streams must not expire at that
+  limit. A regression test covers a delayed watch event; native installation E2E
+  checks that a fresh Image is reconciled after a quiet catalog interval.
+
 ### Added
 
 - An explicitly enabled mixed-cluster E2E using fresh Images for unknown, amd64,

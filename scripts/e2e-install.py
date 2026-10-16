@@ -193,8 +193,12 @@ def main():
         else:
             assert foreign.returncode == 0 and json.loads(foreign.stdout)['spec']['containers'][0]['image'] == selector
             check('namespace scope leaves other namespaces untouched')
+        # No catalog writes during the old transport's 30-second idle window.
+        # A fresh Image must still be noticed without restarting the operator.
+        time.sleep(35)
         create(image('eager'))
         wait(lambda: any(c.get('reason')=='AwaitingDemand' for c in (get('images.kimage.dev', 'eager') or {}).get('status', {}).get('conditions', [])), 'eager candidate initially awaits demand')
+        check('quiet catalog watch observes a fresh Image after thirty seconds')
         config = get('configmap', 'e2e-config', system)
         config['data']['configuration.json'] = json.dumps(dict(schema=1, buildPolicy='Eager'))
         kubectl(['replace', '-f', '-'], config)
