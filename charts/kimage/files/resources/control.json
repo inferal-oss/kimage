@@ -337,7 +337,8 @@
         "verbs": [
           "get",
           "list",
-          "delete"
+          "delete",
+          "patch"
         ]
       },
       {
@@ -377,7 +378,8 @@
           "get",
           "create",
           "delete",
-          "list"
+          "list",
+          "patch"
         ]
       }
     ]

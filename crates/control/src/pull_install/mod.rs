@@ -1007,6 +1007,34 @@ mod tests {
                 .iter()
                 .find(|v| v["metadata"]["name"] == "kimage-application-operator")
                 .unwrap();
+            let system_role = plan
+                .resources
+                .iter()
+                .find(|v| {
+                    v["kind"] == "Role"
+                        && v["metadata"]["namespace"] == "kimage-system"
+                        && v["metadata"]["name"] == "kimage-operator"
+                })
+                .unwrap();
+            for resource in ["pods", "jobs"] {
+                let grants = |role: &Value| {
+                    role["rules"].as_array().unwrap().iter().any(|r| {
+                        r["resources"]
+                            .as_array()
+                            .unwrap()
+                            .contains(&json!(resource))
+                            && r["verbs"].as_array().unwrap().contains(&json!("patch"))
+                    })
+                };
+                assert!(
+                    grants(system_role),
+                    "native metadata ownership requires system {resource} patch permission"
+                );
+                assert!(
+                    !grants(app_role),
+                    "system metadata adoption must not grant application {resource} patch permission"
+                );
+            }
             if scope == InstallScope::Namespace {
                 assert_eq!(app_role["kind"], "Role");
                 assert_eq!(app_role["metadata"]["namespace"], "apps");

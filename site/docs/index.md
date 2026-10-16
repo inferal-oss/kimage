@@ -403,6 +403,8 @@ Helm preflight checks that stable history can recover an interrupted revision wi
 
 The operator registers eligible new nodes and native architectures automatically. Existing automatic workers stay in place while eligible. Removed membership revokes UID-bound serving approval, and worker replacement fences old clients before creating a replacement. A partitioned worker can leave fencing pending. Registry node identity and retained storage never move automatically.
 
+If doctor reports `NodeReconcileForbidden`, compare the operator's system namespace Role and RoleBinding with the exact release's manifests. Node ownership updates need Pod and Job metadata patch permission in that namespace.
+
 The administrator ConfigMap `<installation>-node-policy` uses label `kimage.dev/installation: <installation>` and the following `policy.json`:
 
 ```

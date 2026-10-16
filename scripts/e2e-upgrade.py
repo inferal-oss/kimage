@@ -152,6 +152,10 @@ class Upgrade:
 
     def installation_diagnostics(self):
         before=self.operation()
+        if self.config['runtimeProfile']=='k3s':
+            for resource in ['pods','jobs']:
+                allowed=self.api.call(['auth','can-i','patch',resource,'-n',self.system,'--as=system:serviceaccount:'+self.system+':'+self.id+'-operator'],ok=False)
+                require(allowed.stdout.strip()=='yes','Native operator lacks system '+resource+' metadata patch permission')
         last_issues=None
         def healthy():
             nonlocal last_issues

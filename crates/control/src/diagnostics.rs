@@ -128,7 +128,12 @@ pub async fn inspect(
                 .as_i64()
                 .is_none_or(|t| time::OffsetDateTime::now_utc().unix_timestamp() - t > 60)
         {
-            issues.push(json!({"reason":"NodeReconciliationPending","detail":status["reason"],"action":"Inspect node readiness, node policy, worker leases and fencing; do not force-delete unreachable workers"}));
+            let action = if status["reason"] == "NodeReconcileForbidden" {
+                "Compare the operator's system namespace Role and RoleBinding with this release's manifests; restore missing permissions"
+            } else {
+                "Inspect node readiness, node policy, worker leases and fencing; do not force-delete unreachable workers"
+            };
+            issues.push(json!({"reason":"NodeReconciliationPending","detail":status["reason"],"action":action}));
         }
     }
     let context = crate::pull_install::apply::context(

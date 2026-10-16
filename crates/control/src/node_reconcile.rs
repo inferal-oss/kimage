@@ -492,22 +492,11 @@ pub async fn once(config: Arc<crate::reconcile::Config>) -> Result<()> {
     }
     .await;
     let released = lease.release().await;
-    let reason = result
+    let safe = result
         .as_ref()
         .err()
-        .map(|e| {
-            e.to_string()
-                .split(':')
-                .next()
-                .unwrap_or("NodeReconcileFailed")
-                .to_owned()
-        })
+        .map(failure_reason)
         .unwrap_or_else(|| "Ready".into());
-    let safe = if reason.len() <= 64 && reason.bytes().all(|b| b.is_ascii_alphanumeric()) {
-        reason
-    } else {
-        "NodeReconcileFailed".into()
-    };
     let name = format!("{id}-node-status");
     let state = maps.get(&format!("{id}-installation")).await?;
     let owner = json!({"apiVersion":"v1","kind":"ConfigMap","name":state.name_any(),"uid":state.uid(),"controller":false,"blockOwnerDeletion":false});
@@ -523,6 +512,18 @@ pub async fn once(config: Arc<crate::reconcile::Config>) -> Result<()> {
         maps.create(&PostParams::default(), &diagnostic).await?;
     }
     result.and(released)
+}
+fn failure_reason(error: &anyhow::Error) -> String {
+    if error.chain().any(|cause| matches!(cause.downcast_ref::<kube::Error>(), Some(kube::Error::Api(response)) if response.code == 403)) {
+        return "NodeReconcileForbidden".into();
+    }
+    let text = error.to_string();
+    let reason = text.split(':').next().unwrap_or("NodeReconcileFailed");
+    if reason.len() <= 64 && reason.bytes().all(|b| b.is_ascii_alphanumeric()) {
+        reason.into()
+    } else {
+        "NodeReconcileFailed".into()
+    }
 }
 async fn fence_clients(config: &crate::reconcile::Config, arch: &str) -> Result<()> {
     let settings = config
@@ -586,6 +587,23 @@ async fn fence_clients(config: &crate::reconcile::Config, arch: &str) -> Result<
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn permission_failures_have_an_actionable_reason_without_api_or_context_details() {
+        let response: kube::core::Status = serde_json::from_value(serde_json::json!({"status":"Failure","message":"private API details","reason":"Forbidden","code":403})).unwrap();
+        let error = anyhow::Error::from(kube::Error::Api(Box::new(response)))
+            .context("private caller context");
+        assert_eq!(super::failure_reason(&error), "NodeReconcileForbidden");
+        assert_eq!(
+            super::failure_reason(&anyhow::anyhow!(
+                "PinnedWorkerUnavailable: private placement"
+            )),
+            "PinnedWorkerUnavailable"
+        );
+        assert_eq!(
+            super::failure_reason(&anyhow::anyhow!("private arbitrary text")),
+            "NodeReconcileFailed"
+        );
+    }
     use super::*;
     #[test]
     fn runtime_ownership_is_helm_adoptable_without_accepting_foreign_template_owners_or_spec_edits()

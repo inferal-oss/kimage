@@ -340,6 +340,9 @@ Empty selector includes all eligible nodes. Registry must stay selected. Pins
 must exist; missing pins report an issue. Helm nodePolicy=null preserves edits;
 first-install workerNodes values become pins. System components restart through
 ordinary external pulls independently of the included registry.
+NodeReconcileForbidden means check the operator's system namespace Role and
+RoleBinding against the exact release manifests. Pod/Job metadata patch access
+belongs only to that system namespace, not application namespaces or admission.
 
 kimage uninstall --namespace kimage-system --installation kimage, or helm uninstall
 kimage --namespace kimage-system --wait, preserves PVCs, CRDs, Images and releases.

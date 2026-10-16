@@ -181,6 +181,14 @@ def main():
         running = [v for v in get('pods')['items'] if v['metadata'].get('labels', {}).get('app')=='consumer']
         assert running and all(v['spec']['containers'][0]['image'].endswith('@'+release['spec']['root']['digest']) and v['spec']['nodeName']=='kimage-e2e' for v in running)
         check('only requested native platform built and pulled by Deployment')
+        for resource in ['pods','jobs']:
+            operator='system:serviceaccount:'+system+':'+installation+'-operator'
+            allowed=kubectl(['auth','can-i','patch',resource,'-n',system,'--as='+operator],ok=False)
+            assert allowed.stdout.strip()=='yes','native controller cannot patch system '+resource+' metadata'
+            for namespace,account in [(app,operator),(system,'system:serviceaccount:'+system+':'+installation+'-admission')]:
+                denied=kubectl(['auth','can-i','patch',resource,'-n',namespace,'--as='+account],ok=False)
+                assert denied.stdout.strip()=='no','native metadata permission escaped its identity or system namespace'
+        check('native metadata patch permissions are limited to the operator system namespace')
         # Build output is private attempt data, not disposable Pod stdout or
         # public release metadata. Exercise the real native BuildKit path.
         failing=image('diagnostic-failure')

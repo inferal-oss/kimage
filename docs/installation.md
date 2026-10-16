@@ -205,6 +205,8 @@ an operation is pending. The operation is marked Complete only after verificatio
 a failed transition does not silently roll back. `status` reports its phase and
 `doctor` checks drift, native readiness and certificate validity, returning a
 nonzero exit status when attention is required.
+`NodeReconcileForbidden` points to missing operator permissions: compare its
+system namespace Role and RoleBinding with the exact release's manifests.
 
 For a Helm-managed installation, the same commands invoke Helm and preserve Helm
 ownership and revision history. Keep a compatible `helm` executable on PATH.
