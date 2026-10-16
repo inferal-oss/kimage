@@ -518,7 +518,31 @@ These tools have different scopes. A configured registry can be local or remote,
 | [Tekton](https://tekton.dev/docs/pipelines/taskruns/) | General task/pipeline execution through runs; build/push steps and deployment integration are configured in that workflow. |
 | [kpack](https://github.com/buildpacks-community/kpack) | Declarative Images using Cloud Native Buildpacks, with registry tags/credentials and rebuilds on source/builder changes. |
 
-kpack also declares images. kimage's focus is immutable versioned releases combined with a managed local registry and workload selection. Its current build adapter is narrower than a general remote-source build platform.
+### kimage and kpack: image requests versus registry references
+
+Both declare an `Image` and let a controller manage its production. Declarative images, digest-pinned output, and ARM64 support are shared capabilities. kimage is an integrated **image catalog, builder, and delivery system**. Its distinction is connecting a workload's image and version request to retained releases and platform-appropriate delivery.
+
+| Area | kpack | kimage |
+| --- | --- | --- |
+| Building | Cloud Native Buildpacks supply application language and runtime build logic. | Containerfiles with provisioned inputs, currently limited to `FROM scratch`. |
+| Registry | Publish to a registry you configure and operate. It can be local. | A retained cluster-local registry and node-local serving are included. External export is optional. |
+| Releases | Maintain an image as source, buildpacks, and stack change; expose the latest digest and build history. | Immutable Image identity/version/platform releases, selected by exact version, range, or channel. |
+| Workloads | Deployment tooling consumes the resulting registry reference. | Workloads declare an Image name and accepted versions; admission resolves each new Pod to a digest. |
+| Demand | Rebuild on source, buildpack, and stack changes. | Default to consumer demand. Placement selects platforms; administrators can enable eager builds. |
+
+A kpack build exposes a registry reference in `status.latestImage` for deployment tooling to consume. With kimage, the workload can instead keep this request:
+
+```
+image: "platform://apps/service:^1.2.0"
+```
+
+This asks for the highest compatible published `service` version below `2.0.0` in `apps`. The workload author does not supply a registry hostname, repository path, or digest. Admission selects a verified retained release and pins the new Pod to its digest, using placement to select native output or a multi-platform index. The runtime still performs normal registry pulls through node-local serving.
+
+**The registry is included.** Application authors do not choose a separate publication service or configure output push credentials per Image. Administrators provision the included registry's persistent storage and credentials during installation. Exporting to another registry is an optional additional operation.
+
+Version selection happens on new Pod creation. Existing Pods keep their digest; publishing another matching version does not trigger a rollout. Selectors remain namespaced, and missing platform outputs follow the [build policy](https://kimage.dev/docs/#platforms). See [version selection](https://kimage.dev/docs/#selectors) for ranges, channels, and pending-demand behavior.
+
+kpack has the more established source-to-image workflow through Buildpacks. See its [Image model](https://github.com/buildpacks-community/kpack/blob/main/docs/image.md) and [registry tutorial](https://github.com/buildpacks-community/kpack/blob/main/docs/tutorial.md). kimage's current builder has narrower input and base-image support; its focus is the integrated path from image declaration to version-selected delivery in a workload.
 
 ## Development and validation evidence
 
@@ -535,6 +559,8 @@ python3 scripts/check-site.py
 ```
 
 CI runs Rust tests on macOS/arm64 and native Linux/amd64 and Linux/arm64 musl, plus eleven release-tooling tests, formatting, Clippy, documentation/example checks, and package verification. These include parser/admission compatibility for readable colon and literal/encoded query ranges, native graph verification, placement and build policy. Native Kubernetes E2E tests both installation scopes on each architecture before release.
+
+An [explicitly enabled mixed-cluster E2E](https://github.com/inferal-oss/kimage/blob/main/docs/mixed-cluster-e2e.md) uses fresh Images for unknown, amd64, and arm64 workload placement. It checks exact native variants and native consumption of an OCI index or manifest. Standard CI validates the harness and skips the live test; running it requires an approved real mixed cluster.
 
 The separate owned two-node fixture passed installation, build/input matrices, normal uncached pulls, interruption and cold recovery, actual binary upgrade/rollback, and retained-release export. Those cluster harnesses are not ordinary CI jobs. Historical receipts predate later selector/CLI changes; they remain unchanged evidence for their recorded bundle.
 

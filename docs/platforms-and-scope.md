@@ -173,3 +173,10 @@ for both scopes on native amd64 and arm64 Linux runners. It exercises real
 builds/pulls, all supported controller templates, dry-run, pending demand, eager
 production, RBAC and namespace boundaries, and retained storage on uninstall.
 The release workflow requires that matrix to pass before publication.
+
+
+The [opt-in mixed-cluster E2E](mixed-cluster-e2e.md) separately exercises both
+architectures in one real cluster, using fresh Images for unknown and explicit
+amd64/arm64 workload placement. It checks exact native builds and actual pulls
+of the selected index or manifest. It is ignored by default and explicitly
+configured for an administrator-approved mixed cluster.

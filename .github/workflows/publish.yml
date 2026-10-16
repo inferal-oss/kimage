@@ -64,6 +64,7 @@ jobs:
           cargo test --locked --workspace
           python3 scripts/check-changelog.py
           python3 scripts/test-release.py
+          python3 scripts/test-mixed-e2e.py
           python3 scripts/check-docs.py
           python3 scripts/check-site.py
           node --check site/site.js

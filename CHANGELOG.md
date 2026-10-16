@@ -7,6 +7,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+### Added
+
+- An explicitly enabled mixed-cluster E2E using fresh Images for unknown, amd64,
+  and arm64 workload placement. It checks native builds, exact variant and demand
+  sets, and native execution through the selected OCI index or manifest. Public
+  CI checks the harness; the live test requires an existing mixed cluster.
+
+### Changed
+
+- Clarified README and website positioning against kpack: both provide
+  declarative Images; kimage integrates an included registry, immutable version
+  catalog, and workload image/version requests resolved during Pod admission.
+
 ## [0.3.0] - 2026-10-15
 
 ### Added

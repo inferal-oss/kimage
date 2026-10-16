@@ -12,8 +12,8 @@
 
 [Website](https://kimage.dev) · [Documentation](https://kimage.dev/docs/) · [Tutorial](#tutorial-build-and-run-a-hello-image)
 
-kimage lets you define an image, its version, and how to produce it as a Kubernetes
-`Image` resource. The controller handles build attempts, verifies the resulting
+kimage is a Kubernetes-native image catalog, builder, and delivery system. Define
+an image, its version, and how to produce it as a Kubernetes `Image` resource. The controller handles build attempts, verifies the resulting
 OCI content, publishes it to the installation's managed cluster-local registry,
 and records an immutable `ImageRelease` in Kubernetes. Workloads can then select
 that image directly:
@@ -80,12 +80,41 @@ automation. A separately configured registry can be local or remote.
 | **[Tekton](https://tekton.dev/docs/pipelines/taskruns/)** | Tasks/Pipelines and their TaskRuns/PipelineRuns | A run executes the configured steps | Build/push tasks target a configured registry; see the [build-and-push example](https://tekton.dev/docs/how-to-guides/kaniko-build-push/) | Connect task results and registry references to your deployment workflow |
 | **[kpack](https://github.com/buildpacks-community/kpack)** | An `Image` and Cloud Native Buildpacks builder configuration | Controller schedules builds on source, buildpack, or stack changes | Configure the image's registry tag and credentials; see the [tutorial](https://github.com/buildpacks-community/kpack/blob/main/docs/tutorial.md) | Image status exposes the resolved registry image for workloads to use |
 
-kpack also provides declarative images. kimage's particular focus is the combination
-of **immutable versioned releases, a managed local registry, and integrated
-workload resolution**. Shipwright offers configurable build strategies; Tekton
-orchestrates general task pipelines; kpack provides Cloud Native Buildpacks
-automation. kimage's current build adapter is narrower: Containerfiles with
-scratch images and provisioned local inputs. See [compatibility and limits](#compatibility-and-limits).
+### kimage and kpack
+
+Both projects declare an `Image` and let a controller manage production. That
+shared model, digest-pinned output, and ARM64 support are useful capabilities,
+not distinguishing features on their own.
+
+| Area | kpack | kimage |
+| --- | --- | --- |
+| Build model | Cloud Native Buildpacks supply application language and runtime build logic | Containerfiles with provisioned inputs; currently a narrower `FROM scratch` model |
+| Registry operation | Publish to a registry you configure and operate, which can be local | A retained cluster-local registry and node-local serving are included; external export is optional |
+| Release model | Maintain an image as source, buildpacks, and stack change; expose its latest digest and build history | Publish immutable releases keyed by Image identity, version, and platform; select exact versions, ranges, or channels |
+| Workload declaration | Deployment tooling consumes the resulting registry reference | Workloads request `platform://apps/service:^1.2.0`; admission resolves new Pods to the matching digest |
+| Build demand | Rebuild on source, buildpack, and stack changes | Default to consumer demand; workload placement selects needed platforms, with administrator-configurable eager builds |
+
+With kimage, the workload declares **which Image and which versions it accepts**.
+It does not need to know the publication registry, repository path, or digest.
+The included registry retains verified releases; admission resolves the request
+and kubelet pulls through node-local serving using the normal runtime. The
+registry is part of the installation, rather than a separate output service each
+application author must choose. Administrators still provision its storage and
+credentials.
+
+For example, `platform://apps/service:^1.2.0` selects the highest compatible
+published release below `2.0.0`. Each new Pod is pinned to that release's digest;
+running Pods keep their existing digest. This is version selection from a retained
+catalog, not automatic rollout of existing workloads.
+
+kpack has the more established source-to-image workflow through Buildpacks. Its
+[Image model](https://github.com/buildpacks-community/kpack/blob/main/docs/image.md)
+and [tutorial](https://github.com/buildpacks-community/kpack/blob/main/docs/tutorial.md)
+describe registry publication and digest output. kimage focuses on integrating
+image production, immutable version contracts, registry operation, and workload
+resolution. Shipwright offers configurable build strategies; Tekton orchestrates
+general task pipelines. See [compatibility and limits](#compatibility-and-limits)
+and the [website comparison](https://kimage.dev/docs/#comparison).
 
 ## Features
 

@@ -10,8 +10,15 @@ when images should remain available independently of source/build cache, or when
 a cluster needs local build and pull workflows without an external registry.
 Application authors declare an Image, exact version, and source; the controller
 handles attempts and publication. There is no per-image BuildRun or output
-registry configuration. kpack also declares images; kimage specifically combines
-immutable versions, retained local storage, and integrated workload resolution.
+registry configuration. The registry and node-local serving are included in the
+installation; administrators still provision storage and credentials. Workloads
+request Image identity and accepted versions, e.g. platform://apps/service:^1.2.0,
+without knowing a registry hostname, repository path, or digest. Admission pins
+new Pods; existing Pods do not roll automatically. kpack also declares Images
+and exposes registry digest output; declarative Images and ARM64 alone are not
+differentiators. kimage combines a retained version catalog, builder, included
+registry, and placement-aware workload resolution. See the
+[kpack comparison](https://kimage.dev/docs/#kpack).
 Shipwright provides configurable build strategies; Tekton handles general task
 pipelines. The current kimage builder is narrower than those general workflows.
 

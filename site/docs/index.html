@@ -65,7 +65,7 @@
             ><a href="#observability">Observe and troubleshoot</a>
             <p class="docs-nav-label">UNDERSTAND IT</p>
             <a href="#architecture">Architecture and trust</a
-            ><a href="#comparison">Other approaches</a
+            ><a href="#comparison">Other approaches and kpack</a
             ><a href="#development">Development and evidence</a>
           </nav>
         </details>
@@ -1420,11 +1420,63 @@ kimage-install &lt;phase&gt; --help</code></pre>
                 </tr>
               </tbody>
             </table>
+            <h3 id="kpack">kimage and kpack: image requests versus registry references</h3>
             <p>
-              kpack also declares images. kimage's focus is immutable versioned
-              releases combined with a managed local registry and workload
-              selection. Its current build adapter is narrower than a general
-              remote-source build platform.
+              Both declare an <code>Image</code> and let a controller manage its
+              production. Declarative images, digest-pinned output, and ARM64
+              support are shared capabilities. kimage is an integrated
+              <strong>image catalog, builder, and delivery system</strong>.
+              Its distinction is connecting a workload's image and version
+              request to retained releases and platform-appropriate delivery.
+            </p>
+            <table>
+              <thead><tr><th>Area</th><th>kpack</th><th>kimage</th></tr></thead>
+              <tbody>
+                <tr><td>Building</td><td>Cloud Native Buildpacks supply application language and runtime build logic.</td><td>Containerfiles with provisioned inputs, currently limited to <code>FROM scratch</code>.</td></tr>
+                <tr><td>Registry</td><td>Publish to a registry you configure and operate. It can be local.</td><td>A retained cluster-local registry and node-local serving are included. External export is optional.</td></tr>
+                <tr><td>Releases</td><td>Maintain an image as source, buildpacks, and stack change; expose the latest digest and build history.</td><td>Immutable Image identity/version/platform releases, selected by exact version, range, or channel.</td></tr>
+                <tr><td>Workloads</td><td>Deployment tooling consumes the resulting registry reference.</td><td>Workloads declare an Image name and accepted versions; admission resolves each new Pod to a digest.</td></tr>
+                <tr><td>Demand</td><td>Rebuild on source, buildpack, and stack changes.</td><td>Default to consumer demand. Placement selects platforms; administrators can enable eager builds.</td></tr>
+              </tbody>
+            </table>
+            <p>
+              A kpack build exposes a registry reference in
+              <code>status.latestImage</code> for deployment tooling to consume.
+              With kimage, the workload can instead keep this request:
+            </p>
+            <pre><code>image: "platform://apps/service:^1.2.0"</code></pre>
+            <p>
+              This asks for the highest compatible published <code>service</code>
+              version below <code>2.0.0</code> in <code>apps</code>. The workload
+              author does not supply a registry hostname, repository path, or
+              digest. Admission selects a verified retained release and pins the
+              new Pod to its digest, using placement to select native output or
+              a multi-platform index. The runtime still performs normal registry
+              pulls through node-local serving.
+            </p>
+            <p>
+              <strong>The registry is included.</strong> Application authors
+              do not choose a separate publication service or configure output
+              push credentials per Image. Administrators provision the included
+              registry's persistent storage and credentials during installation.
+              Exporting to another registry is an optional additional operation.
+            </p>
+            <p>
+              Version selection happens on new Pod creation. Existing Pods keep
+              their digest; publishing another matching version does not trigger
+              a rollout. Selectors remain namespaced, and missing platform
+              outputs follow the <a href="#platforms">build policy</a>.
+              See <a href="#selectors">version selection</a> for ranges,
+              channels, and pending-demand behavior.
+            </p>
+            <p>
+              kpack has the more established source-to-image workflow through
+              Buildpacks. See its
+              <a href="https://github.com/buildpacks-community/kpack/blob/main/docs/image.md">Image model</a>
+              and <a href="https://github.com/buildpacks-community/kpack/blob/main/docs/tutorial.md">registry tutorial</a>.
+              kimage's current builder has narrower input and base-image support;
+              its focus is the integrated path from image declaration to
+              version-selected delivery in a workload.
             </p>
           </section>
 
@@ -1443,6 +1495,13 @@ python3 scripts/check-site.py</code></pre>
               formatting, Clippy, documentation/example checks, and package
               verification. These include parser/admission compatibility for
               readable colon and literal/encoded query ranges, native graph verification, placement and build policy. Native Kubernetes E2E tests both installation scopes on each architecture before release.
+            </p>
+            <p>
+              An <a href="https://github.com/inferal-oss/kimage/blob/main/docs/mixed-cluster-e2e.md">explicitly enabled mixed-cluster E2E</a>
+              uses fresh Images for unknown, amd64, and arm64 workload placement.
+              It checks exact native variants and native consumption of an OCI
+              index or manifest. Standard CI validates the harness and skips the
+              live test; running it requires an approved real mixed cluster.
             </p>
             <p>
               The separate owned two-node fixture passed installation,
