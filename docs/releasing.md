@@ -141,8 +141,10 @@ public receipts. The real mixed-node test is explicitly enabled separately with
 [lifecycle acceptance guide](lifecycle-e2e.md) for configuration and retained data.
 
 Before the final tag, run the `Release candidate images` workflow on main. It first
-passes native acceptance, then publishes immutable `candidate-COMMIT` GHCR tags;
-installation still selects digests from the candidate catalog. This permits real
+passes native acceptance, then publishes immutable `candidate-COMMIT` GHCR tags.
+Installation still selects digests from the candidate catalog. Candidate acceptance
+repeats failed-attempt output checks with fresh Images on each native platform to
+catch batching and recovery races. This permits real
 mixed-cluster testing without claiming or overwriting final release tags. Use
 isolated namespaces/ports and reversible fixture labels for node membership;
 never delete or cordon shared Nodes. Restore selection before testing an older

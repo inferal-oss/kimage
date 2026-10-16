@@ -12,6 +12,11 @@ on:
         type: string
         required: false
         default: ""
+      diagnostic_stress:
+        description: Repeat native failed-attempt checks with fresh Images
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -192,6 +197,8 @@ jobs:
           python3 scripts/helm-diagnostics.py --setup .local/e2e/helm-diagnostics --helm /usr/local/bin/helm
           printf '%s\n' "$GITHUB_WORKSPACE/.local/e2e/helm-diagnostics/bin" >> "$GITHUB_PATH"
       - name: Exercise published predecessor upgrades, interruptions and rollback
+        env:
+          KIMAGE_DIAGNOSTIC_STRESS: ${{ inputs.diagnostic_stress && 'true' || 'false' }}
         run: |
           python3 - <<'PYCONFIG'
           import glob,json,os,subprocess

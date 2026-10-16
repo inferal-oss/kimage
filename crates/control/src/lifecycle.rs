@@ -956,6 +956,13 @@ fn metadata_update(desired: &Value, current: &DynamicObject) -> Result<Option<Va
             "InstallationResourceOwnershipConflict"
         );
     }
+    // Existing credential views are immutable installation inputs. Static Helm
+    // views already belong to its release; newly created views receive all
+    // metadata at creation. Never require permission to rewrite an existing
+    // credential just to add a garbage-collection owner reference.
+    if desired["kind"] == "Secret" {
+        return Ok(None);
+    }
     let mut patch = json!({});
     for field in ["labels", "annotations", "ownerReferences"] {
         if let Some(value) = expected.get(field) {
@@ -1429,6 +1436,27 @@ async fn restore_helm_policy(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn existing_immutable_credentials_are_checked_without_metadata_updates() {
+        let desired = serde_json::json!({"apiVersion":"v1","kind":"Secret","metadata":{"name":"dev-builder-server-arm64","namespace":"system","labels":{super::LABEL:"dev"},"annotations":{"kimage.dev/manager":"helm"},"ownerReferences":[{"apiVersion":"v1","kind":"ConfigMap","name":"dev-installation","uid":"installation"}]},"immutable":true,"type":"Opaque","data":{"credential":"Zml4dHVyZQ=="}});
+        let mut actual = desired.clone();
+        actual["metadata"]
+            .as_object_mut()
+            .unwrap()
+            .remove("ownerReferences");
+        let observed = serde_json::from_value(actual.clone()).unwrap();
+        crate::install::verify_declared(&desired, &observed).unwrap();
+        assert!(
+            super::metadata_update(&desired, &observed)
+                .unwrap()
+                .is_none()
+        );
+        actual["data"]["credential"] = serde_json::json!("Y2hhbmdlZA==");
+        assert!(
+            crate::install::verify_declared(&desired, &serde_json::from_value(actual).unwrap())
+                .is_err()
+        );
+    }
     #[tokio::test]
     async fn unchanged_worker_receives_guarded_ownership_without_restart() {
         use axum::{Json, Router, routing::get};

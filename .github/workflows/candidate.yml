@@ -22,6 +22,7 @@ jobs:
     uses: ./.github/workflows/e2e.yml
     with:
       diagnostic_certificate: ${{ inputs.diagnostic_certificate }}
+      diagnostic_stress: true
 
   images:
     name: Publish immutable candidate images

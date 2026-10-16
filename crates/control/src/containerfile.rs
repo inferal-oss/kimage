@@ -196,6 +196,27 @@ impl Progress {
         Ok(())
     }
 }
+const PROGRESS_RECORD_LIMIT: usize = 1024 * 1024;
+
+fn progress_chunk(
+    bytes: &[u8],
+    line: &mut Vec<u8>,
+    progress: &mut Progress,
+    log: &mut crate::build_logs::Buffer,
+) -> Result<()> {
+    for &byte in bytes {
+        if byte == b'\n' {
+            log.progress(line);
+            progress.observe(line)?;
+            line.clear();
+        } else {
+            ensure!(line.len() < PROGRESS_RECORD_LIMIT, "BuildProgressLineLimit");
+            line.push(byte);
+        }
+    }
+    Ok(())
+}
+
 pub async fn solve(
     session: &Session,
     capture: &Capture,
@@ -239,16 +260,7 @@ pub async fn solve(
             }
             total += n;
             ensure!(total <= 16 * 1024 * 1024, "BuildProgressLimit");
-            for &byte in &chunk[..n] {
-                if byte == b'\n' {
-                    log.progress(&line);
-                    progress.observe(&line)?;
-                    line.clear();
-                } else {
-                    ensure!(line.len() < 256 * 1024, "BuildProgressLineLimit");
-                    line.push(byte);
-                }
-            }
+            progress_chunk(&chunk[..n], &mut line, &mut progress, &mut log)?;
             log.persist()?;
         }
         if !line.is_empty() {
@@ -382,6 +394,40 @@ async fn worker_identity(session: &Session, capture: &Capture) -> Result<String>
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn batched_engine_logs_larger_than_256_kib_keep_the_final_bounded_tail() {
+        use base64::{Engine, engine::general_purpose::STANDARD};
+        let output = (0..5000)
+            .map(|n| format!("kimage-diagnostic-output-{n:04}\n"))
+            .collect::<String>();
+        let record = json!({"vertexes":[{"name":"[stage 1/1] RUN /probe diagnose","digest":kimage_core::oci::digest(b"native-run"),"cached":false,"error":"engine-context ".repeat(18000)}],"logs":[{"data":STANDARD.encode(output)}]});
+        let mut bytes = serde_json::to_vec(&record).unwrap();
+        assert!(bytes.len() > 256 * 1024);
+        assert!(bytes.len() < PROGRESS_RECORD_LIMIT);
+        bytes.push(b'\n');
+        let (mut line, mut progress, mut log) = (
+            Vec::new(),
+            Progress::default(),
+            crate::build_logs::Buffer::default(),
+        );
+        for chunk in bytes.chunks(16384) {
+            progress_chunk(chunk, &mut line, &mut progress, &mut log).unwrap();
+        }
+        assert!(line.is_empty());
+        assert_eq!(progress.vertices.len(), 1);
+        assert!(
+            log.truncated
+                && log.text.len() <= crate::build_logs::LIMIT
+                && log.text.contains("kimage-diagnostic-output-4999")
+        );
+        let oversized = vec![b'x'; PROGRESS_RECORD_LIMIT + 1];
+        assert_eq!(
+            progress_chunk(&oversized, &mut line, &mut progress, &mut log)
+                .unwrap_err()
+                .to_string(),
+            "BuildProgressLineLimit"
+        );
+    }
     #[test]
     fn native_services_share_only_the_canonical_tls_identity_and_bind_the_requested_platform() {
         let build:Build = serde_json::from_value(json!({"format":"Containerfile","definition":{"inline":"FROM scratch\nCOPY message /message\n"},"execution":{"strategy":"Direct","builderRef":"default"},"inputs":{"contextPath":"/workspace/context","volumes":[{"name":"source","configMap":{"name":"source"}}],"volumeMounts":[{"name":"source","mountPath":"/workspace/context","readOnly":true}]}})).unwrap();
