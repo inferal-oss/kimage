@@ -17,6 +17,11 @@ import time
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def prerequisite_images(node):
+    images = node.get('status', {}).get('images') or []
+    return images if any('mirrored-pause@sha256:' in name for image in images for name in (image.get('names') or [])) else None
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--scope', choices=['namespace', 'cluster'], required=True)
@@ -81,10 +86,9 @@ def main():
     report['runtime'] = {field:nodes[0]['status']['nodeInfo'][field] for field in ['architecture','operatingSystem','kernelVersion','osImage','kubeletVersion','containerRuntimeVersion']}
     def cached_prerequisites():
         value = json.loads(kubectl(['get', 'nodes', '-o', 'json']).stdout)['items'][0]
-        images = value['status'].get('images', [])
-        return images if any('mirrored-pause@sha256:' in name for image in images for name in image.get('names', [])) else None
+        return prerequisite_images(value)
     images = wait(cached_prerequisites, 'kubelet cached prerequisite image report', 180)
-    assert not any(name.startswith('127.0.0.1:') for image in images for name in image.get('names', []))
+    assert not any(name.startswith('127.0.0.1:') for image in images for name in (image.get('names') or []))
     for namespace in [system, app, other, excluded]:
         kubectl(['create', 'namespace', namespace])
     catalog=json.loads(args.image_catalog.read_bytes())

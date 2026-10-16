@@ -14,6 +14,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 ### Fixed
 
 - CLI uninstall retries status-only resource-version conflicts when Kubernetes LIST items omit the type metadata included by GET. UID, specification and ownership checks remain enforced. This fixes an intermittent `CleanupIdentityConflict` observed while testing published 0.4.0 on a real mixed cluster.
+- Native installation E2E waits through transient null kubelet image reports instead of failing before installation. Regression coverage keeps the cold-cache check intact.
 
 ## [0.4.0] - 2026-10-16
 
