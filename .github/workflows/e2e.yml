@@ -6,6 +6,12 @@ on:
   pull_request:
   workflow_dispatch:
   workflow_call:
+    inputs:
+      diagnostic_certificate:
+        description: Optional public X.509 recipient certificate for encrypted CI-only Helm failure capture
+        type: string
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -171,6 +177,13 @@ jobs:
           mkdir -p .local/components
           tar -xzf .local/component-layouts.tar.gz -C .local/components
           python3 scripts/prepare-image-pull-fixture.py --images .local/components --registry .local/e2e/registry --directory .local/e2e-registry
+      - name: Configure optional encrypted Helm diagnostics
+        if: inputs.diagnostic_certificate != '' && matrix.mode == 'helm'
+        env:
+          KIMAGE_HELM_DIAGNOSTIC_CERT: ${{ inputs.diagnostic_certificate }}
+        run: |
+          python3 scripts/helm-diagnostics.py --setup .local/e2e/helm-diagnostics --helm /usr/local/bin/helm
+          printf '%s\n' "$GITHUB_WORKSPACE/.local/e2e/helm-diagnostics/bin" >> "$GITHUB_PATH"
       - name: Start pinned disposable Kubernetes fixture
         run: python3 scripts/prepare-e2e-cluster.py --directory .local/e2e-cluster
       - name: Exercise registry pulls, native builds, controllers and scope boundaries
@@ -197,5 +210,6 @@ jobs:
             .local/e2e/results/*.json
             .local/e2e/results/*.log
             .local/e2e/lifecycle/results.json
+            .local/e2e/helm-diagnostics/output/*.p7m
           if-no-files-found: warn
           retention-days: 14

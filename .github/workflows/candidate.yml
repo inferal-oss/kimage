@@ -2,6 +2,12 @@ name: Release candidate images
 
 on:
   workflow_dispatch:
+    inputs:
+      diagnostic_certificate:
+        description: Optional public X.509 certificate; keep its private key outside CI
+        type: string
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -14,6 +20,8 @@ jobs:
   acceptance:
     if: github.repository == 'inferal-oss/kimage' && github.ref == 'refs/heads/main'
     uses: ./.github/workflows/e2e.yml
+    with:
+      diagnostic_certificate: ${{ inputs.diagnostic_certificate }}
 
   images:
     name: Publish immutable candidate images

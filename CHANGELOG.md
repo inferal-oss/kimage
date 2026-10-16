@@ -18,6 +18,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ### Fixed
 
+- CLI rollback resume stops a partially restarted predecessor again before applying resources. Concurrent worker creation is accepted only for an exact, owned, non-deleting resource; foreign or changed resources remain refused.
 - Guarded Helm transitions prepare target workers before restarting the predecessor operator, avoiding concurrent worker creation or fencing during rollback. Helm errors retain safe resource and configuration reason codes.
 - Terminal build-log snapshots read the completion phase before output, preventing follow and archival from ending with a stale tail during a fast failure.
 - Status and doctor preserve Helm ownership inside worker recovery templates, avoiding false drift reports after a guarded chart upgrade.
@@ -35,6 +36,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ### Security
 
+- Optional candidate-workflow diagnostics encrypt failing Helm output to a maintainer-provided certificate; the private decryption key remains outside CI.
 - Diagnostic Secrets carry the predecessor's reserved input marker, so rolling back to 0.4.1 cannot make private build output eligible as an ordinary build input.
 - Helm upgrade checks reject recovery history that would replay stale credential or build-policy bytes, before stopping components.
 

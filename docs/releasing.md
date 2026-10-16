@@ -23,6 +23,7 @@ python3 scripts/test-component-images.py
 python3 scripts/test-mixed-e2e.py
 python3 scripts/test-install-e2e.py
 python3 scripts/test-upgrade-e2e.py
+python3 scripts/test-helm-diagnostics.py
 python3 scripts/check-docs.py
 python3 scripts/check-site.py
 python3 scripts/check-chart.py --helm helm
@@ -148,3 +149,11 @@ never delete or cordon shared Nodes. Restore selection before testing an older
 operator that cannot enforce it. Review actual candidate catalogs and retain
 public, sanitized acceptance receipts. Final release pins must match the tested
 candidate when code is unchanged.
+
+For a failure whose Helm stderr may contain rendered Secrets, the candidate
+workflow accepts an optional `diagnostic_certificate`: a public X.509 encryption
+certificate. Keep its matching private key outside GitHub. The test-only wrapper
+captures failed Helm output directly into CMS/AES-256 ciphertext; artifacts contain
+only `.p7m` files. Decrypt locally with the recipient key and review privately.
+Ordinary CI and publication do not enable this capture. Never upload plaintext
+Helm failure output or the recipient private key as acceptance evidence.

@@ -641,6 +641,10 @@ pub async fn transition(
         if record.phase==Phase::Applying {
             if record.manager=="helm" { helm_transition(&context,&record,chart_path.as_deref(),&plan.resources,&recovery_resources,&lease).await?; }
             else {
+                // A partial rollback can have restarted the predecessor, which
+                // cannot honor the new journal. Fence it again on every resume.
+                quiesce(&context,&options,&lease).await?;
+                prepare_workers(&context,&plan.resources,&installed,"cli",&lease).await?;
                 for resource in &plan.resources {lease.check().await?;replace_owned(&context,resource,"cli").await?;}
                 for resource in &plan.webhooks {lease.check().await?;replace_owned(&context,resource,"cli").await?;}
             }
@@ -839,9 +843,7 @@ pub(crate) async fn replace_owned(
     let ns = apply::namespaced(kind).then(|| desired["metadata"]["namespace"].as_str().unwrap());
     let api = context.api_at(kind, ns)?;
     let Some(current) = api.get_opt(name).await? else {
-        let object: DynamicObject = serde_json::from_value(desired.clone())?;
-        api.create(&PostParams::default(), &object).await?;
-        return Ok(());
+        return create_owned(&api, desired, manager, &context.options.installation).await;
     };
     ensure!(
         current.labels().get(LABEL) == Some(&context.options.installation)
@@ -862,11 +864,7 @@ pub(crate) async fn replace_owned(
     if matches!(kind, "Pod" | "Job") || current.data["immutable"] == true {
         crate::install::delete_foreground_snapshot(&api, &current).await?;
         wait_deleted(&api, name).await?;
-        api.create(
-            &PostParams::default(),
-            &serde_json::from_value(desired.clone())?,
-        )
-        .await?;
+        create_owned(&api, desired, manager, &context.options.installation).await?;
     } else {
         let mut patch = desired.clone();
         patch["metadata"]["uid"] = json!(current.uid());
@@ -875,6 +873,38 @@ pub(crate) async fn replace_owned(
             .await?;
     }
     Ok(())
+}
+async fn create_owned(
+    api: &Api<DynamicObject>,
+    desired: &Value,
+    manager: &str,
+    installation: &str,
+) -> Result<()> {
+    let object: DynamicObject = serde_json::from_value(desired.clone())?;
+    let name = object.name_any();
+    match api.create(&PostParams::default(), &object).await {
+        Ok(_) => Ok(()),
+        Err(kube::Error::Api(error)) if error.code == 409 => {
+            let current = api.get(&name).await?;
+            ensure!(
+                current.metadata.deletion_timestamp.is_none(),
+                "InstallationResourceReplacementPending"
+            );
+            ensure!(
+                current
+                    .labels()
+                    .get(LABEL)
+                    .is_some_and(|v| v == installation)
+                    && current
+                        .annotations()
+                        .get("kimage.dev/manager")
+                        .is_some_and(|v| v == manager),
+                "InstallationResourceOwnershipConflict"
+            );
+            crate::install::verify_declared(desired, &current)
+        }
+        Err(error) => Err(error.into()),
+    }
 }
 pub(crate) async fn wait_deleted(api: &Api<DynamicObject>, name: &str) -> Result<()> {
     let deadline = tokio::time::Instant::now() + Duration::from_secs(180);
@@ -1204,7 +1234,7 @@ async fn helm_transition(
         // avoids patching historical Jobs absent from the partial manifest.
         quiesce(context, &record.options, lease).await?;
         cleanup_worker_checks(context, &[], &record.manager, lease).await?;
-        prepare_helm_workers(context, recovery_resources, &state, lease).await?;
+        prepare_workers(context, recovery_resources, &state, "helm", lease).await?;
         let mut args = vec![
             "rollback".into(),
             release_name.clone(),
@@ -1224,7 +1254,7 @@ async fn helm_transition(
     // Deployment can restart before Helm reaches the worker Pods and create or
     // fence those Pods concurrently. Prepare the exact target workers while the
     // operator is stopped, with Helm adoption metadata, before applying the chart.
-    prepare_helm_workers(context, resources, &state, lease).await?;
+    prepare_workers(context, resources, &state, "helm", lease).await?;
     let path = chart.context("VerifiedTargetChartRequired")?;
     // Render the target chart against current placement. Replaying an old
     // manifest would resurrect departed Nodes and discard reconciled workers.
@@ -1254,10 +1284,11 @@ async fn helm_transition(
     Ok(())
 }
 
-async fn prepare_helm_workers(
+async fn prepare_workers(
     context: &Installer,
     resources: &[Value],
     state: &ConfigMap,
+    manager: &str,
     lease: &OperationLease,
 ) -> Result<()> {
     for resource in resources
@@ -1267,7 +1298,7 @@ async fn prepare_helm_workers(
         let mut worker = [resource.clone()];
         crate::node_reconcile::decorate(&mut worker, state)?;
         lease.check().await?;
-        replace_owned(context, &worker[0], "helm").await?;
+        replace_owned(context, &worker[0], manager).await?;
     }
     Ok(())
 }
@@ -1292,6 +1323,51 @@ async fn restore_helm_policy(
 
 #[cfg(test)]
 mod tests {
+    #[tokio::test]
+    async fn concurrent_worker_creation_accepts_only_the_exact_owned_nondeleting_spec() {
+        use axum::{
+            Json, Router,
+            http::StatusCode,
+            routing::{get, post},
+        };
+        use kube::api::ApiResource;
+        for case in ["owned", "foreign", "edited", "deleting"] {
+            let desired = serde_json::json!({"apiVersion":"v1","kind":"Pod","metadata":{"name":"dev-builder-arm64","namespace":"system","labels":{super::LABEL:"dev"},"annotations":{"kimage.dev/manager":"cli"}},"spec":{"containers":[{"name":"builder","image":"pinned"}]}});
+            let mut current = desired.clone();
+            current["metadata"]["uid"] = serde_json::json!("concurrently-created");
+            match case {
+                "foreign" => {
+                    current["metadata"]["labels"][super::LABEL] = serde_json::json!("other")
+                }
+                "edited" => {
+                    current["spec"]["containers"][0]["image"] = serde_json::json!("unapproved")
+                }
+                "deleting" => {
+                    current["metadata"]["deletionTimestamp"] =
+                        serde_json::json!("2026-10-16T00:00:00Z")
+                }
+                _ => {}
+            }
+            let app = Router::new()
+                .route("/api/v1/namespaces/system/pods",post(|| async { (StatusCode::CONFLICT,Json(serde_json::json!({"apiVersion":"v1","kind":"Status","status":"Failure","code":409,"reason":"AlreadyExists","message":"created concurrently"}))) }))
+                .route("/api/v1/namespaces/system/pods/dev-builder-arm64",get(move || {let value=current.clone();async move {Json(value)}}));
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let address = listener.local_addr().unwrap();
+            let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+            let client = kube::Client::try_from(kube::Config::new(
+                format!("http://{address}").parse().unwrap(),
+            ))
+            .unwrap();
+            let api = kube::Api::<kube::api::DynamicObject>::namespaced_with(
+                client,
+                "system",
+                &ApiResource::erase::<k8s_openapi::api::core::v1::Pod>(&()),
+            );
+            let result = super::create_owned(&api, &desired, "cli", "dev").await;
+            assert_eq!(result.is_ok(), case == "owned", "{case}");
+            server.abort();
+        }
+    }
     #[test]
     fn helm_errors_classify_safe_reasons_without_returning_rendered_credentials() {
         for (message, reason) in [
