@@ -32,7 +32,11 @@
 ---
 {{ $pod | toJson }}
   {{- $checkKey := (get $environment.catalog.components "builder").digest | trimPrefix "sha256:" | trunc 8 -}}
-  {{- if semverCompare ">=0.5.0-0" $.Chart.AppVersion -}}{{- $checkKey = printf "%s:%s:%s:%s" $name $b.nodeUid (get $environment.catalog.components "builder").digest (get $environment.catalog.components "input").digest | sha256sum | trunc 12 -}}{{- end -}}
+  {{- if semverCompare ">=0.5.0-0" $.Chart.AppVersion -}}
+    {{- $checkLength := int (min 12 (sub 63 (len (printf "%s-builder-check-%s-" $b.installation $arch)))) -}}
+    {{- if lt $checkLength 10 -}}{{- fail "BuilderCheckNameTooLong" -}}{{- end -}}
+    {{- $checkKey = printf "%s:%s:%s:%s" $name $b.nodeUid (get $environment.catalog.components "builder").digest (get $environment.catalog.components "input").digest | sha256sum | trunc $checkLength -}}
+  {{- end -}}
   {{- $_ := set $b "workerCheckName" (printf "%s-builder-check-%s-%s" $b.installation $arch $checkKey) -}}
   {{ include "kimage.resourceFile" (dict "root" $ "name" "builder-check.json" "bindings" $b) }}
 {{- end -}}

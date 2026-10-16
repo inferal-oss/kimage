@@ -69,7 +69,8 @@ def main():
         for case,(scope,architectures,existing,release) in enumerate([
             ('namespace',['amd64','arm64'],False,version),('cluster',['amd64','arm64'],False,version),
             ('namespace',['arm64'],True,version),('namespace',['amd64'],False,version),
-            ('namespace',['amd64','arm64'],False,future)]):
+            ('namespace',['amd64','arm64'],False,future),
+            ('namespace',['amd64','arm64'],False,version)]):
             selected=copy.deepcopy(catalog);selected['release']=release
             for role in ['admission','exporter','input','operator']:selected['components'][role]['version']=release
             (work/'catalog.json').write_text(json.dumps(selected))
@@ -78,10 +79,11 @@ def main():
                 chart=work/'future-chart';shutil.copytree(ROOT/'charts/kimage',chart)
                 path=chart/'Chart.yaml';path.write_text(path.read_text().replace(version,release))
             nodes=[node('node-'+arch,arch) for arch in architectures]
-            options=dict(namespace='kimage-system',installation='kimage',scope=scope,
+            installation='a'*32 if case==5 else 'kimage'
+            options=dict(namespace='kimage-system',installation=installation,scope=scope,
                 applicationNamespace='apps' if scope=='namespace' else None,excludedNamespaces=['excluded'] if scope=='cluster' else [],
                 runtimeProfile='inferal',registryNode=None,exportOrigins=['https://registry.example/'] if case<2 else [],storageClass=None,storageSize='1Gi',existingClaim='retained' if existing else None,port=17701)
-            values=dict(scope=scope,applicationNamespace='apps' if scope=='namespace' else '',excludedNamespaces=options['excludedNamespaces'],
+            values=dict(installation=installation,scope=scope,applicationNamespace='apps' if scope=='namespace' else '',excludedNamespaces=options['excludedNamespaces'],
                 nodes=nodes,exporter=dict(approvedOrigins=options['exportOrigins']),images=dict(digests=digests),persistence=dict(existingClaim='retained' if existing else ''))
             for name,value in [('options',options),('nodes',nodes),('values',values)]:
                 (work/(name+'.json')).write_text(json.dumps(value))
@@ -94,6 +96,7 @@ def main():
             for document in result.stdout.split('\n---'):
                 lines=[line for line in document.splitlines() if line.strip() and not line.startswith('#') and line.strip()!='---']
                 if lines:rendered.append(json.loads('\n'.join(lines)))
+            assert all(len(v['metadata']['name'])<=63 for v in rendered if v['kind']=='Job'),'Job name exceeds generated label limit'
             expected=index(json.loads(native.read_text()));actual=index(rendered)
             assert actual.keys()==expected.keys(),f'{scope}/{architectures}: resource identity mismatch: {actual.keys() ^ expected.keys()}'
             for key in expected:

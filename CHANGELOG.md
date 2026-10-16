@@ -18,6 +18,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ### Fixed
 
+- Readiness Job names fit Kubernetes label limits for every supported installation name, including 31- and 32-character names. Rust and Helm render the same bounded names.
 - Helm transitions fence node-local proxy Pods before changing their images and use Helm 4's legacy readiness wait, which tolerates transient restart backoff instead of immediately rejecting a recovering proxy. Independent native readiness and retained-data verification still gate completion.
 - CLI rollback resume stops a partially restarted predecessor again before applying resources. Concurrent worker creation is accepted only for an exact, owned, non-deleting resource; foreign or changed resources remain refused.
 - Guarded Helm transitions prepare target workers before restarting the predecessor operator, avoiding concurrent worker creation or fencing during rollback. Helm errors retain safe resource and configuration reason codes.

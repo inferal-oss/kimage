@@ -663,27 +663,29 @@ fn append_native(
         );
         append(resources, "builder.json", b)?;
         resources.push(pod);
-        b.insert(
-            "workerCheckName".into(),
-            json!(format!(
-                "{}-builder-check-{arch}-{}",
-                options.installation,
-                if crate::component_images::native_lifecycle(&catalog.release)? {
-                    kimage_core::oci::digest(
-                        format!(
-                            "{node}:{}:{}:{}",
-                            b["nodeUid"].as_str().unwrap(),
-                            catalog.components["builder"].digest,
-                            catalog.components["input"].digest
-                        )
-                        .as_bytes(),
-                    )[7..19]
-                        .to_owned()
-                } else {
-                    catalog.components["builder"].digest[7..15].to_owned()
-                }
-            )),
-        );
+        let prefix = format!("{}-builder-check-{arch}-", options.installation);
+        let suffix = if crate::component_images::native_lifecycle(&catalog.release)? {
+            // Kubernetes copies the Job name into a label with a 63-byte limit.
+            // Keep the normal 12 hex characters, with room for 31/32-byte IDs.
+            let length = 63_usize
+                .checked_sub(prefix.len())
+                .context("BuilderCheckNameTooLong")?
+                .min(12);
+            ensure!(length >= 10, "BuilderCheckNameTooLong");
+            kimage_core::oci::digest(
+                format!(
+                    "{node}:{}:{}:{}",
+                    b["nodeUid"].as_str().unwrap(),
+                    catalog.components["builder"].digest,
+                    catalog.components["input"].digest
+                )
+                .as_bytes(),
+            )[7..7 + length]
+                .to_owned()
+        } else {
+            catalog.components["builder"].digest[7..15].to_owned()
+        };
+        b.insert("workerCheckName".into(), json!(format!("{prefix}{suffix}")));
         append(resources, "builder-check.json", b)?;
     }
     Ok(())
@@ -815,6 +817,43 @@ mod tests {
             port: 17701,
         }
     }
+    #[test]
+    fn longest_installation_names_fit_readiness_job_and_generated_pod_label_limits() {
+        for length in [30, 31, 32] {
+            let mut options = options(InstallScope::Namespace);
+            options.installation = "a".repeat(length);
+            let credentials =
+                Credentials::generate(&options.namespace, &options.installation).unwrap();
+            for release in ["0.4.1", "0.5.0", "0.6.0"] {
+                let mut catalog = catalog();
+                catalog.release = release.into();
+                for role in ["operator", "input", "admission", "exporter"] {
+                    catalog.components.get_mut(role).unwrap().version = release.into();
+                }
+                let plan = Plan::new(
+                    &options,
+                    &catalog,
+                    &[node("amd", "amd64"), node("arm", "arm64")],
+                    &credentials,
+                )
+                .unwrap();
+                let jobs: Vec<_> = plan
+                    .resources
+                    .iter()
+                    .filter(|r| r["kind"] == "Job")
+                    .collect();
+                assert_eq!(jobs.len(), 2);
+                for job in jobs {
+                    let name = job["metadata"]["name"].as_str().unwrap();
+                    assert!(
+                        name.len() <= 63 && kimage_core::selector::dns_label(name),
+                        "{release}: {name}"
+                    );
+                }
+            }
+        }
+    }
+
     #[test]
     fn diagnostic_plans_preserve_helm_manager_inside_worker_recovery_templates() {
         let credentials = Credentials::generate("kimage-system", "kimage").unwrap();
