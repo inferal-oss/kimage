@@ -175,9 +175,11 @@ jobs:
           import json, subprocess, re, hashlib
           from pathlib import Path
           version = re.search(r'(?ms)^\[workspace\.package\]\s*\n.*?^version\s*=\s*"([^"]+)"', Path('Cargo.toml').read_text())[1]
+          inventory = json.loads(Path('dist/bundle/inventory.json').read_bytes())
           for role in ['operator', 'admission', 'input', 'exporter', 'install', 'gateway', 'proxy']:
               actual = subprocess.check_output(['.local/release-native/linux/kimage-' + role, '--version'], text=True).strip()
-              assert actual == 'kimage-' + role + ' ' + version, actual
+              expected = inventory['components'][role]['version'] if role != 'install' else version
+              assert actual == 'kimage-' + role + ' ' + expected, actual
           digest = 'sha256:' + hashlib.sha256(Path('dist/bundle/inventory.json').read_bytes()).hexdigest()
           subprocess.run(['.local/release-native/linux/kimage-install', 'bundle-check', '--bundle', 'dist/bundle', '--trusted-inventory', digest], check=True)
           PY

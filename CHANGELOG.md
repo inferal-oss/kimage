@@ -15,6 +15,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
   quiet watches and long-lived exec/port-forward streams must not expire at that
   limit. A regression test covers a delayed watch event; native installation E2E
   checks that a fresh Image is reconciled after a quiet catalog interval.
+- Release bundle verification now checks gateway/proxy against their separate
+  serving version, allowing patch releases to retain serving compatibility.
 
 ### Added
 
