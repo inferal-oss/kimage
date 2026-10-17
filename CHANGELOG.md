@@ -13,6 +13,8 @@ commits and original release attribution. Uncommitted work is marked explicitly.
 
 ### Fixed
 
+- Frozen OCI capture keeps temporary verification files and staged layouts beneath one mount, avoiding Linux cross-mount hard-link failures. Implementation pending commit.
+
 - Input-capture failures retain error context in the bounded private build log while phase, public status and operator output keep stable reason codes. Implementation pending commit.
 
 - Native frozen-input acceptance stops promptly on terminal build failures, retains bounded failure status and can encrypt private build logs for an explicitly enabled diagnostic run. Implementation pending commit.

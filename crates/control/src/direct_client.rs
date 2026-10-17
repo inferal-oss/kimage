@@ -52,7 +52,6 @@ pub fn pod(image: &Image, config: &Config, settings: &Settings, record: &Record)
     ];
     if !record.session.image_inputs.is_empty() {
         volumes[0]["emptyDir"]["sizeLimit"] = json!("4Gi");
-        mounts.push(json!({"name":"snapshot","mountPath":"/tmp"}));
         volumes.push(json!({"name":"image-credentials","secret":{"secretName":format!("build-{}-image-credentials",&id[..20]),"defaultMode":292}}));
         mounts.push(
             json!({"name":"image-credentials","mountPath":"/image-credentials","readOnly":true}),
@@ -103,6 +102,9 @@ pub fn pod(image: &Image, config: &Config, settings: &Settings, record: &Record)
     prepare["runAsNonRoot"] = json!(false);
     let mut value = json!({"apiVersion":"v1","kind":"Pod","metadata":metadata,"spec":{"hostNetwork":false,"hostPID":false,"hostIPC":false,"nodeName":config.node,"automountServiceAccountToken":false,"restartPolicy":"Never","securityContext":{"seccompProfile":{"type":"RuntimeDefault"}},"initContainers":[{"name":"workspace","image":config.input_image,"imagePullPolicy":"IfNotPresent","command":["/kimage-input","prepare-build"],"securityContext":prepare,"resources":{"requests":{"cpu":"10m","memory":"16Mi"},"limits":{"cpu":"100m","memory":"64Mi"}},"volumeMounts":[{"name":"snapshot","mountPath":"/snapshot"},{"name":"sensitive","mountPath":"/sensitive"}]}],"containers":[{"name":"client","image":settings.builder_image,"imagePullPolicy":"IfNotPresent","command":["/snapshot/session","build-session"],"securityContext":secure,"resources":{"requests":{"cpu":"50m","memory":"64Mi"},"limits":{"cpu":"1","memory":"512Mi","ephemeral-storage":"2Gi"}},"readinessProbe":{"exec":{"command":["/snapshot/session","build-ready"]},"periodSeconds":2,"timeoutSeconds":2},"volumeMounts":mounts}],"volumes":volumes}});
     if !record.session.image_inputs.is_empty() {
+        // Linux refuses hard links across separate bind mounts of one volume.
+        // Stage and verify OCI content through the same /snapshot mount.
+        value["spec"]["containers"][0]["env"] = json!([{ "name":"TMPDIR", "value":"/snapshot" }]);
         value["spec"]["containers"][0]["resources"]["limits"]["ephemeral-storage"] = json!("4Gi");
     }
     Ok(value)
@@ -265,4 +267,56 @@ pub async fn exec(config: &Config, id: &str, args: Vec<String>) -> Result<Vec<u8
         "BuildClientCommandFailed"
     );
     Ok(bytes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[tokio::test]
+    async fn image_verification_and_staging_share_one_mount_and_legacy_sessions_stay_small() {
+        let client =
+            kube::Client::try_from(kube::Config::new("http://127.0.0.1:9".parse().unwrap()))
+                .unwrap();
+        let settings = Settings {
+            architecture: Some("arm64".into()),
+            system_namespace: "system".into(),
+            installation: "dev".into(),
+            builder_image: "builder@sha256:fixture".into(),
+        };
+        let config = Config {
+            scope: None,
+            direct: Some(settings.clone()),
+            client,
+            namespace: "apps".into(),
+            node: "arm-worker".into(),
+            input_image: "input@sha256:fixture".into(),
+            registry_origin: "https://registry.system.svc:5443/".parse().unwrap(),
+            registry_ca: "ca".into(),
+            publisher_password: "password".into(),
+            registry_pod: None,
+            cancel: tokio_util::sync::CancellationToken::new(),
+            concurrency: std::sync::Arc::new(tokio::sync::Semaphore::new(1)),
+        };
+        let image: Image = serde_json::from_value(json!({"apiVersion":"kimage.dev/v1alpha1","kind":"Image","metadata":{"name":"service","namespace":"apps","uid":"image-uid","generation":1},"spec":{"version":"1.0.0","source":{"build":{"format":"Containerfile","definition":{"inline":"FROM toolchain\n"},"imageInputs":[{"name":"toolchain","image":"platform://apps/base:1.0.0"}],"inputs":{"contextPath":"/workspace/context"},"execution":{"strategy":"Direct","builderRef":"default"}}}}})).unwrap();
+        let crate::api::Source::Build(build) = &image.spec.source else {
+            unreachable!()
+        };
+        let mut record: Record = serde_json::from_value(json!({"frozen":{"build":build,"references":[],"bindings":[]},"session":{"platform":{"os":"linux","architecture":"arm64"},"build":build,"endpoint":"tcp://dev-builder-arm64.system.svc:1234","tlsServerName":"dev-builder.system.svc","workerUid":"worker","snapshotId":"a".repeat(64),"namespace":"apps","registryOrigin":"https://registry.system.svc:5443/","imageInputs":[{"name":"toolchain","image":"platform://apps/base:1.0.0","namespace":"apps","imageUid":"base-uid","releaseUid":"release-uid","root":kimage_core::oci::descriptor(b"root",kimage_core::oci::MANIFEST)}]},"requestDigest":"request","generation":1})).unwrap();
+        let value = pod(&image, &config, &settings, &record).unwrap();
+        let container = &value["spec"]["containers"][0];
+        let mounts = container["volumeMounts"].as_array().unwrap();
+        let snapshot: Vec<_> = mounts.iter().filter(|m| m["name"] == "snapshot").collect();
+        assert_eq!(
+            snapshot.len(),
+            1,
+            "separate bind mounts break OCI hard links"
+        );
+        assert_eq!(container["env"][0]["value"], snapshot[0]["mountPath"]);
+        assert_eq!(container["env"][0]["name"], "TMPDIR");
+        assert_eq!(value["spec"]["volumes"][0]["emptyDir"]["sizeLimit"], "4Gi");
+        record.session.image_inputs.clear();
+        let value = pod(&image, &config, &settings, &record).unwrap();
+        assert!(value["spec"]["containers"][0].get("env").is_none());
+        assert_eq!(value["spec"]["volumes"][0]["emptyDir"]["sizeLimit"], "2Gi");
+    }
 }
