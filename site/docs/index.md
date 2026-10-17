@@ -250,7 +250,7 @@ definition:
     ENTRYPOINT ["/service"]
 ```
 
-Provision the compiler and all application dependencies first, for example Go's vendor directory. Existing `source.ociArchive` imports can publish approved external bases. kimage does not fetch upstream tags or recursively start dependency builds.
+Provision the compiler and all application dependencies first, for example Go's vendor directory. Existing `source.ociArchive` imports can publish approved external bases. kimage does not fetch upstream tags or recursively start dependency builds. Set `spec.platforms` explicitly on dependency Images, or use eager policy, to publish them first. Under default on-demand policy, an unused automatic dependency stays unbuilt; `imageInputs` does not create demand for it.
 
 The first attempt freezes dependency Image/release UIDs and complete OCI roots in an authenticated immutable per-version snapshot. Native children and later demand use that same root even after a dependency name is recreated. Prefer complete indexes before first use. If the root lacks a later platform, `ImageInputPlatformUnavailable` requires a complete base and a new consuming version. Base updates never replace a published consumer release.
 

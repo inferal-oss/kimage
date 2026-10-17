@@ -55,7 +55,7 @@ class Boundaries(unittest.TestCase):
                 self.assertEqual({k:v for k,v in values.items() if k!='images'},original)
                 self.assertEqual(values['images'],dict(repository=fixture.target['repository'],digests={r:e['digest'] for r,e in fixture.target['components'].items()}))
                 calls.append('install')
-            fixture.run_command=command;fixture.assert_images=lambda version,catalog:calls.append((version,catalog));fixture.install_current()
+            fixture.common=lambda:[];fixture.run_command=command;fixture.assert_images=lambda version,catalog:calls.append((version,catalog));fixture.install_current()
             self.assertEqual(path.read_bytes(),before);self.assertEqual(calls,['install',('0.6.0',fixture.target)])
 
     def test_published_predecessor_is_drained_before_helm_can_delete_workers(self):

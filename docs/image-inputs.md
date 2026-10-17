@@ -15,6 +15,11 @@ prepare approved OCI archives and publish them through the existing
 image must support both architectures. This feature does not fetch arbitrary
 upstream image tags or start dependency builds.
 
+List `spec.platforms` explicitly on dependency Images, or use the administrator's
+`Eager` policy, to publish them before a consumer build. Under the default
+`OnDemand` policy, an unused automatic dependency stays unbuilt; declaring
+`imageInputs` does not create demand for it.
+
 ```yaml
 apiVersion: kimage.dev/v1alpha1
 kind: Image

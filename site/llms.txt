@@ -305,7 +305,9 @@ namespace, exact published versions only. Ranges, channels and ordinary registry
 refs are denied. Explicit equality ?version==1.0.0 works; bare ?version=1.0.0
 is a SemVer range and is refused. Provision upstream OCI archives with the
 existing source.ociArchive import first; this does not download upstream tags
-or recursively build dependencies.
+or recursively build dependencies. List spec.platforms explicitly on dependency
+Images, or use administrator Eager policy, to publish them first. OnDemand does
+not build unused automatic dependencies, and imageInputs creates no demand for them.
 The first attempt freezes dependency Image/release UIDs and complete OCI roots
 in an authenticated immutable per-Image-version snapshot shared by native
 children. Prefer an already complete index. Later arm64 demand uses that same
