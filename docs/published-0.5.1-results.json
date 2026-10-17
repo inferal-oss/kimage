@@ -1,0 +1,452 @@
+{
+  "schema": 1,
+  "date": "2026-10-16",
+  "verifiedAt": "2026-10-17T03:45:49.239563+00:00",
+  "testedPackageVersion": "0.5.1",
+  "tagCommit": "ed016cb624ea61b053276db16a5b677f752531ee",
+  "releaseWorkflow": "https://github.com/inferal-oss/kimage/actions/runs/38997480329",
+  "previewWorkflow": "https://github.com/inferal-oss/kimage/actions/runs/38995415284",
+  "initialPagesWorkflow": "https://github.com/inferal-oss/kimage/actions/runs/38999535750",
+  "test": "published-artifacts-cargo-cli-and-public-chart-argocd",
+  "note": "Checks run after actual crates.io/GitHub/GHCR publication. All ten public GitHub assets match the reviewed exact-tag preview, both Cargo archives match clean-tag package checksums, and all eight multi-platform indexes are anonymously accessible. The public chart uses its own built-in image pins, without image overrides or source checkout. Existing real Argo CD v3.5.3 and a four-node RKE2 cluster (three amd64, one arm64) execute fresh native placement cases. The Cargo-installed CLI performs final runtime removal. All retained data remains; no permanent default runtime was installed. Initial live-site hashes describe the first published deployment, before this receipt was added. Build receipt copies omit consumer node names.",
+  "componentImages": {
+    "apiSchemaRevision": 5,
+    "components": {
+      "admission": {
+        "digest": "sha256:87b8cce219796b5b1260af0b51f8d7eda13211268914cce28340b33a4820369c",
+        "platforms": [
+          {
+            "architecture": "amd64",
+            "os": "linux"
+          },
+          {
+            "architecture": "arm64",
+            "os": "linux"
+          }
+        ],
+        "version": "0.5.1"
+      },
+      "builder": {
+        "digest": "sha256:b8cb326e672ca4e14ebecaf43e7d5a77d2c714937980507ff7042311d95af167",
+        "platforms": [
+          {
+            "architecture": "amd64",
+            "os": "linux"
+          },
+          {
+            "architecture": "arm64",
+            "os": "linux"
+          }
+        ],
+        "version": "0.33.0"
+      },
+      "exporter": {
+        "digest": "sha256:e0a2e7897d4acb2b774d458b47b18bdeaa2681efd81a4485c6960d82c82608ab",
+        "platforms": [
+          {
+            "architecture": "amd64",
+            "os": "linux"
+          },
+          {
+            "architecture": "arm64",
+            "os": "linux"
+          }
+        ],
+        "version": "0.5.1"
+      },
+      "gateway": {
+        "digest": "sha256:2c0a39ea13b9ac27abfb8d1749a366663816bc30e16d0f51027994ec4c00b055",
+        "platforms": [
+          {
+            "architecture": "amd64",
+            "os": "linux"
+          },
+          {
+            "architecture": "arm64",
+            "os": "linux"
+          }
+        ],
+        "version": "0.3.0"
+      },
+      "input": {
+        "digest": "sha256:3389796d32586b2e93fdd29e895d9185ebd37c329ae4dd5bf6ce9ed66213e940",
+        "platforms": [
+          {
+            "architecture": "amd64",
+            "os": "linux"
+          },
+          {
+            "architecture": "arm64",
+            "os": "linux"
+          }
+        ],
+        "version": "0.5.1"
+      },
+      "operator": {
+        "digest": "sha256:8c3031d19c912072fdc70b3108db7732c07c067f04521995ccf1011c0b5c2eb4",
+        "platforms": [
+          {
+            "architecture": "amd64",
+            "os": "linux"
+          },
+          {
+            "architecture": "arm64",
+            "os": "linux"
+          }
+        ],
+        "version": "0.5.1"
+      },
+      "proxy": {
+        "digest": "sha256:798c37da9bd092d56a58cc6ae88d24316c20e185af5ac9314d5ed4904ae72914",
+        "platforms": [
+          {
+            "architecture": "amd64",
+            "os": "linux"
+          },
+          {
+            "architecture": "arm64",
+            "os": "linux"
+          }
+        ],
+        "version": "0.3.0"
+      },
+      "registry": {
+        "digest": "sha256:66e3f381c96b77f16d6ba07f0fdb9c5e745a93ede2948b6c0b603eb753df27cf",
+        "platforms": [
+          {
+            "architecture": "amd64",
+            "os": "linux"
+          },
+          {
+            "architecture": "arm64",
+            "os": "linux"
+          }
+        ],
+        "version": "3.1.2"
+      }
+    },
+    "release": "0.5.1",
+    "repository": "ghcr.io/inferal-oss/kimage",
+    "schema": 1
+  },
+  "publicationVerification": {
+    "schema": 1,
+    "release": "0.5.1",
+    "tagCommit": "ed016cb624ea61b053276db16a5b677f752531ee",
+    "releaseUrl": "https://github.com/inferal-oss/kimage/releases/tag/v0.5.1",
+    "assets": [
+      {
+        "name": "component-images.json",
+        "size": 1735,
+        "sha256": "0ddf2093056b904ad41fab59a9f6d0e3141d646ebec23d530d70ae22ebe7fa51"
+      },
+      {
+        "name": "kimage-0.5.1.tgz",
+        "size": 20264,
+        "sha256": "af478871e5c7cfe15bd34a27fc3fd30fad7876efe6dd6f9d96e045d4ef59e1bf"
+      },
+      {
+        "name": "kimage-v0.5.1-darwin-amd64",
+        "size": 11626160,
+        "sha256": "78c87b24f02e20ba61e223efd017876413d5d17b81d58354ace906db60c0811a"
+      },
+      {
+        "name": "kimage-v0.5.1-darwin-arm64",
+        "size": 9964656,
+        "sha256": "630a9a05ae2dcc89dde2fba9c0effd95c3357ef988b1a911b79cea48da7d74a4"
+      },
+      {
+        "name": "kimage-v0.5.1-linux-amd64",
+        "size": 11988240,
+        "sha256": "7801e04cb112a505aeeeb13c9d312f54d8beb7b1619fd5227b938a5f47b6130e"
+      },
+      {
+        "name": "kimage-v0.5.1-linux-arm64",
+        "size": 9190096,
+        "sha256": "e24dbfe0b8d7b6522070b2545f40723712f3010d157ccf5e577c2bf04dcc2e3f"
+      },
+      {
+        "name": "LICENSE",
+        "size": 11358,
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      },
+      {
+        "name": "release-compatibility.json",
+        "size": 906,
+        "sha256": "54ace42c42899a535406008b53c2648ceff352045494d244f7c9b2b23dac7696"
+      },
+      {
+        "name": "SHA256SUMS",
+        "size": 798,
+        "sha256": "169c93898678f4f89382f9f72996338a20c333a2d8a4339acdb22f0b08ca630a"
+      },
+      {
+        "name": "THIRD-PARTY-NOTICES.txt",
+        "size": 2974418,
+        "sha256": "cc02b618925aa5465b81a9b1802d81db650e152fe3ec182d451696a6fee031b8"
+      }
+    ],
+    "crates": [
+      {
+        "name": "kimage-core",
+        "version": "0.5.1",
+        "sha256": "aa9b9916276b5514f36b07ef4477f6ac68287e4b48fa209da347b7ee0450721f",
+        "size": 33120
+      },
+      {
+        "name": "kimage-control",
+        "version": "0.5.1",
+        "sha256": "d8cae89ba1123a2604add968f63311b97031d711abf8f9cef2feb3f13c99bda9",
+        "size": 288237
+      }
+    ],
+    "anonymousComponentIndexes": 8,
+    "complete": true
+  },
+  "cargoInstalledCLI": {
+    "kimage": "kimage 0.5.1",
+    "kimage-install": "kimage-install 0.5.1"
+  },
+  "automaticCatalogResolution": {
+    "schema": 1,
+    "release": "0.5.1",
+    "anonymous": true,
+    "localCatalogOverride": false,
+    "defaultRelease": true,
+    "outcome": "Official digest-verified catalog resolved before deliberate invalid-identity refusal",
+    "resourcesApplied": false,
+    "complete": true
+  },
+  "initialLiveSite": {
+    "schema": 1,
+    "release": "0.5.1",
+    "verifiedAt": "2026-10-17T03:39:39.503574+00:00",
+    "helmChartVersions": [
+      "0.4.0",
+      "0.4.1",
+      "0.5.0",
+      "0.5.1"
+    ],
+    "chartSha256": "af478871e5c7cfe15bd34a27fc3fd30fad7876efe6dd6f9d96e045d4ef59e1bf",
+    "files": [
+      {
+        "url": "https://kimage.dev/charts/index.yaml",
+        "size": 2386,
+        "sha256": "b7890e0f2e52db6d2513e3a88164623572624ce10c44d84894ebaa8caefb2d1d"
+      },
+      {
+        "url": "https://kimage.dev/charts/kimage-0.5.1.tgz",
+        "size": 20264,
+        "sha256": "af478871e5c7cfe15bd34a27fc3fd30fad7876efe6dd6f9d96e045d4ef59e1bf"
+      },
+      {
+        "url": "https://kimage.dev/docs/",
+        "size": 78588,
+        "sha256": "293c52aba2ca067b2da3a183f42796d793b0903aec7037b4668bf2c0329916f1"
+      },
+      {
+        "url": "https://kimage.dev/llms.txt",
+        "size": 30743,
+        "sha256": "fe3f0bc0b7f13730d9dea8888f267e319d91de315c1c62ae4bff6021a9cea0e0"
+      },
+      {
+        "url": "https://kimage.dev/docs/index.md",
+        "size": 53416,
+        "sha256": "ca8fd98d9210bafd1a71c20fd9a2240a3612e6976e16d43b96035176ad291df1"
+      },
+      {
+        "url": "https://kimage.dev/",
+        "size": 19178,
+        "sha256": "3a31b7f03733af4d6cbbfd17f89dbf07854ab5c7aa5f9b21f3eac9c65e138d88"
+      }
+    ],
+    "complete": true
+  },
+  "publicChartArgo": {
+    "schema": 1,
+    "test": "argocd-installation",
+    "release": "0.5.1",
+    "scope": "namespace",
+    "checks": [
+      "fresh install resumes after provisioner interruption and becomes Healthy/Synced",
+      "repeated sync preserves credential bytes/UIDs, registry claim and installation identity",
+      "actual Argo pruning removes an extraneous tracked fixture while retaining runtime data",
+      "Argo self-heal and isolated runtime controller restart preserve installation",
+      "null policy values preserve administrator configuration bytes",
+      "external credential Secret reference is resolved in cluster without material in desired state",
+      "fresh unknown and explicit placement cases build and execute only requested native platforms",
+      "unsupported runtime target is refused without changing credentials, data or installed version",
+      "after-application-removal: complete retained OCI graphs verified through authenticated TLS, sizes, SHA-256 and DiffIDs",
+      "Application cascade leaves runtime, registry data, credentials and release UIDs intact",
+      "after-application-reinstall: complete retained OCI graphs verified through authenticated TLS, sizes, SHA-256 and DiffIDs",
+      "Application reinstall resumes the retained installation with unchanged release and storage identities",
+      "explicit runtime uninstall after Application removal preserves registry claim and releases"
+    ],
+    "complete": true,
+    "harnessSha256": "sha256:6382e3da2cc162f1f2779a4ab443678ac97d00fac5961938bddeeb0a6e5f7f6e",
+    "imageAssertionsSha256": "sha256:70e0c608abdf7df3529d01b24f57cc94fad310d717cf74f6eab838c1739e4c6e",
+    "catalogSha256": "sha256:0ddf2093056b904ad41fab59a9f6d0e3141d646ebec23d530d70ae22ebe7fa51",
+    "source": {
+      "repoURL": "https://kimage.dev/charts",
+      "targetRevision": "0.5.1"
+    },
+    "nativeComponents": [
+      {
+        "release": "0.5.1",
+        "identities": [
+          {
+            "role": "admission",
+            "architecture": "amd64",
+            "container": "admission",
+            "imageId": "ghcr.io/inferal-oss/kimage/admission@sha256:87b8cce219796b5b1260af0b51f8d7eda13211268914cce28340b33a4820369c"
+          },
+          {
+            "role": "builder",
+            "architecture": "amd64",
+            "container": "builder",
+            "imageId": "ghcr.io/inferal-oss/kimage/builder@sha256:b8cb326e672ca4e14ebecaf43e7d5a77d2c714937980507ff7042311d95af167"
+          },
+          {
+            "role": "builder",
+            "architecture": "arm64",
+            "container": "builder",
+            "imageId": "ghcr.io/inferal-oss/kimage/builder@sha256:b8cb326e672ca4e14ebecaf43e7d5a77d2c714937980507ff7042311d95af167"
+          },
+          {
+            "role": "node-proxy",
+            "architecture": "amd64",
+            "container": "proxy",
+            "imageId": "ghcr.io/inferal-oss/kimage/proxy@sha256:798c37da9bd092d56a58cc6ae88d24316c20e185af5ac9314d5ed4904ae72914"
+          },
+          {
+            "role": "node-proxy",
+            "architecture": "arm64",
+            "container": "proxy",
+            "imageId": "ghcr.io/inferal-oss/kimage/proxy@sha256:798c37da9bd092d56a58cc6ae88d24316c20e185af5ac9314d5ed4904ae72914"
+          },
+          {
+            "role": "node-proxy",
+            "architecture": "amd64",
+            "container": "proxy",
+            "imageId": "ghcr.io/inferal-oss/kimage/proxy@sha256:798c37da9bd092d56a58cc6ae88d24316c20e185af5ac9314d5ed4904ae72914"
+          },
+          {
+            "role": "node-proxy",
+            "architecture": "amd64",
+            "container": "proxy",
+            "imageId": "ghcr.io/inferal-oss/kimage/proxy@sha256:798c37da9bd092d56a58cc6ae88d24316c20e185af5ac9314d5ed4904ae72914"
+          },
+          {
+            "role": "operator",
+            "architecture": "amd64",
+            "container": "operator",
+            "imageId": "ghcr.io/inferal-oss/kimage/operator@sha256:8c3031d19c912072fdc70b3108db7732c07c067f04521995ccf1011c0b5c2eb4"
+          },
+          {
+            "role": "registry",
+            "architecture": "amd64",
+            "container": "gateway",
+            "imageId": "ghcr.io/inferal-oss/kimage/gateway@sha256:2c0a39ea13b9ac27abfb8d1749a366663816bc30e16d0f51027994ec4c00b055"
+          },
+          {
+            "role": "registry",
+            "architecture": "amd64",
+            "container": "registry",
+            "imageId": "ghcr.io/inferal-oss/kimage/registry@sha256:66e3f381c96b77f16d6ba07f0fdb9c5e745a93ede2948b6c0b603eb753df27cf"
+          }
+        ]
+      }
+    ],
+    "registryReadback": [
+      {
+        "stage": "after-application-removal",
+        "complete": true,
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "verification": "authenticated TLS full OCI graph, descriptor sizes, SHA-256 and DiffIDs",
+        "verifiedReleases": 9
+      },
+      {
+        "stage": "after-application-reinstall",
+        "complete": true,
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "verification": "authenticated TLS full OCI graph, descriptor sizes, SHA-256 and DiffIDs",
+        "verifiedReleases": 9
+      }
+    ],
+    "retainedBeforeUninstall": {
+      "pvcUid": "544a0414-cff6-4377-856e-7506cc2804cf",
+      "releases": {
+        "release-25fb5e5a8e3a7e4d8bef984410a6c081b32e26ce": "d1a946ff-3f91-47b2-941b-72c7b92e2ea0",
+        "release-5c46a70c725624bb658b15f2bfca0f5c5d603079": "8bf8e1fd-0ebd-4d35-992d-e2fcb498fb0a",
+        "release-5ed514515845d96294f02acfb332ad18c8ee6767": "6444d593-26db-4c02-ab99-2b4573790ab9",
+        "release-6b10437a0670bbb9caa092311d176a7c88e7c242": "d8fb95b2-c131-4e3d-a30b-d76fc862c03d",
+        "release-860cecd16197025345c296f2f943977363badec4": "c4fe6e99-251f-41c0-aa05-c79c7d79974d",
+        "release-a67a202b63d6a6678ea1e81b293294c5f7efcc58": "449c751e-9099-4262-876a-99b27aab4c53",
+        "release-c8efbed72f78035d960c0658ec902093b8c78239": "fd4fd896-be12-420c-9e08-f2fe5fbc223d",
+        "release-e38ccab34af823570a8f76ae68185b1b1e6da6c1": "56abc8f5-c137-4e2c-95a4-8ee4dd6de622",
+        "release-f34232a6a8123e154190afb8afa9702959f5553c": "e6cd2ec8-892f-4357-a867-86f46cce6fbb"
+      }
+    },
+    "cleanupComplete": true,
+    "retainedNamespaces": [
+      "kimage-051-argo-public-app",
+      "kimage-051-argo-public-system"
+    ],
+    "nativeBuilds": {
+      "sourceReceiptSha256": "sha256:423feae06af08632420aa3a90345daa7be6507b743d8a9c634e7cc890d4d7dfb",
+      "complete": true,
+      "cases": [
+        {
+          "placement": "unknown",
+          "image": "mixed-e2e-2d94836bd3f8-unknown",
+          "imageUid": "f21d5bc4-99d1-4cf1-8943-34265adef286",
+          "platforms": [
+            "amd64",
+            "arm64"
+          ],
+          "root": "sha256:7f9295031ee6f8f618f4ec0c9c4233acf71cc5b521d247b855640c992df21fed",
+          "mediaType": "application/vnd.oci.image.index.v1+json",
+          "childUids": [
+            "cbbb23d3-1b6e-4414-9e87-c3b154809388",
+            "e5206935-1592-4fdf-b1b8-c77c4730bd3b"
+          ]
+        },
+        {
+          "placement": "amd64",
+          "image": "mixed-e2e-2d94836bd3f8-amd64",
+          "imageUid": "322133ad-3bb3-488e-8ed9-4ddf4ed379eb",
+          "platforms": [
+            "amd64"
+          ],
+          "root": "sha256:51d27668f7d16681e663b4417ddeebfc4f51e681c109406c23ec3c35945b17ad",
+          "mediaType": "application/vnd.oci.image.manifest.v1+json",
+          "childUids": [
+            "4f1977c8-71ce-4de7-a095-64ab52d6b231"
+          ]
+        },
+        {
+          "placement": "arm64",
+          "image": "mixed-e2e-2d94836bd3f8-arm64",
+          "imageUid": "27ae0ee6-9325-4b7a-99fc-afd70b6b07b0",
+          "platforms": [
+            "arm64"
+          ],
+          "root": "sha256:3d5cdacfc0190535264d32ea8efc372e3b162536a6507c04789cd4aeb0a9eac5",
+          "mediaType": "application/vnd.oci.image.manifest.v1+json",
+          "childUids": [
+            "3c601e09-cf86-4d10-bd68-cf0c5f8cc436"
+          ]
+        }
+      ]
+    },
+    "sourceReceiptSha256": "sha256:a7bde81dac70469a47a9a26904fe13ec64524b63196d4b2a15100ecb5b12cd64",
+    "imageOverrides": false
+  },
+  "complete": true
+}

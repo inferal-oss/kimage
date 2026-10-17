@@ -402,6 +402,11 @@ native GHCR pulls, reversible node changes and full retained OCI graph readback
 after removal/reinstall. Earlier unsuccessful attempts and the complete repeat
 are retained in the receipt:
 https://github.com/inferal-oss/kimage/blob/main/docs/mixed-0.5.1-results.json
+Published-artifact acceptance also verifies actual Cargo installation, anonymous
+automatic catalog resolution, all public assets and the live Helm repository.
+Real Argo CD v3.5.3 installs the public chart with its own pins (no image overrides),
+builds native outputs and preserves data through removal/reinstall:
+https://github.com/inferal-oss/kimage/blob/main/docs/published-0.5.1-results.json
 
 0.5.0 acceptance: eight native CLI/Helm × namespace/cluster × amd64/arm64 cases
 and two real mixed-cluster CLI/Helm round trips from actual published 0.4.1 to

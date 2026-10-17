@@ -451,6 +451,10 @@ CLI/Helm 0.5.0 → 0.5.1 → 0.5.0 and both Argo CD installation scopes,
 including interrupted chart upgrades/downgrades, fresh native placement cases,
 node changes and complete retained-image readback after removal/reinstall.
 It preserves earlier unsuccessful attempts and the subsequent complete repeat.
+The [published 0.5.1 receipt](docs/published-0.5.1-results.json) independently
+verifies Cargo installation, automatic catalog fetching, public assets and the
+live Helm repository. Its real Argo CD test uses the public chart's built-in
+pins and confirms native builds and retained data after removal/reinstall.
 The [0.5.0 native lifecycle record](docs/native-upgrade-results.json) adds actual
 published 0.4.1 → 0.5.0 → 0.4.1 transitions in all eight cases, with interrupted
 upgrade/rollback, private failed-build logs and complete retained-image readback.

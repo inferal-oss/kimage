@@ -131,3 +131,8 @@ The 0.5.1 [native acceptance receipt](native-0.5.1-results.json) and
 [real mixed-cluster receipt](mixed-0.5.1-results.json) record the completed
 checks and their exact catalogs. Historical attempts remain distinct from the
 subsequent complete repeat.
+
+The [published 0.5.1 acceptance receipt](published-0.5.1-results.json) also
+verifies the live Helm repository with existing Argo CD v3.5.3, the chart's own
+image pins and the actual Cargo-installed CLI, including retained data through
+Application removal/reinstall and explicit runtime uninstall.

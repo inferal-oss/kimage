@@ -1206,6 +1206,12 @@ python3 scripts/check-site.py</code></pre>
               graph readback after removal/reinstall. Earlier unsuccessful attempts and
               the subsequent complete repeat remain recorded.
             </p>
+            <p>The <a href="https://github.com/inferal-oss/kimage/blob/main/docs/published-0.5.1-results.json">published 0.5.1 acceptance receipt</a>
+              verifies Cargo installation, automatic catalog fetching, public assets
+              and the live Helm repository. A real Argo CD v3.5.3 test uses the
+              published chart's own image pins, without image overrides, and confirms
+              native builds and retained data after removal/reinstall.
+            </p>
             <p>The <a href="https://github.com/inferal-oss/kimage/blob/main/docs/native-upgrade-results.json">0.5.0 native lifecycle matrix</a>
               covers published 0.4.1 → 0.5.0 → 0.4.1 with CLI and Helm, both scopes and architectures.
               Interrupted upgrades and rollbacks resume, private failed-build output survives client cleanup,

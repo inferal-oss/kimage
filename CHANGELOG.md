@@ -18,6 +18,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ### Changed
 
+- Verified the published Cargo CLI and public Helm repository through real Argo CD with the chart's built-in pins, native amd64/arm64 builds and retained data after removal/reinstall. The [published-artifact receipt](https://github.com/inferal-oss/kimage/blob/main/docs/published-0.5.1-results.json) also checks automatic catalog fetching, public asset checksums and anonymous component access.
 - Recorded [native acceptance](https://github.com/inferal-oss/kimage/blob/main/docs/native-0.5.1-results.json) and [real mixed-cluster acceptance](https://github.com/inferal-oss/kimage/blob/main/docs/mixed-0.5.1-results.json), including both Argo CD scopes, interrupted chart-version upgrades/downgrades, native placement and retained-data readback. Earlier attempts remain recorded alongside the complete repeat.
 - CLI and Helm transition acceptance now targets published 0.5.0 to 0.5.1 and back. Published 0.5.0 resource templates are frozen for rollback; historical acceptance evidence remains unchanged.
 
