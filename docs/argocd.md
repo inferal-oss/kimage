@@ -194,3 +194,8 @@ intend to discard that installation's data.
 
 For explicit existing-cluster testing and version-transition fixtures, see
 [Argo CD acceptance](argocd-e2e.md).
+
+The 0.5.1 [native acceptance receipt](native-0.5.1-results.json) and
+[real mixed-cluster receipt](mixed-0.5.1-results.json) record the completed
+checks and their exact catalogs. Historical attempts remain distinct from the
+subsequent complete repeat.

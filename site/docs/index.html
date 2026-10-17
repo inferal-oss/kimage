@@ -697,11 +697,10 @@ exports:
                   <td>
                     RKE2 <code>v1.36.5+rke2r1</code>; containerd
                     <code>2.3.4-k3s1</code>. Native amd64/arm64 placement,
-                    builds and pulls, plus CLI and Helm 0.4.1 → 0.5.0 → 0.4.1
-                    upgrades, interrupted resume, node eligibility/worker changes
-                    and retained-image recovery. Select the default
-                    <code>inferal</code> profile. See the
-                    <a href="https://github.com/inferal-oss/kimage/blob/main/docs/mixed-upgrade-results.json">0.5.0 receipt</a>.
+                    builds and pulls, plus 0.5.1 CLI/Helm and Argo CD upgrade,
+                    downgrade, interruption, node-change and retention acceptance.
+                    Select the default <code>inferal</code> profile. See the
+                    <a href="https://github.com/inferal-oss/kimage/blob/main/docs/mixed-0.5.1-results.json">0.5.1 receipt</a>.
                   </td>
                 </tr>
                 <tr>
@@ -1199,6 +1198,13 @@ python3 scripts/check-site.py</code></pre>
               plus four actual Argo CD cases. Argo changes chart versions from 0.5.1 to a
               separate future-version conformance fixture and back, including interrupted
               provisioner and downgrade-helper recovery. The fixture is not a public release.
+            </p>
+            <p>The <a href="https://github.com/inferal-oss/kimage/blob/main/docs/mixed-0.5.1-results.json">0.5.1 real mixed-cluster acceptance</a>
+              covers CLI/Helm 0.5.0 → 0.5.1 → 0.5.0 and both Argo CD scopes.
+              Checks include interrupted chart upgrades/downgrades, native GHCR pulls,
+              fresh unknown/explicit placement builds, node changes and complete OCI
+              graph readback after removal/reinstall. Earlier unsuccessful attempts and
+              the subsequent complete repeat remain recorded.
             </p>
             <p>The <a href="https://github.com/inferal-oss/kimage/blob/main/docs/native-upgrade-results.json">0.5.0 native lifecycle matrix</a>
               covers published 0.4.1 → 0.5.0 → 0.4.1 with CLI and Helm, both scopes and architectures.

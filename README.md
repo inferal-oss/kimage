@@ -403,7 +403,8 @@ with Basic authentication or explicit anonymous access; Bearer/token-helper
 authentication is not implemented.
 
 Whole-installation upgrades support **0.5.0 ↔ 0.5.1** through the guarded CLI,
-including Helm installations. The earlier serving-only acceptance covered Distribution **3.1.1 ↔ 3.1.2** and
+including Helm installations. Argo CD chart-version transitions start at 0.5.1
+and require an explicitly supported compatibility edge. The earlier serving-only acceptance covered Distribution **3.1.1 ↔ 3.1.2** and
 gateway/proxy **0.1.0 / 0.2.0 / 0.3.0** (cluster scope requires 0.3.0) with the documented filesystem storage profile.
 High availability, arbitrary storage/schema migrations, hostile-tenant isolation,
 signing/attestations, and automatic retained-artifact
@@ -445,6 +446,11 @@ published 0.5.0 → 0.5.1 → 0.5.0 with CLI and Helm in all eight cases,
 plus four actual Argo CD cases. Argo changes chart versions from 0.5.1 to a
 separate future-version conformance fixture and back, including interrupted
 provisioner and downgrade-helper recovery. The fixture is not a public release.
+The [0.5.1 real mixed-cluster record](docs/mixed-0.5.1-results.json) covers
+CLI/Helm 0.5.0 → 0.5.1 → 0.5.0 and both Argo CD installation scopes,
+including interrupted chart upgrades/downgrades, fresh native placement cases,
+node changes and complete retained-image readback after removal/reinstall.
+It preserves earlier unsuccessful attempts and the subsequent complete repeat.
 The [0.5.0 native lifecycle record](docs/native-upgrade-results.json) adds actual
 published 0.4.1 → 0.5.0 → 0.4.1 transitions in all eight cases, with interrupted
 upgrade/rollback, private failed-build logs and complete retained-image readback.

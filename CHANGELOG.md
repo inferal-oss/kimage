@@ -18,6 +18,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ### Changed
 
+- Recorded [native acceptance](https://github.com/inferal-oss/kimage/blob/main/docs/native-0.5.1-results.json) and [real mixed-cluster acceptance](https://github.com/inferal-oss/kimage/blob/main/docs/mixed-0.5.1-results.json), including both Argo CD scopes, interrupted chart-version upgrades/downgrades, native placement and retained-data readback. Earlier attempts remain recorded alongside the complete repeat.
 - CLI and Helm transition acceptance now targets published 0.5.0 to 0.5.1 and back. Published 0.5.0 resource templates are frozen for rollback; historical acceptance evidence remains unchanged.
 
 ### Fixed

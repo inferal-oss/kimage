@@ -1,5 +1,15 @@
 # Clean implementation acceptance ledger
 
+2026-10-16, 0.5.1: [native acceptance](native-0.5.1-results.json) and
+[real mixed-cluster acceptance](mixed-0.5.1-results.json) cover CLI/Helm
+published 0.5.0 → 0.5.1 → 0.5.0, plus actual Argo CD in both scopes.
+Argo changes chart versions through a separate future-version conformance
+fixture and back, recovering interrupted provisioners and newer downgrade helpers.
+Mixed checks include fresh placement cases, native GHCR pulls, reversible node
+changes, retained identities and complete OCI graph readback through removal and
+reinstallation. Earlier unsuccessful attempts and the full repeat remain recorded;
+historical release receipts below are unchanged.
+
 2026-10-16, 0.5.0: [eight native cases](native-upgrade-results.json) and
 [real mixed-cluster CLI and Helm cases](mixed-upgrade-results.json) passed the
 actual published 0.4.1 → 0.5.0 → 0.4.1 round trip. Evidence covers interrupted

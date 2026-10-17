@@ -265,11 +265,13 @@ class Argo:
             require(arches<=mixed.ARCHITECTURES and arches,'Supported native architectures required')
             require(not self.config.get('nodeChanges') or arches=={'amd64','arm64'},'Node-change acceptance requires a real mixed cluster')
             self.prepare_namespaces()
-            values=dict(installation=self.id,scope=self.config['scope'],port=self.config['port'],runtimeProfile=self.config['runtimeProfile'],registryNode=self.config['registryNode'],persistence=dict(storageClass='local-path'),gitops=dict(enabled=True),images=dict(repository=self.catalog['repository'],digests={k:v['digest'] for k,v in self.catalog['components'].items()}))
+            values=dict(installation=self.id,scope=self.config['scope'],port=self.config['port'],runtimeProfile=self.config['runtimeProfile'],registryNode=self.config['registryNode'],persistence=dict(storageClass='local-path'),gitops=dict(enabled=True))
             if self.config['scope']=='namespace':values['applicationNamespace']=self.app
             else:values['excludedNamespaces']=sorted(n['metadata']['name'] for n in self.api.get('namespaces')['items'] if n['metadata']['name'] not in (self.app,self.system) and not n['metadata']['name'].startswith('kube-'))
             source=dict(helm=dict(releaseName=self.id,valuesObject=values))
-            if self.config.get('sourceRevision'):source.update(repoURL='https://github.com/inferal-oss/kimage.git',path='charts/kimage',targetRevision=self.config['sourceRevision'])
+            if self.config.get('sourceRevision'):
+                values['images']=dict(repository=self.catalog['repository'],digests={k:v['digest'] for k,v in self.catalog['components'].items()})
+                source.update(repoURL='https://github.com/inferal-oss/kimage.git',path='charts/kimage',targetRevision=self.config['sourceRevision'])
             else:source.update(repoURL=self.config['chartRepository'],chart='kimage',targetRevision='0.5.1')
             self.application=dict(apiVersion='argoproj.io/v1alpha1',kind='Application',metadata=dict(name=self.id,namespace='argocd',finalizers=['resources-finalizer.argocd.argoproj.io']),spec=dict(project='default',source=source,destination=dict(server='https://kubernetes.default.svc',namespace=self.system),syncPolicy=dict(automated=dict(prune=True,selfHeal=True),syncOptions=['CreateNamespace=true'])))
             self.report['source']=dict(repoURL=source['repoURL'],targetRevision=source['targetRevision'])

@@ -1,6 +1,14 @@
 # Original brief acceptance audit
 
-Current 0.5.0 installation lifecycle evidence is separate from this original
+Current 0.5.1 evidence is recorded separately in the
+[native acceptance](native-0.5.1-results.json) and
+[real mixed-cluster acceptance](mixed-0.5.1-results.json) receipts. These cover
+CLI/Helm 0.5.0 → 0.5.1 → 0.5.0 and actual Argo CD in both scopes, including
+interrupted chart upgrades/downgrades, native placement, node changes and retained
+OCI graph readback. Earlier unsuccessful attempts remain recorded alongside the
+complete repeat; the original brief evidence below retains its historical scope.
+
+Earlier 0.5.0 installation lifecycle evidence is separate from this original
 brief audit: [native eight-case acceptance](native-upgrade-results.json) and
 [real mixed-cluster CLI/Helm acceptance](mixed-upgrade-results.json) cover actual
 published 0.4.1 → 0.5.0 → 0.4.1, interruption/resume, native image pulls/builds,

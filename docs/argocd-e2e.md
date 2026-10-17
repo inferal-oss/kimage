@@ -81,7 +81,9 @@ and replace `sourceRevision` with:
 ```
 
 That path selects the exact public 0.5.1 chart. It repeats installation,
-reconciliation, native demand/build/pull, refusal and retention checks.
+reconciliation, native demand/build/pull, refusal and retention checks. It uses
+the published chart's own image pins without image overrides, then compares
+actual native component identities against the independently verified catalog.
 
 ## Results and cleanup
 
@@ -124,3 +126,8 @@ This option refuses replaced namespaces/claims, an existing installation record
 or active owned runtime resources. It preserves the previous receipt and retained
 data; every image placement case still creates a fresh Image UID. Ordinary runs
 continue to require fresh namespaces.
+
+The 0.5.1 [native acceptance receipt](native-0.5.1-results.json) and
+[real mixed-cluster receipt](mixed-0.5.1-results.json) record the completed
+checks and their exact catalogs. Historical attempts remain distinct from the
+subsequent complete repeat.
