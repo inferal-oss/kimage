@@ -58,7 +58,10 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: e2e-${{ matrix.target }}-1.99.0-${{ hashFiles('Cargo.lock') }}
+          key: e2e-${{ matrix.target }}-1.99.0-${{ hashFiles('Cargo.lock') }}-${{ hashFiles('crates/**/src/**', 'scripts/prepare-argocd-next.py') }}
+          restore-keys: |
+            e2e-${{ matrix.target }}-1.99.0-${{ hashFiles('Cargo.lock') }}-
+            e2e-${{ matrix.target }}-1.99.0-${{ hashFiles('Cargo.lock') }}
       - name: Build native components and fixture executable
         run: |
           cargo build --locked --release --workspace --bins --target ${{ matrix.target }}

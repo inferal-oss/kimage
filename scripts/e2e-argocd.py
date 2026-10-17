@@ -56,9 +56,12 @@ class Argo:
         status=value.get('status',{})
         return status.get('sync',{}).get('comparedTo',{}).get('source')==value['spec']['source'] and status.get('health',{}).get('status')=='Healthy' and status.get('sync',{}).get('status')=='Synced' and status.get('operationState',{}).get('phase')=='Succeeded'
     def wait_ready(self):self.api.wait(self.ready,'Argo Application Healthy and Synced: '+self.id)
+    def replace_source(self,current,source):
+        operations=[dict(op='test',path='/metadata/uid',value=current['metadata']['uid']),dict(op='test',path='/metadata/resourceVersion',value=current['metadata']['resourceVersion']),dict(op='replace',path='/spec/source',value=source)]
+        self.api.call(['patch','applications.argoproj.io',self.id,'-n','argocd','--type=json','-p',json.dumps(operations)])
     def desired(self,changes):
         current=self.application_state();source=copy.deepcopy(current['spec']['source']);source['helm']['valuesObject'].update(changes)
-        self.patch('applications.argoproj.io',self.id,dict(metadata=dict(resourceVersion=current['metadata']['resourceVersion']),spec=dict(source=source)),'argocd')
+        self.replace_source(current,source)
         return source
     def stop_sync(self):
         current=self.application_state()
@@ -88,7 +91,7 @@ class Argo:
         values['images']=dict(repository=catalog['repository'],digests={k:v['digest'] for k,v in catalog['components'].items()})
         values['gitops']=dict(enabled=True)
         source['path']=path
-        self.patch('applications.argoproj.io',self.id,dict(metadata=dict(resourceVersion=current['metadata']['resourceVersion']),spec=dict(source=source)),'argocd')
+        self.replace_source(current,source)
         def pending():
             operation=self.api.get('configmap',self.id+'-operation',self.system)
             if not operation:return False
@@ -104,6 +107,8 @@ class Argo:
             future=json.loads(Path(self.config['nextCatalog']).read_text())
             require(pod['spec']['containers'][0]['image']==future['repository']+'/operator@'+future['components']['operator']['digest'],'Downgrade helper did not use the installed newer operator digest')
             self.raw('delete','/api/v1/namespaces/'+self.system+'/pods/'+pod['metadata']['name'],dict(apiVersion='v1',kind='DeleteOptions',preconditions=dict(uid=pod['metadata']['uid'])))
+            require(pending(),'Downgrade completed before interruption; fixture must prove an incomplete journal')
+            self.report['interruptedDowngradeHelper']=dict(uid=pod['metadata']['uid'],image=pod['spec']['containers'][0]['image'])
         self.restart('kimage.dev/provisioner='+self.id,self.system)
         self.wait_ready()
         state=json.loads(self.api.get('configmap',self.id+'-installation',self.system)['data']['installation.json'])
@@ -138,6 +143,7 @@ class Argo:
         require(self.config.get('sourceRevision'),'Conformance chart requires an exact Git source revision')
         future=json.loads(Path(self.config['nextCatalog']).read_text())
         require(future['release']=='0.5.2-argocd-test.0','Exact isolated future conformance fixture required')
+        self.report['conformanceCatalogSha256']='sha256:'+hashlib.sha256(Path(self.config['nextCatalog']).read_bytes()).hexdigest()
         identity=self.fingerprint()
         self.chart_transition(future,'tests/fixtures/argocd-next-chart','provisioner')
         self.reconsume_retained()
@@ -200,6 +206,23 @@ class Argo:
         self.api.wait(lambda:self.application_state() is None,'owned Application deletion')
         self.api.wait(lambda:self.api.get('deployment',self.id+'-provisioner',self.system) is None,'provisioner removed by Argo cascade')
         self.api.wait(lambda:not self.api.get('jobs',namespace=self.system,selector='kimage.dev/gitops-transition='+self.id)['items'] and not self.api.get('pods',namespace=self.system,selector='kimage.dev/gitops-transition='+self.id)['items'],'transition Jobs and Pods removed by Argo cascade')
+    def failure_state(self):
+        value=self.application_state() or {};status=value.get('status',{})
+        result=dict(application=dict(health=status.get('health'),sync=status.get('sync',{}).get('status'),operationPhase=status.get('operationState',{}).get('phase'),conditions=[dict(type=c.get('type'),message=c.get('message','')[:1000]) for c in status.get('conditions',[])]))
+        result['provisioner']=[]
+        for pod in self.api.get('pods',namespace=self.system,selector='kimage.dev/provisioner='+self.id)['items']:
+            item=dict(name=pod['metadata']['name'],phase=pod.get('status',{}).get('phase'),containers=[dict(name=c['name'],ready=c.get('ready'),state=c.get('state')) for c in pod.get('status',{}).get('containerStatuses',[])])
+            # The provisioner emits bounded reason codes, never private API
+            # error bodies. Do not copy arbitrary runtime/build Pod logs.
+            output=self.api.call(['logs',pod['metadata']['name'],'-n',self.system,'-c','provisioner','--tail=15'],ok=False)
+            reasons=[]
+            if output.returncode==0:
+                for line in output.stdout.splitlines():
+                    try:reason=json.loads(line).get('fields',{}).get('reason','')
+                    except (ValueError,TypeError):continue
+                    if isinstance(reason,str) and reason.isalnum() and len(reason)<=96:reasons.append(reason)
+            item['reasons']=reasons;result['provisioner'].append(item)
+        return result
     def run(self):
         try:
             require(self.application_state() is None,'Fresh Argo Application identity required')
@@ -285,7 +308,12 @@ class Argo:
             self.check('explicit runtime uninstall after Application removal preserves registry claim and releases')
             self.report['complete']=True
         except Exception as error:
-            self.report['failure']=str(error);raise
+            self.report['failure']=str(error)
+            try:
+                self.report['failureState']=self.failure_state()
+                print('Argo acceptance failure state: '+json.dumps(self.report['failureState']),flush=True)
+            except Exception:pass
+            raise
         finally:
             for name,value in self.labels.items():self.label(name,value)
             for name,uid in reversed(self.api.deployments):

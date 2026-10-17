@@ -75,6 +75,12 @@ jobs:
           run-id: ${{ inputs.source_run }}
           name: component-catalog-chart
           path: .local/chart
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.source_run }}
+          name: argocd-next-layouts
+          path: .local
       - name: Prepare native cluster and optional diagnostic wrapper
         env:
           KIMAGE_HELM_DIAGNOSTIC_CERT: ${{ inputs.diagnostic_certificate }}
@@ -86,7 +92,9 @@ jobs:
           mkdir -p .local/e2e .local/components
           tar -xzf .local/e2e-native-${{ matrix.architecture }}.tar.gz -C .local/e2e
           tar -xzf .local/component-layouts.tar.gz -C .local/components
-          python3 scripts/prepare-image-pull-fixture.py --images .local/components --registry .local/e2e/registry --directory .local/e2e-registry
+          mkdir -p .local/next-components
+          tar -xzf .local/argocd-next-layouts.tar.gz -C .local/next-components
+          python3 scripts/prepare-image-pull-fixture.py --images .local/components --additional-images .local/next-components --registry .local/e2e/registry --directory .local/e2e-registry
           if [ -n "$KIMAGE_HELM_DIAGNOSTIC_CERT" ]; then
             python3 scripts/helm-diagnostics.py --setup .local/e2e/helm-diagnostics --helm /usr/local/bin/helm
             printf '%s\n' "$GITHUB_WORKSPACE/.local/e2e/helm-diagnostics/bin" >> "$GITHUB_PATH"
@@ -122,7 +130,7 @@ jobs:
           import json,os,subprocess
           from pathlib import Path
           context=subprocess.check_output(['k3s','kubectl','config','current-context'],text=True).strip()
-          config=dict(kubeconfig=os.environ['KUBECONFIG'],context=context,namespace='kimage-argo-app',systemNamespace='kimage-argo-system',installation='kimageargo',probes=str(Path('.local/e2e/probes').resolve()),output=str(Path('.local/e2e/argocd-results').resolve()),catalog=os.environ['KIMAGE_E2E_IMAGE_CATALOG'],installer=str(Path('.local/e2e/kimage-install').resolve()),scope='${{ matrix.scope }}',port=17703,registryNode='kimage-e2e',runtimeProfile='k3s',sourceRevision='${{ github.sha }}',kubectlCommand=['k3s','kubectl'])
+          config=dict(kubeconfig=os.environ['KUBECONFIG'],context=context,namespace='kimage-argo-app',systemNamespace='kimage-argo-system',installation='kimageargo',probes=str(Path('.local/e2e/probes').resolve()),output=str(Path('.local/e2e/argocd-results').resolve()),catalog=os.environ['KIMAGE_E2E_IMAGE_CATALOG'],installer=str(Path('.local/e2e/kimage-install').resolve()),scope='${{ matrix.scope }}',port=17703,registryNode='kimage-e2e',runtimeProfile='k3s',sourceRevision='${{ github.sha }}',nextCatalog=os.environ['KIMAGE_E2E_NEXT_CATALOG'],kubectlCommand=['k3s','kubectl'])
           Path('.local/e2e/argocd-config.json').write_text(json.dumps(config))
           PYCONFIG
           python3 scripts/e2e-argocd.py --run --config .local/e2e/argocd-config.json

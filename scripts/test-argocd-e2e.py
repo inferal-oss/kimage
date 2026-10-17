@@ -49,6 +49,21 @@ class Boundaries(unittest.TestCase):
                 value=argo.mixed.deployment_body('fresh','apps')
                 self.assertEqual(value['spec']['replicas'],len(architectures))
                 self.assertNotIn('nodeSelector',value['spec']['template']['spec'])
+    def test_source_replacement_removes_old_targets_and_policy_keys(self):
+        fixture=argo.Argo.__new__(argo.Argo);fixture.id='isolated';calls=[]
+        previous={'metadata':{'uid':'application-uid','resourceVersion':'17'},'spec':{'source':{'repoURL':'https://github.com/inferal-oss/kimage.git','path':'charts/kimage','targetRevision':'exact','helm':{'valuesObject':{'gitops':{'enabled':True,'targetCatalog':{'release':'unsupported'},'credentialSecrets':{'registry':'external'}},'nodePolicy':{'nodeSelector':{'old':'selected'},'workerPins':{'arm64':'old-node'}}}}}}}
+        fixture.application_state=lambda:previous
+        class API:
+            def call(self,args):calls.append(args)
+        fixture.api=API()
+        result=fixture.desired(dict(gitops=dict(enabled=True),nodePolicy=dict(nodeSelector={},workerPins={})))
+        args=calls[0];self.assertIn('--type=json',args)
+        operations=json.loads(args[-1])
+        self.assertEqual(operations[:2],[dict(op='test',path='/metadata/uid',value='application-uid'),dict(op='test',path='/metadata/resourceVersion',value='17')])
+        self.assertEqual(operations[2],dict(op='replace',path='/spec/source',value=result))
+        self.assertEqual(result['helm']['valuesObject']['gitops'],dict(enabled=True))
+        self.assertEqual(result['helm']['valuesObject']['nodePolicy'],dict(nodeSelector={},workerPins={}))
+        self.assertIn('targetCatalog',previous['spec']['source']['helm']['valuesObject']['gitops'])
     def test_configuration_requires_isolated_names_and_one_source(self):
         config=dict(kubeconfig='fixture',context='fixture',namespace='production',systemNamespace='kimage-system',installation='kimage',probes='fixture',output='fixture',catalog='fixture',installer='fixture',scope='cluster',port=17751,registryNode='fixture',runtimeProfile='inferal',sourceRevision='commit')
         with self.assertRaisesRegex(RuntimeError,'Isolated kimage fixture'):argo.Argo(config)
