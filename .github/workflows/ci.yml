@@ -50,6 +50,7 @@ jobs:
           python3 scripts/test-release.py
           python3 scripts/test-component-images.py
           python3 scripts/test-mixed-e2e.py
+          python3 scripts/test-image-inputs-e2e.py
           python3 scripts/test-install-e2e.py
           python3 scripts/test-upgrade-e2e.py
           python3 scripts/test-argocd-e2e.py

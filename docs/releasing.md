@@ -31,6 +31,7 @@ python3 scripts/render-changelog.py --check
 python3 scripts/test-release.py
 python3 scripts/test-component-images.py
 python3 scripts/test-mixed-e2e.py
+python3 scripts/test-image-inputs-e2e.py
 python3 scripts/test-install-e2e.py
 python3 scripts/test-upgrade-e2e.py
 python3 scripts/test-argocd-e2e.py
@@ -188,7 +189,9 @@ Helm failure output or the recipient private key as acceptance evidence.
 The manual `Focused native lifecycle diagnostics` workflow can reuse a prior native
 component build run when `Cargo.toml`, `Cargo.lock` and `crates/` are unchanged.
 Supply its exact run ID and source commit. A public recipient certificate is
-optional; omit it for metadata-only diagnostics without output capture.
+optional; omit it for metadata-only diagnostics without output capture. With a
+certificate, frozen-input failures also retain encrypted private build logs;
+public receipts contain only bounded, allowlisted status codes.
 It checks source identity and ancestry, recreates disposable native amd64 and
 arm64 fixtures for both scopes and installation managers, and runs the same fresh-install and lifecycle sequence without
 rebuilding components. It has no publication permissions.

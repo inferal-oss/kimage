@@ -452,7 +452,7 @@ class Upgrade:
             self.installation_diagnostics()
             spec=importlib.util.spec_from_file_location('input_acceptance',ROOT/'scripts/e2e-image-inputs.py')
             inputs=importlib.util.module_from_spec(spec);spec.loader.exec_module(inputs)
-            receipt=inputs.ImageInputs(self.api,Path(self.config['probes']).parent/'image-input-probes',self.output/'image-inputs',self.architectures).run()
+            receipt=inputs.ImageInputs(self.api,Path(self.config['probes']).parent/'image-input-probes',self.output/'image-inputs',self.architectures,self.installer).run()
             require(receipt['complete'] and receipt['cleanupComplete'],'Frozen image input acceptance incomplete')
             self.report['imageInputs']=receipt
             self.refuse_schema_rollback()

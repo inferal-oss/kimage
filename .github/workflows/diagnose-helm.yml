@@ -101,16 +101,12 @@ jobs:
           fi
       - name: Start pinned disposable Kubernetes fixture
         run: python3 scripts/prepare-e2e-cluster.py --directory .local/e2e-cluster
-      - name: Exercise the preceding fresh-install stage
-        run: |
-          python3 scripts/e2e-install.py --scope ${{ matrix.scope }} --mode ${{ matrix.mode }} \
-            --image-catalog "$KIMAGE_E2E_IMAGE_CATALOG" --chart .local/chart/kimage-*.tgz \
-            --installer .local/e2e/kimage-install --probe .local/e2e/probe --output .local/e2e/results
       - name: Exercise interrupted native upgrade and rollback
         env:
           TEST_SCOPE: ${{ matrix.scope }}
           TEST_MODE: ${{ matrix.mode }}
           KIMAGE_DIAGNOSTIC_STRESS: "true"
+          KIMAGE_TEST_DIAGNOSTIC_CERT: ${{ inputs.diagnostic_certificate }}
         run: |
           python3 - <<'PY'
           import glob,json,os,subprocess
@@ -120,6 +116,11 @@ jobs:
           Path('.local/e2e/config.json').write_text(json.dumps(config))
           PY
           python3 scripts/e2e-upgrade.py --run --config .local/e2e/config.json
+      - name: Exercise the preceding fresh-install stage
+        run: |
+          python3 scripts/e2e-install.py --scope ${{ matrix.scope }} --mode ${{ matrix.mode }} \
+            --image-catalog "$KIMAGE_E2E_IMAGE_CATALOG" --chart .local/chart/kimage-*.tgz \
+            --installer .local/e2e/kimage-install --probe .local/e2e/probe --output .local/e2e/results
       - name: Install disposable Argo CD controller
         if: matrix.mode == 'cli'
         run: python3 scripts/prepare-argocd-fixture.py
@@ -141,6 +142,8 @@ jobs:
           name: native-diagnostic-${{ matrix.architecture }}-${{ matrix.scope }}-${{ matrix.mode }}
           path: |
             .local/e2e/lifecycle/results.json
+            .local/e2e/lifecycle/image-inputs/results.json
+            .local/e2e/lifecycle/image-inputs/*.p7m
             .local/e2e/results/results.json
             .local/e2e/argocd-results/results.json
             .local/e2e/argocd-results/builds/results.json

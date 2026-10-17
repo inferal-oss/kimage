@@ -9,6 +9,7 @@ import base64
 import copy
 import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
 import uuid
@@ -32,7 +33,8 @@ def build_probes(directory,architectures):
 
 
 class ImageInputs:
-    def __init__(self,api,probes,output,architectures=None):
+    def __init__(self,api,probes,output,architectures=None,installer=None):
+        self.installer=installer;self.active_image=None
         self.api=api;self.output=Path(output);self.output.mkdir(parents=True,exist_ok=False)
         record=json.loads(api.get('configmap',api.config['installation']+'-installation',api.system)['data']['installation.json'])
         require(record['release']=='0.6.0','Frozen input acceptance requires 0.6.0')
@@ -101,6 +103,7 @@ class ImageInputs:
 
     def case(self,label,architecture=None,cache='Local'):
         name=self.prefix+'-'+label
+        self.active_image=name
         self.api.create(self.input_build(name,cache))
         self.consume(name,architecture)
         self.api.wait(lambda:self.ready(name),'frozen input Image ready')
@@ -124,6 +127,29 @@ class ImageInputs:
         require(not image.get('status',{}).get('releaseRef'),'Denied solve published a release')
         require(not (image.get('status',{}).get('build') or {}).get('execution'),'Denied attempt reported successful execution')
         self.report['checks'].append(label+': '+reason+' without publication')
+
+    def failure_diagnostics(self):
+        # Public output is restricted to fixed codes. Optional raw logs are
+        # encrypted directly from memory; the recipient key never enters CI.
+        allowed={'AwaitingDemand','NativePlatformsPending','NativePlatformsPublished','PlatformSourceSnapshotMismatch','BuildUnavailable','ContainerfileSolveFailed','BuildInputOrEngineFailed','BuildPermissionOrAdmissionDenied','ImageInputNotPublished','ImageInputPlatformUnavailable','ImageInputSnapshotAuthenticationFailed','ImageInputVersionConflict','ImageInputReaderCredentialsMissing','ImageInputCredentialOwnershipConflict','BuildDeadlineExceeded','BuilderUnavailable','BuilderBusy','Captured','Capturing','Executing','Published','Failed','Backoff','BuildClientStopped'}
+        images=self.api.get('images.kimage.dev',namespace=self.api.namespace)['items']
+        owned=[i for i in images if i['metadata']['name'].startswith(self.prefix)][:24]
+        self.report['failureStatus']=[dict(image=i['metadata']['name'],reasons=[c.get('reason') if c.get('reason') in allowed else 'unexpected' for c in (i.get('status') or {}).get('conditions',[])[:8]]) for i in owned]
+        print('Frozen input failure status: '+json.dumps(self.report['failureStatus'],sort_keys=True),flush=True)
+        certificate=os.environ.get('KIMAGE_TEST_DIAGNOSTIC_CERT','')
+        if not certificate or not self.installer or not self.active_image:return
+        require(len(certificate)<=16384,'InvalidDiagnosticCertificate')
+        payload={}
+        for arch in sorted(self.architectures):
+            result=subprocess.run([str(self.installer),'logs',self.active_image,'-n',self.api.namespace,'--platform','linux/'+arch],env=dict(os.environ,KUBECONFIG=self.api.config['kubeconfig']),capture_output=True,timeout=60)
+            payload[arch]=dict(code=result.returncode,stdout=result.stdout[:131072].decode(errors='replace'),stderr=result.stderr[:8192].decode(errors='replace'))
+        cert=self.output/'recipient.pem';cert.write_text(certificate)
+        try:
+            encrypted=self.output/'failure.p7m'
+            result=subprocess.run(['openssl','cms','-encrypt','-binary','-aes-256-cbc','-outform','DER','-out',str(encrypted),str(cert)],input=json.dumps(payload).encode(),capture_output=True,timeout=30)
+            if result.returncode:encrypted.unlink(missing_ok=True)
+            else:encrypted.chmod(0o600)
+        finally:cert.unlink(missing_ok=True)
 
     def run(self):
         try:
@@ -168,6 +194,10 @@ class ImageInputs:
                 receipt=self.verify_materials(name,self.architectures,self.original_uid);receipt['case']='later-platform-after-base-recreation';self.report['cases'].append(receipt)
                 self.report['checks'].append('Later arm64 demand keeps the original base UID and complete OCI root after same-name base replacement')
             self.report['complete']=True
+        except Exception:
+            try:self.failure_diagnostics()
+            except Exception:self.report['failureDiagnostic']='Unavailable'
+            raise
         finally:
             errors=[]
             for name,uid in self.consumers:
