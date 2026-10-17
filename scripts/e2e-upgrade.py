@@ -427,7 +427,12 @@ class Upgrade:
         common=self.common()
         if self.config['mode']=='cli':self.run_command([self.installer,'install',*common,'--image-catalog',self.config['catalog']])
         else:
-            self.run_command(['helm','install',self.id,self.config['chart'],'--namespace',self.system,'-f',self.output/'helm-values.json','--wait','--wait-for-jobs','--timeout','10m'])
+            # The target's official GHCR tags do not exist before acceptance.
+            # Keep the verified fixture mirror and exact target pins on reinstall.
+            values=json.loads((self.output/'helm-values.json').read_text())
+            values['images']=dict(repository=self.target['repository'],digests={role:entry['digest'] for role,entry in self.target['components'].items()})
+            path=self.output/'helm-target-values.json';path.write_text(json.dumps(values))
+            self.run_command(['helm','install',self.id,self.config['chart'],'--namespace',self.system,'-f',path,'--wait','--wait-for-jobs','--timeout','10m'])
         self.assert_images(self.version,self.target)
 
     def uninstall_current(self):

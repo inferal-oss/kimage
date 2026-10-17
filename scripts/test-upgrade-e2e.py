@@ -42,6 +42,22 @@ class Boundaries(unittest.TestCase):
             config['output']=str(root/'wrong-output')
             with self.assertRaisesRegex(RuntimeError,'Published predecessor verification'):upgrade.Upgrade(config)
 
+    def test_helm_reinstall_uses_target_mirror_and_pins_without_changing_predecessor_values(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);original=dict(scope='namespace',applicationNamespace='apps',runtimeProfile='k3s',registryNode='fixture',port=17702)
+            path=root/'helm-values.json';path.write_text(json.dumps(original));before=path.read_bytes()
+            fixture=upgrade.Upgrade.__new__(upgrade.Upgrade);fixture.config=dict(mode='helm',chart='target-chart');fixture.output=root;fixture.id='fixture';fixture.system='system';fixture.version='0.6.0'
+            fixture.target=dict(release='0.6.0',repository='127.0.0.1:14901/kimage',components={r:dict(digest='sha256:'+str(i)*64) for i,r in enumerate(['operator','admission','input','exporter','builder','gateway','proxy','registry'])})
+            calls=[]
+            def command(args):
+                self.assertEqual(args[:4],['helm','install','fixture','target-chart'])
+                values=json.loads(Path(args[args.index('-f')+1]).read_text())
+                self.assertEqual({k:v for k,v in values.items() if k!='images'},original)
+                self.assertEqual(values['images'],dict(repository=fixture.target['repository'],digests={r:e['digest'] for r,e in fixture.target['components'].items()}))
+                calls.append('install')
+            fixture.run_command=command;fixture.assert_images=lambda version,catalog:calls.append((version,catalog));fixture.install_current()
+            self.assertEqual(path.read_bytes(),before);self.assertEqual(calls,['install',('0.6.0',fixture.target)])
+
     def test_published_predecessor_is_drained_before_helm_can_delete_workers(self):
         import types
         events=[]

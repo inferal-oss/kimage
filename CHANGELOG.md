@@ -15,6 +15,10 @@ commits and original release attribution. Uncommitted work is marked explicitly.
 
 - Optional encrypted Helm diagnostics capture disposable CI runtime state and bounded component logs after a failed install, while keeping plaintext out of artifacts and output. Implementation pending commit.
 
+### Fixed
+
+- Helm lifecycle acceptance reinstalls the target from its verified native fixture mirror with the exact target digest pins, before public release images exist. Implementation pending commit.
+
 **Commits:** [83abe62](https://github.com/inferal-oss/kimage/commit/83abe62796e057da7c32665d40141d44c685acbb).
 
 ## [0.6.0] - 2026-10-17
