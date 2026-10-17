@@ -139,6 +139,10 @@ helper resumes the recorded operation; keep its desired version unchanged until
 completion. Helper Jobs use the provisioner service account, contain no private
 material, and are removed automatically after completion or Application removal.
 Unsupported transitions are refused before changing runtime components.
+Provisioners and transition Jobs read retained bytes through the existing registry
+Service with its CA and reader credentials. System-namespace network policy must
+allow their API, DNS and registry Service access on port 5443; no API port-forward
+permission is required.
 If the returning provisioner reports `GitOpsTransitionPending`, inspect the
 helper's bounded reason codes:
 

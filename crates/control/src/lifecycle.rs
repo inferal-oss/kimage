@@ -801,13 +801,22 @@ async fn verify_retained_roots(client: Client, journal: &Journal) -> Result<()> 
         )))
         .await?;
     ensure!(pods.items.len() == 1, "RegistryEndpointPending");
-    let tunnel = crate::tunnel::Tunnel::open(
-        client.clone(),
-        &options.namespace,
-        &pods.items[0].name_any(),
-        5443,
-    )
-    .await?;
+    // Argo provisioners already run inside the cluster. Read through the
+    // existing TLS Service instead of requiring privileged API port forwarding.
+    // Out-of-cluster CLI/Helm callers retain their authenticated API tunnel.
+    let tunnel = if journal.manager == "argocd" {
+        None
+    } else {
+        Some(
+            crate::tunnel::Tunnel::open(
+                client.clone(),
+                &options.namespace,
+                &pods.items[0].name_any(),
+                5443,
+            )
+            .await?,
+        )
+    };
     let secret = Api::<Secret>::namespaced(client, &options.namespace)
         .get(&format!("{}-registry-credentials", options.installation))
         .await?;
@@ -829,7 +838,7 @@ async fn verify_retained_roots(client: Client, journal: &Journal) -> Result<()> 
             .parse()?,
             format!("{}/{}", root.namespace, root.image_uid),
             ca,
-            Some(tunnel.address),
+            tunnel.as_ref().map(|tunnel| tunnel.address),
             "reader".into(),
             password.clone(),
         )?;

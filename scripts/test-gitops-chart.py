@@ -28,6 +28,8 @@ def main():
             objects=documents(first)
             assert sorted(o['kind'] for o in objects)==['ClusterRole','ClusterRoleBinding','ConfigMap','Deployment','ServiceAccount']
             assert all('kimage.dev/installation' not in o['metadata'].get('labels',{}) for o in objects),'runtime uninstall must not delete the active provisioner'
+            role=next(o for o in objects if o['kind']=='ClusterRole')
+            assert all('pods/portforward' not in rule['resources'] for rule in role['rules']), 'in-cluster transitions verify retained graphs directly without API port-forward privileges'
             desired=json.loads(next(o for o in objects if o['kind']=='ConfigMap')['data']['desired.json'])
             assert desired['options']['scope']==scope and not desired['options']['workerNodes']
             assert desired['credentialSecrets']=={} and desired['buildPolicy'] is None and desired['nodePolicy'] is None
