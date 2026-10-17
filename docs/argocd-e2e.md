@@ -64,7 +64,7 @@ provisioner recovery, native pulls, fresh unknown/explicit platform builds on
 the predecessor and retained identities. The shared schema stays revision 6.
 This path is suitable for an approved mixed cluster with other 0.6.0 installs.
 
-On a **disposable API only**, additionally set `nextCatalog` to the verified
+On a **disposable API only**, additionally set `disposableApi: true` and `nextCatalog` to the verified
 `0.6.2-argocd-test.0` catalog. Native workflows build independently named future
 binaries, frozen 0.6.1 templates and their exact compatibility contract in an
 isolated workspace. The future writer adds schema revision 7, a typed optional

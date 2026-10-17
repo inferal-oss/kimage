@@ -266,7 +266,7 @@ jobs:
           import json,os,subprocess
           from pathlib import Path
           context=subprocess.check_output(['k3s','kubectl','config','current-context'],text=True).strip()
-          config=dict(kubeconfig=os.environ['KUBECONFIG'],context=context,namespace='kimage-argo-app',systemNamespace='kimage-argo-system',installation='kimageargo',probes=str(Path('.local/e2e/probes').resolve()),output=str(Path('.local/e2e/argocd-results').resolve()),catalog=os.environ['KIMAGE_E2E_IMAGE_CATALOG'],installer=str(Path('.local/e2e/kimage-install').resolve()),scope='${{ matrix.scope }}',port=17703,registryNode='kimage-e2e',runtimeProfile='k3s',sourceRevision='${{ github.sha }}',nextCatalog=os.environ['KIMAGE_E2E_NEXT_CATALOG'],previousCatalog=str(Path('.local/e2e/previous/component-images.json').resolve()),kubectlCommand=['k3s','kubectl'])
+          config=dict(kubeconfig=os.environ['KUBECONFIG'],context=context,namespace='kimage-argo-app',systemNamespace='kimage-argo-system',installation='kimageargo',probes=str(Path('.local/e2e/probes').resolve()),output=str(Path('.local/e2e/argocd-results').resolve()),catalog=os.environ['KIMAGE_E2E_IMAGE_CATALOG'],installer=str(Path('.local/e2e/kimage-install').resolve()),scope='${{ matrix.scope }}',port=17703,registryNode='kimage-e2e',runtimeProfile='k3s',sourceRevision='${{ github.sha }}',nextCatalog=os.environ['KIMAGE_E2E_NEXT_CATALOG'],disposableApi=True,previousCatalog=str(Path('.local/e2e/previous/component-images.json').resolve()),kubectlCommand=['k3s','kubectl'])
           Path('.local/e2e/argocd-config.json').write_text(json.dumps(config))
           PYCONFIG
           python3 scripts/e2e-argocd.py --run --config .local/e2e/argocd-config.json

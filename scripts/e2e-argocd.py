@@ -36,7 +36,8 @@ def unsupported_catalog(catalog):
 class Argo:
     def __init__(self,config):
         required={'kubeconfig','context','namespace','systemNamespace','installation','probes','output','catalog','installer','scope','port','registryNode','runtimeProfile'}
-        require(required<=config.keys() and not config.keys()-required-{'sourceRevision','chartRepository','nextCatalog','nodeChanges','kubectlCommand','timeoutSeconds','retainedFixture','previousCatalog','existingEmptyApplicationNamespaceUid'},'Invalid Argo fixture configuration')
+        require(required<=config.keys() and not config.keys()-required-{'sourceRevision','chartRepository','nextCatalog','nodeChanges','kubectlCommand','timeoutSeconds','retainedFixture','previousCatalog','existingEmptyApplicationNamespaceUid','disposableApi'},'Invalid Argo fixture configuration')
+        require(not config.get('nextCatalog') or config.get('disposableApi') is True,'Future schemas require an explicitly disposable Kubernetes API')
         require(config['scope'] in ('namespace','cluster'),'Invalid fixture scope')
         require(bool(config.get('sourceRevision'))!=bool(config.get('chartRepository')),'Select an exact Git source revision or public chart repository')
         self.config=config;self.app=config['namespace'];self.system=config['systemNamespace'];self.id=config['installation']

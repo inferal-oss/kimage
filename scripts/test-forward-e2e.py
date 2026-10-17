@@ -20,6 +20,12 @@ class Boundaries(unittest.TestCase):
         self.assertNotEqual(result.returncode,0);self.assertIn('Opt in with --run',result.stderr);self.assertNotIn('FileNotFoundError',result.stderr)
         with self.assertRaisesRegex(RuntimeError,'explicitly disposable'):forward.Forward({})
         with self.assertRaisesRegex(RuntimeError,'explicitly disposable'):forward.Forward(dict(disposableApi=False,kubeconfig='/nonexistent'))
+    def test_argo_future_schema_guard_precedes_client_and_output_creation(self):
+        config={k:'unused' for k in ['kubeconfig','context','namespace','systemNamespace','installation','probes','output','catalog','installer','scope','port','registryNode','runtimeProfile']}
+        config['nextCatalog']='/nonexistent'
+        for explicit in [None,False]:
+            config['disposableApi']=explicit
+            with self.assertRaisesRegex(RuntimeError,'explicitly disposable'):argo.Argo(config)
     def test_namespace_reuse_never_writes_when_uid_or_existing_workload_data_are_wrong(self):
         for manager in ['cli','argo']:
             for mismatch in ['uid','workload','scope']:

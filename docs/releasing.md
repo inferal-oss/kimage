@@ -235,5 +235,10 @@ compatibility check to accept arbitrary future releases.
 Native acceptance builds a separate `0.6.2-argocd-test.0` workspace and chart to
 exercise a real version round trip from 0.6.1, including interrupted helper and
 provisioner recovery. Conformance image tags are isolated from release tags;
-this fixture is never published to Cargo or as a GitHub release. Real mixed
-acceptance repeats this against the existing Argo CD controller.
+this fixture is never published to Cargo or as a GitHub release. Synthetic
+shared schemas run only on disposable APIs. Real mixed acceptance uses the
+actual 0.6.0 and 0.6.1 chart round trip against the existing Argo CD controller.
+If an existing cluster-wide installation prevents overlapping fixtures, use an
+explicitly excluded, empty application namespace for serial namespace fixtures;
+retain its UID and record this scope in the receipt. The native matrix still
+requires both installation scopes for every manager and architecture.
