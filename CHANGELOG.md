@@ -11,22 +11,6 @@ commits and original release attribution. Uncommitted work is marked explicitly.
 
 ## [Unreleased]
 
-### Fixed
-
-- Native fresh-install acceptance clears only owned disposable fixture image caches after predecessor upgrades, preserving its cold registry-pull check. Implementation pending commit.
-
-- Application build sessions receive derived namespace-only registry read credentials; the installation-wide reader password stays in the system namespace. Implementation pending commit.
-
-- Frozen OCI capture keeps temporary verification files and staged layouts beneath one mount, avoiding Linux cross-mount hard-link failures. Implementation pending commit.
-
-- Input-capture failures retain error context in the bounded private build log while phase, public status and operator output keep stable reason codes. Implementation pending commit.
-
-- Native frozen-input acceptance stops promptly on terminal build failures, retains bounded failure status and can encrypt private build logs for an explicitly enabled diagnostic run. Implementation pending commit.
-
-- Upgrade check output reports the target API schema revision, including revision 6 for frozen OCI inputs. Implementation pending commit.
-
-**Commits:** [83abe62](https://github.com/inferal-oss/kimage/commit/83abe62796e057da7c32665d40141d44c685acbb).
-
 ## [0.6.0] - 2026-10-17
 
 ### Added
@@ -43,11 +27,18 @@ commits and original release attribution. Uncommitted work is marked explicitly.
 
 - Helm installation and Argo provisioning catalogs declare schema revision 6 consistently. Commits: [69bea45](https://github.com/inferal-oss/kimage/commit/69bea45323e5a4bce18bfb1ff4c3bc6120f958c6).
 
-- Native acceptance covers published 0.5.2 upgrades, interruption recovery, schema downgrade refusal, frozen OCI input execution and retained-data reinstall. Commits: [83abe62](https://github.com/inferal-oss/kimage/commit/83abe62796e057da7c32665d40141d44c685acbb), [ab89aa8](https://github.com/inferal-oss/kimage/commit/ab89aa8d1d6c5a7b7118bff4a333c6047d7e38d6).
+- Native acceptance covers published 0.5.2 upgrades, interruption recovery, schema downgrade refusal, frozen OCI input execution and retained-data reinstall. Fresh-install checks retire only owned fixture caches to require cold pulls. Optional diagnostics encrypt private logs and publish bounded status codes. Commits: [83abe62](https://github.com/inferal-oss/kimage/commit/83abe62796e057da7c32665d40141d44c685acbb), [ab89aa8](https://github.com/inferal-oss/kimage/commit/ab89aa8d1d6c5a7b7118bff4a333c6047d7e38d6), [1e7d72b](https://github.com/inferal-oss/kimage/commit/1e7d72bd39c371e6d2aa6cbacc7806b4515a3637), [807263b](https://github.com/inferal-oss/kimage/commit/807263b3de0d0ddaf4484fd5c4a813045ce2f64a), [23145c6](https://github.com/inferal-oss/kimage/commit/23145c6abe03f5b4a75eac5d070f985bb13dcef4).
 
 - The guarded 0.5.2 to 0.6.0 upgrade adds shared CRD revision 6 without changing registry storage or serving protocol. Rollback to 0.5.2 is refused because it cannot read the new fields; earlier same-schema edges remain supported. Commits: [83abe62](https://github.com/inferal-oss/kimage/commit/83abe62796e057da7c32665d40141d44c685acbb).
 
-**Commits:** [fc2664a](https://github.com/inferal-oss/kimage/commit/fc2664af53be0822adb7882e1fcea6672df27a49), [7615d86](https://github.com/inferal-oss/kimage/commit/7615d862a0b0c1aa249d777a9bd32c1b878b0bf7), [9c1636e](https://github.com/inferal-oss/kimage/commit/9c1636e6863bab0a018e1745bab407ecab39dcb6), [a223345](https://github.com/inferal-oss/kimage/commit/a223345ec8200feb4ebc43b1a60d2830c334a0c9), [83abe62](https://github.com/inferal-oss/kimage/commit/83abe62796e057da7c32665d40141d44c685acbb), [2531858](https://github.com/inferal-oss/kimage/commit/2531858e00f8a800cc37df6d29b2e4d9d6f377fd), [69bea45](https://github.com/inferal-oss/kimage/commit/69bea45323e5a4bce18bfb1ff4c3bc6120f958c6), [ab89aa8](https://github.com/inferal-oss/kimage/commit/ab89aa8d1d6c5a7b7118bff4a333c6047d7e38d6).
+### Fixed
+
+- Native Linux builds stage frozen OCI inputs without cross-device link errors, with temporary verification files and staged layouts on the same mount. Commits: [4f99344](https://github.com/inferal-oss/kimage/commit/4f99344e77fe39b15ed087058c208b2ea5504f5a).
+- Application build sessions receive namespace-only registry read credentials. The installation-wide reader password stays in the system namespace; other namespaces and all writes are refused with a session key. Commits: [0188dec](https://github.com/inferal-oss/kimage/commit/0188dec7643bc74d573e31a525bdbdcc78ab4e72).
+- Input-capture failures retain error context in the bounded private build log. Public status and operator output keep stable reason codes. Commits: [5825e5c](https://github.com/inferal-oss/kimage/commit/5825e5c1fd63d56fa2671d3e2e38472079c90498).
+- Upgrade checks report the target API schema revision, including revision 6. Commits: [8594529](https://github.com/inferal-oss/kimage/commit/85945293122bd471a2491d6d0c69f100ee733668).
+
+**Commits:** [fc2664a](https://github.com/inferal-oss/kimage/commit/fc2664af53be0822adb7882e1fcea6672df27a49), [7615d86](https://github.com/inferal-oss/kimage/commit/7615d862a0b0c1aa249d777a9bd32c1b878b0bf7), [9c1636e](https://github.com/inferal-oss/kimage/commit/9c1636e6863bab0a018e1745bab407ecab39dcb6), [a223345](https://github.com/inferal-oss/kimage/commit/a223345ec8200feb4ebc43b1a60d2830c334a0c9), [83abe62](https://github.com/inferal-oss/kimage/commit/83abe62796e057da7c32665d40141d44c685acbb), [2531858](https://github.com/inferal-oss/kimage/commit/2531858e00f8a800cc37df6d29b2e4d9d6f377fd), [69bea45](https://github.com/inferal-oss/kimage/commit/69bea45323e5a4bce18bfb1ff4c3bc6120f958c6), [ab89aa8](https://github.com/inferal-oss/kimage/commit/ab89aa8d1d6c5a7b7118bff4a333c6047d7e38d6), [8594529](https://github.com/inferal-oss/kimage/commit/85945293122bd471a2491d6d0c69f100ee733668), [1e7d72b](https://github.com/inferal-oss/kimage/commit/1e7d72bd39c371e6d2aa6cbacc7806b4515a3637), [807263b](https://github.com/inferal-oss/kimage/commit/807263b3de0d0ddaf4484fd5c4a813045ce2f64a), [5825e5c](https://github.com/inferal-oss/kimage/commit/5825e5c1fd63d56fa2671d3e2e38472079c90498), [4f99344](https://github.com/inferal-oss/kimage/commit/4f99344e77fe39b15ed087058c208b2ea5504f5a), [0188dec](https://github.com/inferal-oss/kimage/commit/0188dec7643bc74d573e31a525bdbdcc78ab4e72), [23145c6](https://github.com/inferal-oss/kimage/commit/23145c6abe03f5b4a75eac5d070f985bb13dcef4).
 
 
 ## [0.5.2] - 2026-10-17
