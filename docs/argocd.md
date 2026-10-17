@@ -125,20 +125,26 @@ use the same lifecycle Lease, exact-catalog journal, quiescing and retained-iden
 verification as CLI upgrades. Keep the desired target unchanged until a pending
 operation has completed; selecting another target is refused while it is pending.
 
-Pin `targetRevision` to an exact chart version. Future compatible chart releases
-can request a transition by changing that version. Compatibility must be declared
-and tested for the exact releases. The first Argo CD release is **0.5.1**; 0.5.0
-has no Argo CD ownership support, so an Argo CD installation cannot roll back to
-its chart or runtime. CLI/Helm installations retain their tested 0.5.0 to 0.5.1
-transition and reverse path. A first Argo CD release cannot demonstrate a round
-trip to a previous Argo CD release that does not exist.
+Pin `targetRevision` to an exact chart version. Starting with **0.5.1**, changing
+this version requests an upgrade or a compatible downgrade. Each later release
+must declare and test its exact compatibility edge. No manual catalog override
+is needed for the ordinary chart-version path.
 
-For a future rollback, keep the newer chart/provisioner and select the previously
-verified runtime catalog with `gitops.targetCatalog`. An older provisioner cannot
-know a transition edge introduced after it was published, so merely decreasing
-`targetRevision` is not a general rollback procedure. Keep the previous catalog
-with your release configuration and follow the exact release's compatibility
-instructions, just as CLI rollback keeps the newer CLI.
+During a downgrade, the returning older provisioner automatically starts a
+short-lived Job using the installed newer operator's recorded image digest.
+That newer binary checks its compatibility contract and performs the transition
+under the existing lifecycle Lease and journal. The older provisioner becomes
+Ready after the target runtime is healthy. Restarting either provisioner or
+helper resumes the recorded operation; keep its desired version unchanged until
+completion. Helper Jobs use the provisioner service account, contain no private
+material, and are removed automatically after completion or Application removal.
+Unsupported transitions are refused before changing runtime components.
+
+The first Argo CD release is 0.5.1. Version 0.5.0 has no Argo CD ownership support
+and cannot be an Argo CD rollback target. CLI/Helm installations retain their
+0.5.0 to 0.5.1 transition and reverse path. Forward compatibility is exercised
+with a separate `0.5.2-argocd-test.0` conformance build, not a published 0.5.2
+release. It tests the 0.5.1 chart returning after a newer runtime is installed.
 
 An optional administrator-trusted `gitops.targetCatalog` can select a supported
 runtime while retaining the chart's provisioner. It is a complete verified
@@ -160,7 +166,7 @@ chart resource. Application deletion is not a data-deletion operation.
 
 Recreating the same Application resumes the same installation and retains its
 credentials and data. To remove runtime components as well, first delete the
-Application and wait for its provisioner Deployment to disappear, then:
+Application and wait for its provisioner Deployment and transition Jobs/Pods to disappear, then:
 
 ```sh
 kimage uninstall --namespace kimage-system --installation kimage

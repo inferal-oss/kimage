@@ -149,6 +149,47 @@ pub async fn reconcile(client: Client, desired: &Desired) -> Result<()> {
                 .as_ref()
                 .filter(|j| j.phase != crate::lifecycle::Phase::Complete)
                 .map_or(release.as_str(), |j| j.source.release.as_str());
+            // A returning older chart delegates to the installed newer binary,
+            // which knows whether this exact downgrade is safe. The journal's
+            // source survives partial application and provisioner restarts.
+            if kimage_core::selector::exact(source)?
+                > kimage_core::selector::exact(env!("CARGO_PKG_VERSION"))?
+            {
+                let catalog = if let Some(journal) = pending
+                    .as_ref()
+                    .filter(|j| j.phase != crate::lifecycle::Phase::Complete)
+                {
+                    ensure!(
+                        journal.installation_uid
+                            == state.uid().context("MissingInstallationUid")?,
+                        "InstallationOperationIdentityConflict"
+                    );
+                    ensure!(
+                        serde_json::to_value(&journal.target)?
+                            == serde_json::to_value(&desired.catalog)?,
+                        "AnotherInstallationOperationPending"
+                    );
+                    journal.source.clone()
+                } else {
+                    let policy = maps
+                        .get(&format!("{}-component-images", o.installation))
+                        .await?;
+                    crate::lifecycle::owned(&policy, &o.installation)?;
+                    ImageCatalog::parse(
+                        policy
+                            .data
+                            .as_ref()
+                            .and_then(|d| d.get("images.json"))
+                            .context("MissingInstalledImageCatalog")?
+                            .as_bytes(),
+                        &release,
+                        false,
+                    )?
+                };
+                crate::gitops_transition::delegate(client.clone(), desired, &state, &catalog)
+                    .await?;
+                anyhow::bail!("GitOpsTransitionPending");
+            }
             let rollback = crate::lifecycle::is_rollback(source, &desired.catalog.release)?;
             crate::lifecycle::transition(
                 client.clone(),
@@ -210,6 +251,46 @@ pub async fn reconcile(client: Client, desired: &Desired) -> Result<()> {
     Ok(())
 }
 
+/// Stable one-shot protocol used by returning older Argo CD charts. Never print
+/// API errors, credentials or configuration values into administrator Job logs.
+pub async fn once(path: &Path) -> Result<()> {
+    let work = async {
+        let bytes = tokio::fs::read(path).await?;
+        ensure!(bytes.len() <= 256 * 1024, "GitOpsConfigurationTooLarge");
+        let desired: Desired = serde_json::from_slice(&bytes)?;
+        let expected = std::env::var("KIMAGE_GITOPS_CONFIGURATION")?;
+        ensure!(
+            expected == crate::gitops_transition::configuration_identity(&desired)?,
+            "GitOpsDesiredStateChanged"
+        );
+        let client = crate::kubernetes::client().await?;
+        let (state, _, _) = crate::lifecycle::state(
+            client.clone(),
+            &desired.options.namespace,
+            &desired.options.installation,
+        )
+        .await?;
+        ensure!(
+            state.uid().as_deref()
+                == Some(std::env::var("KIMAGE_GITOPS_INSTALLATION_UID")?.as_str()),
+            "InstallationIdentityConflict"
+        );
+        reconcile(client, &desired).await
+    }
+    .await;
+    work.map_err(|error| anyhow::anyhow!(safe_reason(&error)))
+}
+
+fn safe_reason(error: &anyhow::Error) -> String {
+    let text = error.to_string();
+    let code = text.split(':').next().unwrap_or("");
+    if !code.is_empty() && code.len() <= 96 && code.bytes().all(|c| c.is_ascii_alphanumeric()) {
+        code.into()
+    } else {
+        "GitOpsReconciliationPending".into()
+    }
+}
+
 /// The operator image also contains this privileged installation entry point.
 /// Rendered manifests contain no private material or live Node snapshots.
 pub async fn run(path: &Path) -> Result<()> {
@@ -261,21 +342,12 @@ pub async fn run(path: &Path) -> Result<()> {
         let (ready, reason) = match result {
             Ok(()) => (true, "Ready".to_owned()),
             Err(error) => {
-                let text = error.to_string();
-                let code = text.split(':').next().unwrap_or("");
-                let safe = if !code.is_empty()
-                    && code.len() <= 96
-                    && code.bytes().all(|c| c.is_ascii_alphanumeric())
-                {
-                    code
-                } else {
-                    "GitOpsReconciliationPending"
-                };
+                let safe = safe_reason(&error);
                 tracing::warn!(
-                    reason = safe,
+                    reason = %safe,
                     "GitOps installation not ready; reconciliation will retry"
                 );
-                (false, safe.to_owned())
+                (false, safe)
             }
         };
         *health.write().unwrap() = (ready, reason);

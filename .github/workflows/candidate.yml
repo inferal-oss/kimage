@@ -40,6 +40,10 @@ jobs:
         with:
           name: component-layouts
           path: .local
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: argocd-next-layouts
+          path: .local
       - name: Publish and verify public native indexes
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -50,3 +54,7 @@ jobs:
           tar -xzf .local/component-layouts.tar.gz -C .local/components
           python3 scripts/publish-component-images.py --images .local/components \
             --candidate-tag candidate-${{ github.sha }} --public-wait 1800
+          mkdir -p .local/next-components
+          tar -xzf .local/argocd-next-layouts.tar.gz -C .local/next-components
+          python3 scripts/publish-component-images.py --images .local/next-components \
+            --candidate-tag argocd-conformance-${{ github.sha }} --public-wait 1800

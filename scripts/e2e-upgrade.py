@@ -135,8 +135,13 @@ class Upgrade:
     def assert_images(self,version,catalog):
         record=json.loads(self.api.get('configmap',self.id+'-installation',self.system)['data']['installation.json'])
         require(record['release']==version,'Wrong installed release')
-        system=self.api.get('pods',namespace=self.system)['items']
-        own=[p for p in system if p['metadata'].get('labels',{}).get('kimage.dev/installation')==self.id and not p['metadata'].get('deletionTimestamp') and p.get('status',{}).get('phase') not in ('Succeeded','Failed')]
+        def active_pods():
+            return [p for p in self.api.get('pods',namespace=self.system)['items'] if p['metadata'].get('labels',{}).get('kimage.dev/installation')==self.id and not p['metadata'].get('deletionTimestamp') and p.get('status',{}).get('phase') not in ('Succeeded','Failed')]
+        def pulled():
+            pods=active_pods()
+            return bool(pods) and all(p.get('spec',{}).get('nodeName') and {s['name'] for s in p.get('status',{}).get('containerStatuses',[]) if s.get('imageID') and s.get('ready')} >= {c['name'] for c in p['spec']['containers']} for p in pods)
+        self.api.wait(pulled,'native container image identities and readiness after transition')
+        own=active_pods()
         observed=set()
         identities=[]
         pins={catalog['repository']+'/'+role+'@'+entry['digest'] for role,entry in catalog['components'].items()}

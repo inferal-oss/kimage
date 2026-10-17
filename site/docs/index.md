@@ -432,13 +432,13 @@ kimage doctor
 
 Interrupted provisioning retries automatically. Compatible version changes use the lifecycle Lease, exact-target journal and retained-identity checks. Keep the desired target unchanged while an operation is pending. Pin an exact chart version; a future release must declare and test the transition. Argo CD ownership starts at 0.5.1, so the 0.5.0 chart and runtime are not Argo CD rollback targets. Existing CLI/Helm installations are not adopted automatically. Their tested 0.5.0 to 0.5.1 transition and rollback remain supported.
 
-For future rollback, retain the newer chart/provisioner and select a previously verified runtime catalog with `gitops.targetCatalog`. An older provisioner cannot know a later release's transition contract. Decreasing `targetRevision` alone is not a general rollback procedure; follow the exact release's compatibility instructions.
+From 0.5.1, change the exact `targetRevision` for compatible upgrades or downgrades. The returning older provisioner automatically runs a short-lived Job using the installed newer operator’s recorded digest. That binary checks its exact compatibility edge and uses the same lifecycle Lease and journal. Both helper and provisioner interruptions resume automatically; keep the requested version unchanged until completion. No manual catalog override is needed. Unsupported edges remain refused.
 
 ### Deletion and retained data
 
 Application deletion or pruning removes the provisioner and desired-state resources, leaving the runtime, registry PVC, Images, ImageReleases and shared CRDs. Runtime objects do not inherit Argo CD tracking or ownership from the provisioner. Recreating the same Application resumes with the same credentials and data.
 
-For runtime removal, first delete the Application and wait for its provisioner Deployment to disappear, then run `kimage uninstall --namespace kimage-system --installation kimage`. Uninstall refuses while the provisioner is active and preserves retained data. Deleting the system namespace discards that protection.
+For runtime removal, first delete the Application and wait for its provisioner Deployment and transition Jobs/Pods to disappear, then run `kimage uninstall --namespace kimage-system --installation kimage`. Uninstall refuses while the provisioner is active and preserves retained data. Deleting the system namespace discards that protection.
 
 The [complete Argo CD guide](https://github.com/inferal-oss/kimage/blob/main/docs/argocd.md) lists credential keys, advanced target catalogs, retention and ownership boundaries. No repo-server plugin, broad diff exclusions or manual credential-generation script is required.
 

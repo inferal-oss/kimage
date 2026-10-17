@@ -24,7 +24,7 @@ def require(value,message):
 class Argo:
     def __init__(self,config):
         required={'kubeconfig','context','namespace','systemNamespace','installation','probes','output','catalog','installer','scope','port','registryNode','runtimeProfile'}
-        require(required<=config.keys() and not config.keys()-required-{'sourceRevision','chartRepository','nodeChanges','kubectlCommand','timeoutSeconds'},'Invalid Argo fixture configuration')
+        require(required<=config.keys() and not config.keys()-required-{'sourceRevision','chartRepository','nextCatalog','nodeChanges','kubectlCommand','timeoutSeconds'},'Invalid Argo fixture configuration')
         require(config['scope'] in ('namespace','cluster'),'Invalid fixture scope')
         require(bool(config.get('sourceRevision'))!=bool(config.get('chartRepository')),'Select an exact Git source revision or public chart repository')
         self.config=config;self.app=config['namespace'];self.system=config['systemNamespace'];self.id=config['installation']
@@ -82,6 +82,73 @@ class Argo:
             if kind=='secret':result[kind+'/'+name]['sha256']='sha256:'+hashlib.sha256(json.dumps(obj['data'],sort_keys=True).encode()).hexdigest()
         result['releases']={r['metadata']['name']:r['metadata']['uid'] for r in self.api.get('imagereleases.kimage.dev',namespace=self.app)['items']}
         return result
+    def chart_transition(self,catalog,path,interrupt):
+        current=self.application_state();source=copy.deepcopy(current['spec']['source'])
+        values=source['helm']['valuesObject']
+        values['images']=dict(repository=catalog['repository'],digests={k:v['digest'] for k,v in catalog['components'].items()})
+        values['gitops']=dict(enabled=True)
+        source['path']=path
+        self.patch('applications.argoproj.io',self.id,dict(metadata=dict(resourceVersion=current['metadata']['resourceVersion']),spec=dict(source=source)),'argocd')
+        def pending():
+            operation=self.api.get('configmap',self.id+'-operation',self.system)
+            if not operation:return False
+            journal=json.loads(operation['data']['operation.json'])
+            return journal['target']['release']==catalog['release'] and journal['phase']!='Complete'
+        self.api.wait(pending,'persisted interrupted Argo chart-version transition to '+catalog['release'])
+        if interrupt=='helper':
+            def helper():
+                pods=self.api.get('pods',namespace=self.system,selector='kimage.dev/gitops-transition='+self.id)['items']
+                return next((p for p in pods if p.get('status',{}).get('phase')=='Running' and not p['metadata'].get('deletionTimestamp')),None)
+            self.api.wait(lambda:bool(helper()),'newer pinned downgrade helper is running')
+            pod=helper();require(pod is not None,'Missing active downgrade helper')
+            future=json.loads(Path(self.config['nextCatalog']).read_text())
+            require(pod['spec']['containers'][0]['image']==future['repository']+'/operator@'+future['components']['operator']['digest'],'Downgrade helper did not use the installed newer operator digest')
+            self.raw('delete','/api/v1/namespaces/'+self.system+'/pods/'+pod['metadata']['name'],dict(apiVersion='v1',kind='DeleteOptions',preconditions=dict(uid=pod['metadata']['uid'])))
+        self.restart('kimage.dev/provisioner='+self.id,self.system)
+        self.wait_ready()
+        state=json.loads(self.api.get('configmap',self.id+'-installation',self.system)['data']['installation.json'])
+        require(state['release']==catalog['release'],'Argo installed the wrong chart version')
+        operation=json.loads(self.api.get('configmap',self.id+'-operation',self.system)['data']['operation.json'])
+        require(operation['phase']=='Complete' and operation['target']['release']==catalog['release'],'Argo transition did not complete its exact journal')
+    def reconsume_retained(self):
+        old=set()
+        for case in self.api.cases:
+            for pod in self.api.get('pods',namespace=self.app,selector='kimage.dev/mixed-e2e-case='+case['name'])['items']:
+                old.add(pod['metadata']['uid'])
+                self.raw('delete','/api/v1/namespaces/'+self.app+'/pods/'+pod['metadata']['name'],dict(apiVersion='v1',kind='DeleteOptions',preconditions=dict(uid=pod['metadata']['uid'])))
+        def ready():
+            for case in self.api.cases:
+                image=self.api.get('images.kimage.dev',case['name'],self.app)
+                release=self.api.get('imagereleases.kimage.dev',image['status']['releaseRef'],self.app)
+                root=release['spec']['root']['digest']
+                pods=self.api.get('pods',namespace=self.app,selector='kimage.dev/mixed-e2e-case='+case['name'])['items']
+                if len(pods)!=len(case['expected']) or any(p['metadata']['uid'] in old or not any(c['type']=='Ready' and c['status']=='True' for c in p.get('status',{}).get('conditions',[])) for p in pods):return False
+                observed=set()
+                for pod in pods:
+                    architecture=self.nodes[pod['spec']['nodeName']]['status']['nodeInfo']['architecture']
+                    require(pod['spec']['containers'][0]['image'].endswith('@'+root),'Retained workload root changed')
+                    output=self.api.call(['logs',pod['metadata']['name'],'-n',self.app,'-c','app','--tail=5']).stdout.strip()
+                    require(output=='linux/'+architecture,'Retained native image did not execute')
+                    observed.add(architecture)
+                require(observed==case['expected'],'Retained image lost a native platform')
+            return True
+        self.api.wait(ready,'fresh Pods resolve and execute retained native releases after chart transition')
+
+    def version_roundtrip(self):
+        require(self.config.get('sourceRevision'),'Conformance chart requires an exact Git source revision')
+        future=json.loads(Path(self.config['nextCatalog']).read_text())
+        require(future['release']=='0.5.2-argocd-test.0','Exact isolated future conformance fixture required')
+        identity=self.fingerprint()
+        self.chart_transition(future,'tests/fixtures/argocd-next-chart','provisioner')
+        self.reconsume_retained()
+        require(self.fingerprint()==identity,'Argo upgrade changed retained identities')
+        self.check('chart 0.5.1 to future-version conformance fixture resumes after provisioner interruption')
+        self.chart_transition(self.catalog,'charts/kimage','helper')
+        self.reconsume_retained()
+        require(self.fingerprint()==identity,'Argo downgrade changed retained identities')
+        self.check('returning 0.5.1 chart automatically uses newer pinned helper and resumes after helper and provisioner interruption')
+        self.report['chartVersionRoundTrip']=['0.5.1',future['release'],'0.5.1']
+
     def refused_target(self):
         deployment=self.api.get('deployment',self.id+'-provisioner',self.system)
         wanted=deployment['spec']['template']['metadata']['annotations']['checksum/configuration']
@@ -132,6 +199,7 @@ class Argo:
         self.raw('delete','/apis/argoproj.io/v1alpha1/namespaces/argocd/applications/'+self.id,dict(apiVersion='v1',kind='DeleteOptions',preconditions=dict(uid=value['metadata']['uid'])))
         self.api.wait(lambda:self.application_state() is None,'owned Application deletion')
         self.api.wait(lambda:self.api.get('deployment',self.id+'-provisioner',self.system) is None,'provisioner removed by Argo cascade')
+        self.api.wait(lambda:not self.api.get('jobs',namespace=self.system,selector='kimage.dev/gitops-transition='+self.id)['items'] and not self.api.get('pods',namespace=self.system,selector='kimage.dev/gitops-transition='+self.id)['items'],'transition Jobs and Pods removed by Argo cascade')
     def run(self):
         try:
             require(self.application_state() is None,'Fresh Argo Application identity required')
@@ -191,6 +259,7 @@ class Argo:
             for arch in [None]+sorted(arches):self.api.case(arch)
             self.api.report['complete']=True;self.api.save()
             self.check('fresh unknown and explicit placement cases build and execute only requested native platforms')
+            if self.config.get('nextCatalog'):self.version_roundtrip()
             identity=self.fingerprint()
             bad=copy.deepcopy(self.catalog);bad['release']='0.6.0'
             for role in ['operator','admission','input','exporter']:bad['components'][role]['version']='0.6.0'

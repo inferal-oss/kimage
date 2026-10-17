@@ -19,7 +19,8 @@
     "buildState": 1,
     "operationJournal": 1,
     "registryStorage": "distribution-filesystem-v1",
-    "servingProtocol": "0.3.0"
+    "servingProtocol": "0.3.0",
+    "gitopsProvisioner": 1
   },
   "components": {
     "registry": "3.1.2",
@@ -36,6 +37,7 @@
   },
   "argoCD": {
     "minimumRelease": "0.5.1",
-    "adoptsExistingManagers": false
+    "adoptsExistingManagers": false,
+    "chartVersionTransitions": true
   }
 }

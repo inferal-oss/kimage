@@ -227,6 +227,10 @@ GHCR supplies kimage's system components.
 ### Or install with Argo CD
 
 From 0.5.1, the same published chart supports Argo CD with `gitops.enabled: true`.
+Starting with 0.5.1, changing the pinned chart version supports compatible upgrades
+and downgrades with automatic interruption recovery. The returning older chart
+uses the installed newer operator to check and perform its downgrade safely.
+
 Use the [copyable Application](examples/argocd/cluster.yaml) and [Argo CD guide](docs/argocd.md).
 The chart renders offline; an in-cluster provisioner discovers nodes, generates
 credentials once and waits for readiness. Repeated syncs preserve credentials and

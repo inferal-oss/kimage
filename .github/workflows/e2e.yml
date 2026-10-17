@@ -89,7 +89,12 @@ jobs:
             --buildkit-dir .local/e2e/upstream/buildkit --cargo-metadata .local/e2e/cargo-metadata.json --out .local/e2e/images
           cp target/${{ matrix.target }}/release/kimage-install .local/e2e/kimage-install
           cp .local/e2e/upstream/registry .local/e2e/registry
-          tar -czf .local/e2e-native-${{ matrix.architecture }}.tar.gz -C .local/e2e images probe probes previous kimage-install registry
+          python3 scripts/prepare-argocd-next.py --workspace .local/argocd-next-source
+          cargo build --locked --release --manifest-path .local/argocd-next-source/Cargo.toml --target-dir target --target ${{ matrix.target }} -p kimage-control --bin kimage-operator --bin kimage-admission --bin kimage-input --bin kimage-exporter
+          python3 scripts/package-component-images.py --architecture ${{ matrix.architecture }} \
+            --linux-dir target/${{ matrix.target }}/release --registry .local/e2e/upstream/registry \
+            --buildkit-dir .local/e2e/upstream/buildkit --cargo-metadata .local/e2e/cargo-metadata.json --out .local/e2e/next-images --version 0.5.2-argocd-test.0
+          tar -czf .local/e2e-native-${{ matrix.architecture }}.tar.gz -C .local/e2e images next-images probe probes previous kimage-install registry
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: e2e-native-${{ matrix.architecture }}
@@ -123,6 +128,11 @@ jobs:
           done
           python3 scripts/package-chart.py --catalog .local/components/component-images.json --out .local/chart
           cp .local/components/component-images.json .local/chart/component-images.json
+          python3 scripts/assemble-component-images.py --native .local/amd64/next-images --native .local/arm64/next-images --out .local/next-components
+          python3 scripts/package-chart.py --catalog .local/next-components/component-images.json --out .local/next-chart --chart tests/fixtures/argocd-next-chart
+          cp .local/next-components/component-images.json .local/next-chart/component-images.json
+          rm .local/next-components/*.oci.tar
+          tar -czf .local/argocd-next-layouts.tar.gz -C .local/next-components .
           rm .local/components/*.oci.tar
           tar -czf .local/component-layouts.tar.gz -C .local/components .
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
@@ -135,6 +145,18 @@ jobs:
         with:
           name: component-catalog-chart
           path: .local/chart/*
+          retention-days: 7
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: argocd-next-layouts
+          path: .local/argocd-next-layouts.tar.gz
+          compression-level: 0
+          retention-days: 7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: argocd-next-chart
+          path: .local/next-chart/*
           retention-days: 7
 
   install:
@@ -173,6 +195,10 @@ jobs:
         with:
           name: component-catalog-chart
           path: .local/chart
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: argocd-next-layouts
+          path: .local
       - name: Install registry tooling and Helm
         run: |
           sudo apt-get update
@@ -181,7 +207,9 @@ jobs:
           sudo install -m 755 .local/helm /usr/local/bin/helm
           mkdir -p .local/components
           tar -xzf .local/component-layouts.tar.gz -C .local/components
-          python3 scripts/prepare-image-pull-fixture.py --images .local/components --registry .local/e2e/registry --directory .local/e2e-registry
+          mkdir -p .local/next-components
+          tar -xzf .local/argocd-next-layouts.tar.gz -C .local/next-components
+          python3 scripts/prepare-image-pull-fixture.py --images .local/components --additional-images .local/next-components --registry .local/e2e/registry --directory .local/e2e-registry
       - name: Start pinned disposable Kubernetes fixture
         run: python3 scripts/prepare-e2e-cluster.py --directory .local/e2e-cluster
       - name: Exercise registry pulls, native builds, controllers and scope boundaries
@@ -218,7 +246,7 @@ jobs:
           import json,os,subprocess
           from pathlib import Path
           context=subprocess.check_output(['k3s','kubectl','config','current-context'],text=True).strip()
-          config=dict(kubeconfig=os.environ['KUBECONFIG'],context=context,namespace='kimage-argo-app',systemNamespace='kimage-argo-system',installation='kimageargo',probes=str(Path('.local/e2e/probes').resolve()),output=str(Path('.local/e2e/argocd-results').resolve()),catalog=os.environ['KIMAGE_E2E_IMAGE_CATALOG'],installer=str(Path('.local/e2e/kimage-install').resolve()),scope='${{ matrix.scope }}',port=17703,registryNode='kimage-e2e',runtimeProfile='k3s',sourceRevision='${{ github.sha }}',kubectlCommand=['k3s','kubectl'])
+          config=dict(kubeconfig=os.environ['KUBECONFIG'],context=context,namespace='kimage-argo-app',systemNamespace='kimage-argo-system',installation='kimageargo',probes=str(Path('.local/e2e/probes').resolve()),output=str(Path('.local/e2e/argocd-results').resolve()),catalog=os.environ['KIMAGE_E2E_IMAGE_CATALOG'],installer=str(Path('.local/e2e/kimage-install').resolve()),scope='${{ matrix.scope }}',port=17703,registryNode='kimage-e2e',runtimeProfile='k3s',sourceRevision='${{ github.sha }}',nextCatalog=os.environ['KIMAGE_E2E_NEXT_CATALOG'],kubectlCommand=['k3s','kubectl'])
           Path('.local/e2e/argocd-config.json').write_text(json.dumps(config))
           PYCONFIG
           python3 scripts/e2e-argocd.py --run --config .local/e2e/argocd-config.json

@@ -15,6 +15,7 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--images',type=Path,required=True)
     p.add_argument('--registry',type=Path,required=True)
+    p.add_argument('--additional-images',type=Path,action='append',default=[])
     p.add_argument('--directory',type=Path,required=True)
     a=p.parse_args()
     assert os.environ.get('GITHUB_ACTIONS')=='true' and os.environ.get('RUNNER_ENVIRONMENT')=='github-hosted'
@@ -40,16 +41,20 @@ def main():
         except (OSError,urllib.error.URLError):time.sleep(1)
     else:raise RuntimeError('fixture registry not ready')
     trust=directory/'trust';trust.mkdir();shutil.copyfile(directory/'ca.crt',trust/'ca.crt')
-    catalog=json.loads((a.images/'component-images.json').read_bytes())
-    for role,entry in catalog['components'].items():
-        subprocess.run(['skopeo','copy','--all','--preserve-digests','--dest-cert-dir',str(trust),'oci:'+str((a.images/role).resolve())+':v'+catalog['release'],'docker://127.0.0.1:14901/kimage/'+role+':v'+catalog['release']],check=True)
-    catalog['repository']='127.0.0.1:14901/kimage'
-    (directory/'component-images.json').write_text(json.dumps(catalog))
+    catalogs=[]
+    for index,images in enumerate([a.images]+a.additional_images):
+        catalog=json.loads((images/'component-images.json').read_bytes())
+        for role,entry in catalog['components'].items():
+            subprocess.run(['skopeo','copy','--all','--preserve-digests','--dest-cert-dir',str(trust),'oci:'+str((images/role).resolve())+':v'+catalog['release'],'docker://127.0.0.1:14901/kimage/'+role+':v'+catalog['release']],check=True)
+        catalog['repository']='127.0.0.1:14901/kimage'
+        target=directory/('component-images.json' if index==0 else 'additional-'+str(index)+'.json')
+        target.write_text(json.dumps(catalog));catalogs.append(target)
     # This trust file belongs only to the ephemeral runner's new K3s fixture.
     (directory/'registries.json').write_text(json.dumps(dict(configs={'127.0.0.1:14901':dict(tls=dict(ca_file=str(directory/'ca.crt')))})))
     with open(os.environ['GITHUB_ENV'],'a') as output:
         output.write('KIMAGE_E2E_REGISTRY_CONFIG='+str(directory/'registries.json')+'\n')
-        output.write('KIMAGE_E2E_IMAGE_CATALOG='+str(directory/'component-images.json')+'\n')
+        output.write('KIMAGE_E2E_IMAGE_CATALOG='+str(catalogs[0])+'\n')
+        if len(catalogs)>1:output.write('KIMAGE_E2E_NEXT_CATALOG='+str(catalogs[1])+'\n')
     print('Ephemeral TLS registry serves complete native indexes; no runtime image imports.')
 
 

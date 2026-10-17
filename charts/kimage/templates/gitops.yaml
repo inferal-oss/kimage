@@ -1,4 +1,4 @@
-{{- if .Values.gitops.enabled -}}
+{{- if (get (default dict .Values.gitops) "enabled") -}}
 {{- $ns := .Release.Namespace -}}{{- $id := default .Release.Name .Values.installation -}}
 {{- if or (eq $ns "default") (hasPrefix "kube-" $ns) (gt (len $id) 32) (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" $id)) -}}{{- fail "InvalidGitOpsInstallationIdentity" -}}{{- end -}}
 {{- if not (has .Values.scope (list "namespace" "cluster")) -}}{{- fail "InvalidInstallationScope" -}}{{- end -}}

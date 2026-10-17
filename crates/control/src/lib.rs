@@ -4,6 +4,7 @@ pub mod bundle;
 pub mod diagnostics;
 pub mod gateway;
 pub mod gitops;
+mod gitops_transition;
 pub mod install;
 pub mod kubernetes;
 pub mod lifecycle;

@@ -868,3 +868,161 @@ async fn patch_upgrade_interruption_resume_and_rollback_preserve_frozen_predeces
     assert_eq!(version, "0.5.0");
     server.abort();
 }
+
+#[tokio::test]
+async fn returning_argo_chart_uses_newer_pinned_helper_and_resumes_from_journal_source() {
+    let (client, records, server) = fixture().await;
+    let future = catalog("0.5.2-argocd-test.0");
+    let target = catalog("0.5.1");
+    let (mut installed, mut options, _) = lifecycle::state(client.clone(), "system", "dev")
+        .await
+        .unwrap();
+    options.worker_nodes.clear();
+    let desired = kimage_control::gitops::Desired {
+        schema: 1,
+        options: options.clone(),
+        catalog: target.clone(),
+        credential_secrets: BTreeMap::new(),
+        node_policy: None,
+        build_policy: None,
+    };
+    installed
+        .annotations_mut()
+        .insert("kimage.dev/manager".into(), "argocd".into());
+    let uid = installed.uid().unwrap();
+    let mut value: Value =
+        serde_json::from_str(&installed.data.as_ref().unwrap()["installation.json"]).unwrap();
+    value["release"] = json!(future.release);
+    installed
+        .data
+        .as_mut()
+        .unwrap()
+        .insert("installation.json".into(), value.to_string());
+    {
+        let mut store = records.lock().unwrap();
+        store.put(serde_json::to_value(&installed).unwrap());
+        let mut policy =
+            store.objects["/api/v1/namespaces/system/configmaps/dev-component-images"].clone();
+        policy["data"]["images.json"] = json!(serde_json::to_string(&future).unwrap());
+        store.put(policy);
+        store.put(json!({"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"dev-provisioner","namespace":"system","labels":{"kimage.dev/provisioner":"dev"}},"data":{"desired.json":serde_json::to_string(&desired).unwrap()}}));
+    }
+    use kube::ResourceExt;
+    for _ in 0..2 {
+        let error = kimage_control::gitops::reconcile(client.clone(), &desired)
+            .await
+            .unwrap_err();
+        assert_eq!(error.to_string(), "GitOpsTransitionPending");
+    }
+    let helper = {
+        let store = records.lock().unwrap();
+        let helpers: Vec<_> = store
+            .objects
+            .values()
+            .filter(|v| {
+                v["kind"] == "Job"
+                    && v["metadata"]["labels"]["kimage.dev/gitops-transition"] == "dev"
+            })
+            .collect();
+        assert_eq!(helpers.len(), 1);
+        helpers[0].clone()
+    };
+    assert_eq!(
+        helper["spec"]["template"]["spec"]["containers"][0]["image"],
+        future.reference("operator").unwrap()
+    );
+    assert!(helper["spec"]["template"]["metadata"]["labels"]["kimage.dev/installation"].is_null());
+    assert_eq!(
+        helper["spec"]["template"]["spec"]["containers"][0]["args"][3],
+        "--once"
+    );
+    // Applying may already have written the older release into installation
+    // state. A restarted older provisioner must still use the newer source.
+    value["release"] = json!(target.release);
+    installed
+        .data
+        .as_mut()
+        .unwrap()
+        .insert("installation.json".into(), value.to_string());
+    let identity =
+        kimage_core::oci::digest(&serde_json::to_vec(&(&future, &target, &uid)).unwrap())[7..]
+            .to_owned();
+    let journal = lifecycle::Journal {
+        schema: 1,
+        identity,
+        installation_uid: uid,
+        manager: "argocd".into(),
+        source: future,
+        target,
+        options,
+        phase: lifecycle::Phase::Applying,
+        retained: BTreeMap::new(),
+        configuration: "{}".into(),
+        roots: vec![],
+        node_policy: None,
+    };
+    {
+        let mut store = records.lock().unwrap();
+        store.put(serde_json::to_value(installed).unwrap());
+        store.put(json!({"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"dev-operation","namespace":"system","labels":{"kimage.dev/installation":"dev"}},"data":{"operation.json":serde_json::to_string(&journal).unwrap()}}));
+    }
+    assert_eq!(
+        kimage_control::gitops::reconcile(client.clone(), &desired)
+            .await
+            .unwrap_err()
+            .to_string(),
+        "GitOpsTransitionPending"
+    );
+    let key = format!(
+        "/apis/batch/v1/namespaces/system/jobs/{}",
+        helper["metadata"]["name"].as_str().unwrap()
+    );
+    assert_eq!(
+        records.lock().unwrap().objects[&key]["metadata"]["uid"],
+        helper["metadata"]["uid"]
+    );
+    records.lock().unwrap().objects.get_mut(&key).unwrap()["spec"]["template"]["spec"]["containers"]
+        [0]["image"] = json!("foreign/image");
+    assert_eq!(
+        kimage_control::gitops::reconcile(client, &desired)
+            .await
+            .unwrap_err()
+            .to_string(),
+        "GitOpsTransitionJobConflict"
+    );
+    server.abort();
+}
+
+#[tokio::test]
+async fn argo_runtime_removal_refuses_helpers_after_provisioner_disappears() {
+    let (client, records, server) = fixture().await;
+    let (_, options, _) = lifecycle::state(client.clone(), "system", "dev")
+        .await
+        .unwrap();
+    for kind in ["Job", "Pod"] {
+        {
+            let mut store = records.lock().unwrap();
+            let mut installed =
+                store.objects["/api/v1/namespaces/system/configmaps/dev-installation"].clone();
+            installed["metadata"]["annotations"]["kimage.dev/manager"] = json!("argocd");
+            store.put(installed);
+            store.put(json!({"apiVersion":if kind=="Job" {"batch/v1"}else{"v1"},"kind":kind,"metadata":{"name":"dev-transition","namespace":"system","labels":{"kimage.dev/gitops-transition":"dev"}},"spec":{}}));
+        }
+        let writes = records.lock().unwrap().writes;
+        let error = kimage_control::pull_install::apply::uninstall(client.clone(), &options)
+            .await
+            .unwrap_err();
+        assert!(error.to_string().starts_with("ArgoCDTransitionActive"));
+        let mut store = records.lock().unwrap();
+        assert_eq!(store.writes, writes);
+        store.objects.remove(&format!(
+            "{}/dev-transition",
+            if kind == "Job" {
+                "/apis/batch/v1/namespaces/system/jobs"
+            } else {
+                "/api/v1/namespaces/system/pods"
+            }
+        ));
+    }
+    server.abort();
+}

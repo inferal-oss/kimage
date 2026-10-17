@@ -1,0 +1,48 @@
+# The release name is the installation identity unless overridden.
+installation: ""
+scope: namespace
+# Namespace scope defaults to "default". Example: --set applicationNamespace=apps.
+applicationNamespace: ""
+excludedNamespaces: []
+runtimeProfile: inferal
+registryNode: ""
+port: 17701
+persistence:
+  existingClaim: ""
+  storageClass: ""
+  size: 1Gi
+# Empty preserves the administrator ConfigMap on upgrade, or defaults to OnDemand.
+buildPolicy: ""
+# Normally discovered from the cluster. Supply full Node objects for offline rendering.
+nodes: []
+workerNodes: {}
+# Null preserves the administrator node policy, or adopts workerNodes as pins.
+nodePolicy: null
+exporter:
+  approvedOrigins: []
+images:
+  repository: ghcr.io/inferal-oss/kimage
+  # Release packaging fills these with the verified multi-platform index digests.
+  digests:
+    admission: ""
+    builder: ""
+    exporter: ""
+    gateway: ""
+    input: ""
+    operator: ""
+    proxy: ""
+    registry: ""
+# Optional pre-created material, encoded as Secret data. Otherwise generated once
+# and reused through lookup; no external credential generation scripts are needed.
+credentials:
+  registry: {}
+  admission: {}
+  builder: {}
+
+# Argo CD renders only deterministic desired state and an in-cluster provisioner.
+gitops:
+  enabled: false
+  # Optional administrator-trusted full catalog for a supported target transition.
+  targetCatalog: null
+  # Optional existing Secrets in the system namespace; private material stays in cluster.
+  credentialSecrets: {}

@@ -13,6 +13,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 - Argo CD chart mode with deterministic offline rendering, an in-cluster provisioner, automatic native node discovery and generated or externally supplied credentials. Applications expose readiness through the provisioner Deployment and support both installation scopes.
 - Argo CD ownership, guarded runtime transitions and explicit removal that preserves registry data, Images, releases and shared CRDs. Existing CLI/Helm installations are not adopted automatically; Argo CD ownership requires 0.5.1 or newer.
+- Argo CD chart-version upgrades and compatible downgrades from 0.5.1 onward. A returning older chart automatically delegates to the installed newer operator by digest, preserving the lifecycle lock and resumable journal, without manual catalog selection.
 - Copyable Argo CD Applications and installation, configuration, health and retention guidance in the README, handbook and agent essentials.
 
 ### Changed
@@ -21,6 +22,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ### Fixed
 
+- Helm upgrades from 0.5.0 tolerate reused values without an Argo CD configuration section.
+- Argo CD runtime uninstall waits for downgrade helper Jobs and Pods to disappear, preventing them from racing explicit removal.
 - Installation and GitOps policy updates recheck installation identity and pending operations after acquiring the lifecycle lock, refusing stale preflight state before applying resources.
 
 ## [0.5.0] - 2026-10-16

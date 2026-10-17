@@ -24,6 +24,7 @@ python3 scripts/test-mixed-e2e.py
 python3 scripts/test-install-e2e.py
 python3 scripts/test-upgrade-e2e.py
 python3 scripts/test-argocd-e2e.py
+python3 scripts/test-argocd-next.py
 python3 scripts/test-helm-diagnostics.py
 python3 scripts/check-docs.py
 python3 scripts/check-site.py
@@ -190,3 +191,19 @@ and reinstall. Mixed acceptance additionally changes only reversible fixture
 Node labels to test lost/new native architectures and proxies.
 Before final publication, preserve a sanitized receipt for the tested candidate.
 After publication, run the public chart through its Helm repository too.
+
+## Argo CD transition protocol
+
+From 0.5.1 onward, retain `provision --configuration PATH --once` and the
+`KIMAGE_GITOPS_CONFIGURATION`/`KIMAGE_GITOPS_INSTALLATION_UID` handoff checks.
+The returning older chart delegates guarded downgrades to the installed newer
+operator by its recorded digest. A later compatible release must retain its
+predecessor templates, declare the exact transition edge, and preserve the
+provisioner protocol recorded in the compatibility manifest. Never loosen the
+compatibility check to accept arbitrary future releases.
+
+Native acceptance builds a separate `0.5.2-argocd-test.0` workspace and chart to
+exercise a real version round trip from 0.5.1, including interrupted helper and
+provisioner recovery. Conformance image tags are isolated from release tags;
+this fixture is never published to Cargo or as a GitHub release. Real mixed
+acceptance repeats this against the existing Argo CD controller.

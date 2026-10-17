@@ -57,9 +57,13 @@ async fn main() -> Result<()> {
     if std::env::args().nth(1).as_deref() == Some("provision") {
         let args: Vec<_> = std::env::args().skip(2).collect();
         anyhow::ensure!(
-            args.len() == 2 && args[0] == "--configuration",
-            "Usage: kimage-operator provision --configuration PATH"
+            (args.len() == 2 || args.len() == 3 && args[2] == "--once")
+                && args[0] == "--configuration",
+            "Usage: kimage-operator provision --configuration PATH [--once]"
         );
+        if args.len() == 3 {
+            return kimage_control::gitops::once(std::path::Path::new(&args[1])).await;
+        }
         return kimage_control::gitops::run(std::path::Path::new(&args[1])).await;
     }
     let a = Args::parse();

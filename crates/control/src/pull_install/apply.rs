@@ -452,6 +452,27 @@ pub async fn uninstall(client: Client, options: &Options) -> Result<()> {
                 .is_none(),
             "ArgoCDProvisionerActive: remove the Application before uninstalling its retained runtime"
         );
+        ensure!(
+            context
+                .api_at("Job", Some(&options.namespace))?
+                .list(&ListParams::default().labels(&format!(
+                    "kimage.dev/gitops-transition={}",
+                    options.installation
+                )))
+                .await?
+                .items
+                .is_empty()
+                && context
+                    .api_at("Pod", Some(&options.namespace))?
+                    .list(&ListParams::default().labels(&format!(
+                        "kimage.dev/gitops-transition={}",
+                        options.installation
+                    )))
+                    .await?
+                    .items
+                    .is_empty(),
+            "ArgoCDTransitionActive: wait for Application-owned transition Jobs and Pods to disappear"
+        );
     }
     // Foreground deletion fences supervisors before deleting individual workers
     // and their active build sessions. Their PVC and release catalog remain.

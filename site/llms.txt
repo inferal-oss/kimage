@@ -435,12 +435,14 @@ Secrets in the system namespace. Empty buildPolicy/null nodePolicy preserve admi
 edits; explicit values manage them declaratively. Do not change scope/storage
 identity in place or edit manager annotations to adopt CLI/Helm installations.
 Argo CD ownership starts at 0.5.1; 0.5.0 cannot be an Argo CD rollback target.
-Supported future targets use guarded resumable transitions. For rollback, keep
-the newer chart/provisioner and select the recorded previous runtime through
-`gitops.targetCatalog`; an older provisioner cannot know future compatibility
-edges. Decreasing targetRevision alone is not a general rollback procedure.
+From 0.5.1, change the exact chart targetRevision for compatible upgrades or
+downgrades. No catalog override is needed. A returning older provisioner runs a
+short-lived Job using the installed newer operator's recorded digest, which
+checks its exact compatibility edge and uses the same lifecycle Lease/journal.
+Both provisioner and helper interruptions resume automatically. Keep the desired
+target unchanged until completion; incompatible edges remain refused.
 Application deletion
 removes desired-state control but leaves runtime and data. For runtime removal,
-first delete the Application and wait for its provisioner Deployment to disappear,
+first delete the Application and wait for its provisioner Deployment and transition Jobs/Pods to disappear,
 then run `kimage uninstall`; retained PVC, Images, releases and CRDs survive.
 Read the [Argo CD installation guide](https://kimage.dev/docs/#argocd).

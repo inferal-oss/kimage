@@ -12,7 +12,7 @@ ROOT=Path(__file__).resolve().parents[1]
 ROLES={'admission','builder','exporter','gateway','input','operator','proxy','registry'}
 
 
-def package(catalog_path,out):
+def package(catalog_path,out,chart=None):
     catalog=json.loads(catalog_path.read_bytes());version=catalog['release']
     assert re.fullmatch(r'\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?',version)
     assert catalog['schema']==1 and catalog['apiSchemaRevision']==5 and set(catalog['components'])==ROLES
@@ -20,7 +20,7 @@ def package(catalog_path,out):
     for entry in catalog['components'].values():
         assert re.fullmatch(r'sha256:[0-9a-f]{64}',entry['digest'])
         assert entry['platforms']==[dict(os='linux',architecture=a) for a in ['amd64','arm64']]
-    chart=ROOT/'charts/kimage';manifest=(chart/'Chart.yaml').read_text()
+    chart=chart or ROOT/'charts/kimage';manifest=(chart/'Chart.yaml').read_text()
     assert re.search(r'^version: '+re.escape(version)+r'$',manifest,re.M)
     assert re.search(r'^appVersion: "?'+re.escape(version)+r'"?$',manifest,re.M)
     files={str(p.relative_to(chart)):p.read_bytes() for p in chart.rglob('*') if p.is_file()}
@@ -39,4 +39,5 @@ def package(catalog_path,out):
 
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--catalog',type=Path,required=True);p.add_argument('--out',type=Path,required=True)
-    a=p.parse_args();package(a.catalog,a.out)
+    p.add_argument('--chart',type=Path)
+    a=p.parse_args();package(a.catalog,a.out,a.chart)
