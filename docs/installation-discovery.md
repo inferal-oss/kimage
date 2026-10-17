@@ -39,7 +39,7 @@ absent.
 ```sh
 kimage status --namespace kimage-gitops-system --installation kimage-gitops
 kimage doctor --no-discovery
-kimage upgrade --to 0.5.2 --check
+kimage upgrade --to 0.6.0 --check
 ```
 
 `install` creates or resumes the requested identity; it never redirects to a

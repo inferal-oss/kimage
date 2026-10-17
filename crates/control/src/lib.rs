@@ -39,6 +39,7 @@ pub mod containerfile;
 pub mod direct;
 pub mod direct_client;
 pub mod handover;
+pub mod image_inputs;
 pub mod input_snapshot;
 
 pub mod export_api;

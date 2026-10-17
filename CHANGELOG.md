@@ -15,6 +15,8 @@ commits and original release attribution. Uncommitted work is marked explicitly.
 
 - A dedicated, rendered website changelog linked from the top navigation, regenerated from these notes on every GitHub Pages build. Commits: [9c1636e](https://github.com/inferal-oss/kimage/commit/9c1636e6863bab0a018e1745bab407ecab39dcb6).
 
+- Frozen OCI base and toolchain image inputs for multi-stage Containerfiles. Named inputs select exact, already published same-namespace Image versions; native builds use their verified retained bytes without registry access from BuildKit. Implementation pending commit.
+
 ### Changed
 
 - Website footers now credit Inferal as sponsor, with its chevron logo and a link to inferal.com. Commits: [7615d86](https://github.com/inferal-oss/kimage/commit/7615d862a0b0c1aa249d777a9bd32c1b878b0bf7).
@@ -22,6 +24,9 @@ commits and original release attribution. Uncommitted work is marked explicitly.
 - Historical changelog entries now link to implementing commits, with complete release commit lists and support for associated pull request links. Repository instructions require this traceability for future changes. Commits: [9c1636e](https://github.com/inferal-oss/kimage/commit/9c1636e6863bab0a018e1745bab407ecab39dcb6).
 
 **Commits:** [fc2664a](https://github.com/inferal-oss/kimage/commit/fc2664af53be0822adb7882e1fcea6672df27a49), [7615d86](https://github.com/inferal-oss/kimage/commit/7615d862a0b0c1aa249d777a9bd32c1b878b0bf7), [9c1636e](https://github.com/inferal-oss/kimage/commit/9c1636e6863bab0a018e1745bab407ecab39dcb6).
+
+- The guarded 0.5.2 to 0.6.0 upgrade adds shared CRD revision 6 without changing registry storage or serving protocol. Rollback to 0.5.2 is refused because it cannot read the new fields; earlier same-schema edges remain supported. Implementation pending commit.
+
 
 ## [0.5.2] - 2026-10-17
 

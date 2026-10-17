@@ -234,7 +234,8 @@ fn matching_snapshots(states: &[crate::build_state::State]) -> Result<()> {
                     && serde_json::to_value(&first.frozen.references)?
                         == serde_json::to_value(&next.frozen.references)?
                     && serde_json::to_value(&first.frozen.bindings)?
-                        == serde_json::to_value(&next.frozen.bindings)?,
+                        == serde_json::to_value(&next.frozen.bindings)?
+                    && first.frozen.image_inputs == next.frozen.image_inputs,
                 "PlatformSourceSnapshotMismatch: publish a new version from stable inputs"
             );
         }

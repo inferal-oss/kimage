@@ -16,7 +16,7 @@ use kube::{
 };
 use serde_json::{Value, json};
 const MANAGER: &str = "kimage-schema-manager";
-pub const REVISION: u32 = 5;
+pub const REVISION: u32 = 6;
 fn nonnullable(v: &mut Value) {
     match v {
         Value::Object(m) => {
@@ -66,6 +66,28 @@ pub fn definitions() -> Result<Vec<Crd>> {
             }
             spec["properties"]["snapshot"]["pattern"] = json!("^sha256:[0-9a-f]{64}$");
             let provenance = &mut spec["properties"]["provenance"]["properties"];
+            provenance["imageInputs"]["maxItems"] = json!(8);
+            let material = &mut provenance["imageInputs"]["items"]["properties"];
+            for field in ["name", "imageUid", "releaseUid"] {
+                material[field]["maxLength"] = json!(253);
+            }
+            material["image"]["maxLength"] = json!(512);
+            for field in ["root", "manifest"] {
+                let root = &mut material[field]["properties"];
+                root["digest"]["pattern"] = json!("^sha256:[0-9a-f]{64}$");
+                root["digest"]["maxLength"] = json!(71);
+                root["mediaType"]["maxLength"] = json!(128);
+                root["size"]["minimum"] = json!(1);
+                root["size"]["maximum"] = json!(2097152);
+                root["annotations"]["maxProperties"] = json!(32);
+                root["annotations"]["additionalProperties"]["maxLength"] = json!(1024);
+                for key in ["os", "architecture"] {
+                    root["platform"]["properties"][key]["maxLength"] = json!(32);
+                }
+            }
+            for key in ["os", "architecture"] {
+                material["platform"]["properties"][key]["maxLength"] = json!(32);
+            }
             for field in ["format", "adapterVersion"] {
                 provenance[field]["maxLength"] = json!(128);
             }
@@ -170,8 +192,8 @@ pub fn compatibility(existing: &Crd, desired: &Crd) -> Result<()> {
             .and_then(|a| a.get("kimage.dev/schema-revision"))
             .cloned()
     };
-    if matches!(revision(existing).as_deref(), Some("2" | "3" | "4"))
-        && revision(desired).as_deref() == Some("5")
+    if matches!(revision(existing).as_deref(), Some("2" | "3" | "4" | "5"))
+        && revision(desired).as_deref() == Some("6")
     {
         // Only this shipped historical definition is eligible, never an arbitrary
         // old-looking schema. Existing objects remain in the same storage version.
@@ -180,8 +202,10 @@ pub fn compatibility(existing: &Crd, desired: &Crd) -> Result<()> {
                 include_str!("../schemas/revision-2.json")
             } else if revision(existing).as_deref() == Some("3") {
                 include_str!("../schemas/revision-3.json")
-            } else {
+            } else if revision(existing).as_deref() == Some("4") {
                 include_str!("../schemas/revision-4.json")
+            } else {
+                include_str!("../schemas/revision-5.json")
             })?;
         let previous = previous
             .iter()
@@ -398,7 +422,7 @@ impl SchemaManager {
                     .data
                     .as_ref()
                     .and_then(|d| d.get("revision"))
-                    .is_some_and(|r| matches!(r.as_str(), "2" | "3"));
+                    .is_some_and(|r| matches!(r.as_str(), "2" | "3" | "4" | "5"));
             if legacy {
                 let schemas: Api<Crd> = Api::all(self.client.clone());
                 for desired in definitions()? {
@@ -434,6 +458,7 @@ mod tests {
             include_str!("../schemas/revision-2.json"),
             include_str!("../schemas/revision-3.json"),
             include_str!("../schemas/revision-4.json"),
+            include_str!("../schemas/revision-5.json"),
         ]
         .iter()
         .flat_map(|text| serde_json::from_str::<Vec<Crd>>(text).unwrap())

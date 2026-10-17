@@ -51,10 +51,10 @@ class Upgrade:
         self.installer=Path(config['installer']).resolve()
         self.target=json.loads(Path(config['catalog']).read_bytes())
         self.version=self.target['release']
-        require(self.version=='0.5.2','Test requires an exact 0.5.2 catalog')
+        require(self.version=='0.6.0','Test requires an exact 0.6.0 catalog')
         verified=json.loads((self.previous/'verified.json').read_bytes())
         self.source=verified['release']
-        require(self.source=='0.5.1','Published predecessor verification is required')
+        require(self.source=='0.5.2','Published predecessor verification is required')
         self.previous_binary=next(self.previous.glob('kimage-v'+self.source+'-*'))
         for asset in verified['assets']:
             data=(self.previous/asset['name']).read_bytes()
@@ -412,6 +412,25 @@ class Upgrade:
         self.report.setdefault('registryReadback',[]).append(dict(stage=stage,**receipt))
         self.check(stage+': all retained OCI graphs verified locally with authenticated TLS, sizes, SHA-256 and DiffIDs')
 
+    def refuse_schema_rollback(self):
+        before=self.retained();operation=self.operation()
+        result=self.run_command([self.installer,'rollback','--to',self.source,'--namespace',self.system,'--installation',self.id,'--image-catalog',self.previous/'component-images.json','--chart',self.previous/('kimage-'+self.source+'.tgz')],ok=False)
+        require(result.returncode!=0 and 'SharedSchemaDowngradeUnsupported' in result.stdout+result.stderr,'Schema downgrade was not clearly refused')
+        self.assert_retained(before);require(self.operation()==operation,'Refused rollback changed the lifecycle journal')
+        self.assert_images(self.version,self.target)
+        self.report['schemaTransition']=dict(source=5,target=6,rollbackRefused=True)
+        self.check('schema 6 to published 0.5.2 rollback is refused before runtime, journal or retained data changes')
+
+    def install_current(self):
+        common=self.common()
+        if self.config['mode']=='cli':self.run_command([self.installer,'install',*common,'--image-catalog',self.config['catalog']])
+        else:
+            self.run_command(['helm','install',self.id,self.config['chart'],'--namespace',self.system,'-f',self.output/'helm-values.json','--wait','--wait-for-jobs','--timeout','10m'])
+        self.assert_images(self.version,self.target)
+
+    def uninstall_current(self):
+        self.run_command([self.installer,'uninstall','--namespace',self.system,'--installation',self.id])
+
     def run(self):
         try:
             self.preflight();self.install_previous()
@@ -427,22 +446,23 @@ class Upgrade:
                 for _ in range(repetitions):self.diagnostics(architecture)
             if self.config.get('nodeChanges'):self.node_changes()
             self.installation_diagnostics()
-            self.transition(self.source,True)
-            self.build('rolled-back')
+            spec=importlib.util.spec_from_file_location('input_acceptance',ROOT/'scripts/e2e-image-inputs.py')
+            inputs=importlib.util.module_from_spec(spec);spec.loader.exec_module(inputs)
+            receipt=inputs.ImageInputs(self.api,Path(self.config['probes']).parent/'image-input-probes',self.output/'image-inputs',self.architectures).run()
+            require(receipt['complete'] and receipt['cleanupComplete'],'Frozen image input acceptance incomplete')
+            self.report['imageInputs']=receipt
+            self.refuse_schema_rollback()
             for image,expected,architecture in self.images:self.consume(image,expected,architecture)
-            self.check('published '+self.source+' consumes releases produced before and after the upgrade')
-            self.check_rollback_log_privacy()
-            self.verify_graphs('after-rollback')
+            self.verify_graphs('after-schema-upgrade-and-refused-rollback')
             retained=self.retained()
             for name in self.consumers:self.api.call(['delete','deployment',name,'-n',self.app,'--wait=true'])
-            self.uninstall_previous()
-            # Secrets are disposable; catalog and registry identities are retained.
+            self.uninstall_current()
             after=self.retained();require(all(after[k]==retained[k] for k in ['pvcUid','pvUid','images','releases']),'Uninstall changed retained data')
             self.assert_removed()
-            self.check('uninstall preserves registry data, Image identities and release contracts')
-            self.install_previous()
+            self.check('0.6.0 uninstall preserves registry data, Image identities and release contracts')
+            self.install_current()
             self.verify_graphs('after-uninstall-reinstall')
-            self.uninstall_previous()
+            self.uninstall_current()
             after=self.retained();require(all(after[k]==retained[k] for k in ['pvcUid','pvUid','images','releases']),'Final removal changed retained data')
             self.assert_removed()
             self.report['complete']=True

@@ -168,9 +168,11 @@ pub fn fingerprint(image: &Image, capture: &Capture, references: &[Reference]) -
         .iter()
         .map(|r| (&r.kind, &r.name, &r.uid))
         .collect();
-    Ok(kimage_core::oci::digest(&serde_json::to_vec(
-        &json!({"request":crate::reconcile::request_digest(image)?,"ordinary":capture.ordinary_digest,"definition":capture.definition_digest,"objects":identities}),
-    )?))
+    let mut value = json!({"request":crate::reconcile::request_digest(image)?,"ordinary":capture.ordinary_digest,"definition":capture.definition_digest,"objects":identities});
+    if !capture.image_inputs.is_empty() {
+        value["imageInputs"] = serde_json::to_value(&capture.image_inputs)?;
+    }
+    Ok(kimage_core::oci::digest(&serde_json::to_vec(&value)?))
 }
 
 #[cfg(test)]

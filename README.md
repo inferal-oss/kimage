@@ -88,7 +88,7 @@ not distinguishing features on their own.
 
 | Area | kpack | kimage |
 | --- | --- | --- |
-| Build model | Cloud Native Buildpacks supply application language and runtime build logic | Containerfiles with provisioned inputs; currently a narrower `FROM scratch` model |
+| Build model | Cloud Native Buildpacks supply application language and runtime build logic | Containerfiles with provisioned inputs and frozen OCI base/toolchain images |
 | Registry operation | Publish to a registry you configure and operate, which can be local | A retained cluster-local registry and node-local serving are included; external export is optional |
 | Release model | Maintain an image as source, buildpacks, and stack change; expose its latest digest and build history | Publish immutable releases keyed by Image identity, version, and platform; select exact versions, ranges, or channels |
 | Workload declaration | Deployment tooling consumes the resulting registry reference | Workloads request `platform://apps/service:^1.2.0`; admission resolves new Pods to the matching digest |
@@ -117,6 +117,8 @@ general task pipelines. See [compatibility and limits](#compatibility-and-limits
 and the [website comparison](https://kimage.dev/docs/#comparison).
 
 ## Features
+
+- **Frozen OCI inputs:** named exact base and toolchain releases enable offline multi-stage Containerfiles with native platform selection.
 
 - **Native amd64 and arm64:** workload placement selects native builds; unconstrained
   mixed-cluster Pods use a fully verified OCI index.
@@ -176,20 +178,20 @@ component boundaries and trust assumptions.
 Install [Rust 1.99.0 or newer](https://www.rust-lang.org/tools/install), then:
 
 ```sh
-cargo install kimage-control --version 0.5.2 --locked --bin kimage --bin kimage-install
+cargo install kimage-control --version 0.6.0 --locked --bin kimage --bin kimage-install
 kimage install --application-namespace apps
 ```
 
-For an existing 0.5.1 installation, update the CLI, then use the guarded release
+For an existing 0.5.2 installation, update the CLI, then use the guarded release
 transition. Helm installations keep their Helm ownership and history:
 
 ```sh
-kimage upgrade --to 0.5.2 --check
-kimage upgrade --to 0.5.2
+kimage upgrade --to 0.6.0 --check
+kimage upgrade --to 0.6.0
 kimage doctor
-# Compatible reversal, when needed:
-kimage rollback --to 0.5.1
 ```
+
+0.6.0 adds shared schema revision 6. Rollback to 0.5.2 is refused because it cannot read the new fields; retained data and shared CRDs are never downgraded. Coordinate upgrades across installations in the same cluster.
 
 An interrupted operation resumes with the same command. Running application
 containers continue; builds, admission and new uncached pulls can pause while
@@ -208,13 +210,30 @@ with Pod user namespaces. The default profile is the tested RKE2 profile. For th
 tested K3s profile, add `--runtime-profile k3s`. This remains alpha software with
 exact runtime checks; see [prerequisites](docs/installation.md#prerequisites).
 
+### Build with a base or toolchain image
+
+Declare exact, already published dependencies by name:
+
+```yaml
+imageInputs:
+  - name: toolchain
+    image: "platform://apps/go-toolchain:1.0.0"
+  - name: runtime
+    image: "platform://apps/runtime:1.0.0"
+```
+
+Use `FROM toolchain AS build`, then `FROM runtime` and `COPY --from=build` in
+its Containerfile. kimage freezes the dependency UIDs and complete OCI roots,
+selects native manifests and supplies verified local contexts to BuildKit.
+The worker stays offline. See the [complete multi-stage example and limits](docs/image-inputs.md).
+
 ### Or install with Helm
 
 ```sh
 helm repo add kimage https://kimage.dev/charts
 helm repo update
 kubectl create namespace apps
-helm install kimage kimage/kimage --version 0.5.2 \
+helm install kimage kimage/kimage --version 0.6.0 \
   --namespace kimage-system --create-namespace \
   --set applicationNamespace=apps --wait --wait-for-jobs
 ```
@@ -413,14 +432,14 @@ Mixed amd64/arm64 demand, build, and pull acceptance also passed on RKE2
 runtime profile. The installer refuses untested exact runtime versions rather
 than assuming compatibility.
 
-The first build adapter supports **scratch images and provisioned local inputs**.
+The Containerfile adapter supports **scratch images, provisioned local inputs and frozen OCI base/toolchain inputs**.
 Remote base images, remote build contexts, external frontends, and build network
 access are outside its current scope. External exports support verified HTTPS
 with Basic authentication or explicit anonymous access; Bearer/token-helper
 authentication is not implemented.
 
-Whole-installation upgrades support **0.5.1 ↔ 0.5.2** through the guarded CLI,
-including Helm installations. Argo CD chart-version transitions start at 0.5.1
+Whole-installation upgrades support **0.5.2 → 0.6.0** through the guarded CLI,
+including Helm installations. The schema-6 boundary refuses rollback to 0.5.2; earlier same-schema edges remain supported. Argo CD chart-version transitions start at 0.5.1
 and require an explicitly supported compatibility edge. The earlier serving-only acceptance covered Distribution **3.1.1 ↔ 3.1.2** and
 gateway/proxy **0.1.0 / 0.2.0 / 0.3.0** (cluster scope requires 0.3.0) with the documented filesystem storage profile.
 High availability, arbitrary storage/schema migrations, hostile-tenant isolation,

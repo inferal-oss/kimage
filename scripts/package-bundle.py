@@ -162,7 +162,7 @@ def main():
                 shutil.copyfile(source, target)
                 target.chmod(0o755)
                 installers['darwin-' + architecture] = entry(target)
-    inventory = encode(dict(schema=1, apiSchemaRevision=5, installers=installers, platform=dict(os='linux', architecture=a.architecture),
+    inventory = encode(dict(schema=1, apiSchemaRevision=6, installers=installers, platform=dict(os='linux', architecture=a.architecture),
                             launcher=entry(launcher), components=components))
     (a.out / 'inventory.json').write_bytes(inventory)
     print(digest(inventory))  # Deliver this digest through an independently trusted channel.

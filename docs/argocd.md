@@ -36,7 +36,7 @@ spec:
   source:
     repoURL: https://kimage.dev/charts
     chart: kimage
-    targetRevision: 0.5.2
+    targetRevision: 0.6.0
     helm:
       releaseName: kimage
       valuesObject:
@@ -156,9 +156,13 @@ a transition.
 
 The first Argo CD release is 0.5.1. Version 0.5.0 has no Argo CD ownership support
 and cannot be an Argo CD rollback target. CLI/Helm installations retain their
-earlier adjacent transitions. The current edge is 0.5.1 to 0.5.2 and back. Forward compatibility is exercised
-with a separate `0.5.3-argocd-test.0` conformance build, not a published 0.5.3
-release. It tests the 0.5.2 chart returning after a newer runtime is installed.
+earlier adjacent same-schema transitions. The current upgrade is 0.5.2 to
+0.6.0, across the checked additive schema-6 boundary. Rollback to 0.5.2 is
+refused because it cannot read the new input fields; shared schemas and data
+are never downgraded. Coordinate all installations in the cluster. Forward
+compatibility within schema 6 is exercised with a separate
+`0.6.1-argocd-test.0` conformance build, not a public release. It tests the
+0.6.0 chart returning after that compatible newer runtime is installed.
 
 An optional administrator-trusted `gitops.targetCatalog` can select a supported
 runtime while retaining the chart's provisioner. It is a complete verified

@@ -65,6 +65,10 @@ pub fn release_metadata() -> Result<Value> {
 pub fn compatible(source: &ImageCatalog, target: &ImageCatalog) -> Result<()> {
     source.validate(&source.release, false)?;
     target.validate(&target.release, false)?;
+    ensure!(
+        source.api_schema_revision <= target.api_schema_revision,
+        "SharedSchemaDowngradeUnsupported: 0.5.2 cannot read frozen OCI image input fields; preserve revision 6 and use a compatible 0.6 release"
+    );
     let metadata = release_metadata()?;
     let transitions = metadata["transitions"]
         .as_array()
@@ -78,7 +82,12 @@ pub fn compatible(source: &ImageCatalog, target: &ImageCatalog) -> Result<()> {
         "UnsupportedReleaseTransition: no tested compatibility edge for these exact releases"
     );
     ensure!(
-        source.api_schema_revision == 5 && target.api_schema_revision == 5,
+        (source.api_schema_revision == target.api_schema_revision
+            && matches!(source.api_schema_revision, 5 | 6))
+            || (source.release == "0.5.2"
+                && target.release == "0.6.0"
+                && source.api_schema_revision == 5
+                && target.api_schema_revision == 6),
         "ReleaseSchemaMigrationRequired"
     );
     for (role, version) in [

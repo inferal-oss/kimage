@@ -44,6 +44,12 @@ fn permanent(reason: &str) -> bool {
                 | "BuildProgressLimit"
                 | "BuildProgressLineLimit"
                 | "BuildExportTooLarge"
+                | "CrossNamespaceImageInputDenied"
+                | "ImageInputRequiresExactVersion"
+                | "ImageInputPlatformUnavailable"
+                | "ImageInputVersionConflict"
+                | "ImageInputCaptureMismatch"
+                | "ImageInputSnapshotAuthenticationFailed"
         )
         || reason.starts_with("Invalid")
         || reason.starts_with("Unsupported")
@@ -517,6 +523,7 @@ async fn recover_missing_export(
                 resource_version: r.resource_version.clone(),
             })
             .collect(),
+        image_inputs: state.capture.image_inputs.clone(),
         execution: receipt.clone(),
     };
     let mut status = image.status.clone().unwrap_or_default();
@@ -644,11 +651,27 @@ async fn run(
         )
         .await?;
         attempt.record = Some(record.clone());
-        wait(config, &attempt.id, "Captured", cancel, 180).await?;
+        wait(
+            config,
+            &attempt.id,
+            "Captured",
+            cancel,
+            if record.frozen.image_inputs.is_empty() {
+                180
+            } else {
+                600
+            },
+        )
+        .await?;
         let capture: Capture = serde_json::from_slice(
             &direct_client::exec(config, &attempt.id, vec!["build-capture-receipt".into()]).await?,
         )
         .context("InvalidCaptureReceipt")?;
+        crate::image_inputs::validate_capture(
+            &record.frozen.image_inputs,
+            &capture.image_inputs,
+            &attempt.image.spec.platform,
+        )?;
         let fingerprint =
             build_state::fingerprint(&attempt.image, &capture, &record.frozen.references)?;
         if let (Some(previous), Some(release)) = (&previous, release)
@@ -826,6 +849,7 @@ async fn run(
                     resource_version: r.resource_version.clone(),
                 })
                 .collect(),
+            image_inputs: state.capture.image_inputs.clone(),
             execution: receipt,
         };
         crate::reconcile::cleanup_unacknowledged(config, &attempt.image).await?;

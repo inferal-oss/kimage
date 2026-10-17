@@ -3,7 +3,7 @@
 > kimage declares immutable, versioned container images as Kubernetes resources,
 > manages their production and verified publication to a retained cluster-local
 > registry, and resolves workload image selectors to digest-pinned pulls. Apache
-> 2.0. Alpha. Public Cargo packages: kimage-core and kimage-control, version 0.5.2.
+> 2.0. Alpha. Public Cargo packages: kimage-core and kimage-control, version 0.6.0.
 
 **When to use it.** Use kimage when inputs are already provisioned in Kubernetes,
 when images should remain available independently of source/build cache, or when
@@ -23,17 +23,17 @@ Shipwright provides configurable build strategies; Tekton handles general task
 pipelines. The current kimage builder is narrower than those general workflows.
 
 **Current boundaries.** Builds support Containerfile, strategy Direct,
-builderRef default, FROM scratch, provisioned local files, and network-none RUN.
+builderRef default, FROM scratch or frozen named OCI bases/toolchains, provisioned local files, and network-none RUN.
 No remote base images, remote ADD/context URLs, external syntax frontends, remote
 cache, general base provisioning, signing/attestations,
 HA, arbitrary storage/schema migration, or automatic retained-artifact GC.
 Administrator-managed builder isolation is not a hostile tenant security claim.
 
-**Install (0.5.2).** Rust 1.99.0+, administrator kubeconfig, Ready Linux
+**Install (0.6.0).** Rust 1.99.0+, administrator kubeconfig, Ready Linux
 amd64/arm64 nodes, persistent storage and the supported Pod user-namespace runtime:
 
 ```sh
-cargo install kimage-control --version 0.5.2 --locked --bin kimage --bin kimage-install
+cargo install kimage-control --version 0.6.0 --locked --bin kimage --bin kimage-install
 kimage install --application-namespace apps
 ```
 
@@ -48,7 +48,7 @@ credentials are generated in process, with separate CAs and read/publish identit
 CA private keys are not deployed. Reapply identical arguments to resume, preserving
 Secrets and administrator build policy. kimage-install is a compatible alias.
 The Cargo crate named kimage is unrelated. Prebuilt installers: GitHub releases.
-Gateway/proxy serving version remains 0.3.0 separately from Cargo 0.5.2.
+Gateway/proxy serving version remains 0.3.0 separately from Cargo 0.6.0.
 
 **Helm alternative.** Helm 3.14+ with live cluster access:
 
@@ -56,7 +56,7 @@ Gateway/proxy serving version remains 0.3.0 separately from Cargo 0.5.2.
 helm repo add kimage https://kimage.dev/charts
 helm repo update
 kubectl create namespace apps
-helm install kimage kimage/kimage --version 0.5.2 \
+helm install kimage kimage/kimage --version 0.6.0 \
   --namespace kimage-system --create-namespace \
   --set applicationNamespace=apps --wait --wait-for-jobs
 ```
@@ -297,6 +297,33 @@ original OCI bytes, platform, compressed layer digests, and DiffIDs are verified
 Native amd64/arm64 manifests, nested indexes and complete multi-platform indexes are supported; zstd, descriptor URLs/embedded data, and subject/referrer graphs are unsupported.
 `kimage-install schemas` prints full CRD JSON without changing the cluster.
 
+**Frozen OCI image inputs (0.6.0).** Add source.build.imageInputs as a list of
+{name:toolchain,image:"platform://apps/go-toolchain:1.0.0"}, plus an optional
+runtime alias. FROM toolchain AS build / FROM runtime / COPY --from=build works.
+At most 8 lowercase aliases; scratch/context/dockerfile are reserved. Same
+namespace, exact published versions only. Ranges, channels and ordinary registry
+refs are denied. Explicit equality ?version==1.0.0 works; bare ?version=1.0.0
+is a SemVer range and is refused. Provision upstream OCI archives with the
+existing source.ociArchive import first; this does not download upstream tags
+or recursively build dependencies.
+The first attempt freezes dependency Image/release UIDs and complete OCI roots
+in an authenticated immutable per-Image-version snapshot shared by native
+children. Prefer an already complete index. Later arm64 demand uses that same
+root even after a dependency name is recreated. A root lacking the requested
+platform fails ImageInputPlatformUnavailable; publish a complete base and use
+a new consumer version. Missing published dependencies retry as
+ImageInputNotPublished. Base updates never rebuild an already published version.
+The session fetches full graphs from the included registry using reader-only
+credentials, verifies sizes/SHA-256/DiffIDs and stages local OCI contexts.
+BuildKit receives no registry credentials; worker egress and RUN networking stay
+denied. Undeclared image sources and external frontends remain denied. Disabled
+cache still performs a real no-cache solve. Sum of input graphs <=1GiB, session
+workspace 4GiB; existing verifier/output limits still apply.
+ImageRelease.spec.provenance.imageInputs records full roots, selected native
+manifests, platforms and dependency identities. Logs stay private and bounded.
+Complete example and upgrade boundary:
+https://github.com/inferal-oss/kimage/blob/main/docs/image-inputs.md
+
 **Installation discovery (0.5.2).** `kimage installations [--namespace SYSTEM]
 [--installation NAME] [--json]` lists records in the current Kubernetes context:
 identity, namespace, release, manager, scope and validRecord. Damaged records stay
@@ -324,16 +351,19 @@ The flag does not bypass active-provisioner, manager, Lease, operation or retain
 data checks, and does not change Argo Applications. Uninstall keeps registry data,
 Images/releases/shared CRDs. No automatic mutation of multiple installations.
 
-**Upgrade and rollback (0.5.2).** Install the new CLI separately from cluster changes.
-Current edge: published 0.5.1 <-> 0.5.2; earlier adjacent edges are retained. Use `kimage upgrade --to 0.5.2 --check`,
-then the same without --check. `kimage rollback --to 0.5.1 --check`, then without
---check reverses the compatible edge. Add --namespace/--installation as needed.
+**Upgrade and rollback (0.6.0).** Install the new CLI separately from cluster changes.
+Current edge: published 0.5.2 -> 0.6.0, one way across shared schema revision 5 -> 6.
+0.5.2 cannot read imageInputs. Rollback across that boundary is explicitly refused
+before mutation; shared CRDs and retained data are never downgraded. Coordinate
+all installations in a cluster; older controllers cannot start on revision 6.
+Earlier same-schema edges remain supported. Use `kimage upgrade --to 0.6.0 --check`,
+then without --check. Add --namespace/--installation as needed.
 Check is read-only. Exact catalogs, an exclusive installation Lease and persisted
 phases make the operation resumable. Stop old clients/workers before component
 policy replacement. Preserve PVC/PV, credentials, admin policy, scope and CRDs.
 Retained-byte checks exclude releases older than the retained PVC; equal/missing
 timestamps remain checked. Upgrades never replace the registry claim.
-No storage/schema migration or implicit latest. After interruption, repeat the
+No storage migration or implicit latest; only the exact shipped additive schema update is allowed. After interruption, repeat the
 same target/catalog; a crashed Lease expires in 30s. Never delete the journal or
 switch targets while pending. Completion requires readiness and retained identity
 verification; failure does not silently roll back. New managed admission/builds
@@ -481,7 +511,7 @@ and https://github.com/inferal-oss/kimage/blob/main/docs/mixed-upgrade-results.j
 ## Argo CD (0.5.1+)
 
 Use the published Helm repository `https://kimage.dev/charts`, chart `kimage`,
-exact `targetRevision: 0.5.2`, and `helm.valuesObject.gitops.enabled: true`.
+exact `targetRevision: 0.6.0`, and `helm.valuesObject.gitops.enabled: true`.
 Set `scope: cluster`, or `scope: namespace` with `applicationNamespace: apps`.
 Destination namespace is `kimage-system`; enable `CreateNamespace=true`.
 An administrator must permit the provisioner's installation RBAC in AppProject.

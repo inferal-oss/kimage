@@ -79,6 +79,7 @@ jobs:
           rustc --edition=2024 --target ${{ matrix.target }} -C opt-level=z -C strip=symbols -C panic=abort scripts/fixtures/build-probe.rs -o .local/e2e/probe
           mkdir -p .local/e2e/probes
           rustc --edition=2024 --target ${{ matrix.target }} -C opt-level=z -C strip=symbols -C panic=abort scripts/fixtures/mixed-platform-probe.rs -o .local/e2e/probes/probe-${{ matrix.architecture }}
+          python3 scripts/e2e-image-inputs.py --build-probes .local/e2e/image-input-probes --architectures ${{ matrix.architecture }}
       - name: Verify actual published predecessor assets
         env:
           KIMAGE_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -104,8 +105,8 @@ jobs:
           done
           python3 scripts/package-component-images.py --architecture ${{ matrix.architecture }} \
             --linux-dir .local/e2e/next-bins --registry .local/e2e/upstream/registry \
-            --buildkit-dir .local/e2e/upstream/buildkit --cargo-metadata .local/e2e/cargo-metadata.json --out .local/e2e/next-images --version 0.5.3-argocd-test.0
-          tar -czf .local/e2e-native-${{ matrix.architecture }}.tar.gz -C .local/e2e images next-images probe probes previous kimage-install registry
+            --buildkit-dir .local/e2e/upstream/buildkit --cargo-metadata .local/e2e/cargo-metadata.json --out .local/e2e/next-images --version 0.6.1-argocd-test.0
+          tar -czf .local/e2e-native-${{ matrix.architecture }}.tar.gz -C .local/e2e images next-images probe probes image-input-probes previous kimage-install registry
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: e2e-native-${{ matrix.architecture }}
@@ -223,11 +224,6 @@ jobs:
           python3 scripts/prepare-image-pull-fixture.py --images .local/components --additional-images .local/next-components --registry .local/e2e/registry --directory .local/e2e-registry
       - name: Start pinned disposable Kubernetes fixture
         run: python3 scripts/prepare-e2e-cluster.py --directory .local/e2e-cluster
-      - name: Exercise registry pulls, native builds, controllers and scope boundaries
-        run: |
-          python3 scripts/e2e-install.py --scope ${{ matrix.scope }} --mode ${{ matrix.mode }} \
-            --image-catalog "$KIMAGE_E2E_IMAGE_CATALOG" --chart .local/chart/kimage-*.tgz \
-            --installer .local/e2e/kimage-install --probe .local/e2e/probe --output .local/e2e/results
       - name: Configure optional encrypted Helm diagnostics
         if: inputs.diagnostic_certificate != '' && matrix.mode == 'helm'
         env:
@@ -235,7 +231,7 @@ jobs:
         run: |
           python3 scripts/helm-diagnostics.py --setup .local/e2e/helm-diagnostics --helm /usr/local/bin/helm
           printf '%s\n' "$GITHUB_WORKSPACE/.local/e2e/helm-diagnostics/bin" >> "$GITHUB_PATH"
-      - name: Exercise published predecessor upgrades, interruptions and rollback
+      - name: Exercise published predecessor schema upgrade, interruptions and downgrade refusal
         env:
           KIMAGE_DIAGNOSTIC_STRESS: ${{ (github.event_name != 'pull_request' || inputs.diagnostic_stress) && 'true' || 'false' }}
         run: |
@@ -247,6 +243,11 @@ jobs:
           Path('.local/e2e/lifecycle-config.json').write_text(json.dumps(config))
           PYCONFIG
           python3 scripts/e2e-upgrade.py --run --config .local/e2e/lifecycle-config.json
+      - name: Exercise registry pulls, native builds, controllers and scope boundaries
+        run: |
+          python3 scripts/e2e-install.py --scope ${{ matrix.scope }} --mode ${{ matrix.mode }} \
+            --image-catalog "$KIMAGE_E2E_IMAGE_CATALOG" --chart .local/chart/kimage-*.tgz \
+            --installer .local/e2e/kimage-install --probe .local/e2e/probe --output .local/e2e/results
       - name: Install disposable Argo CD controller
         if: matrix.mode == 'cli'
         run: python3 scripts/prepare-argocd-fixture.py

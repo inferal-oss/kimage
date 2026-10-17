@@ -110,7 +110,7 @@ async fn work(cancel: &CancellationToken) -> Result<()> {
         "InvalidBuildSnapshotId"
     );
     let build = session.build.clone();
-    let captured = tokio::task::spawn_blocking(move || {
+    let mut captured = tokio::task::spawn_blocking(move || {
         crate::input_snapshot::capture(
             &build,
             Path::new("/"),
@@ -119,6 +119,7 @@ async fn work(cancel: &CancellationToken) -> Result<()> {
         )
     })
     .await??;
+    captured.image_inputs = crate::image_inputs::capture(&session, cancel).await?;
     write(
         "/sensitive/capture.json",
         &serde_json::to_vec(&captured)?,

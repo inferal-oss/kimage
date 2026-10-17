@@ -36,7 +36,7 @@ preloaded kimage component. A default StorageClass is used unless overridden.
 Install Rust 1.99.0 or newer, then:
 
 ```sh
-cargo install kimage-control --version 0.5.2 --locked --bin kimage --bin kimage-install
+cargo install kimage-control --version 0.6.0 --locked --bin kimage --bin kimage-install
 kimage install --application-namespace apps
 ```
 
@@ -87,7 +87,7 @@ The chart repository is hosted alongside the website:
 helm repo add kimage https://kimage.dev/charts
 helm repo update
 kubectl create namespace apps
-helm install kimage kimage/kimage --version 0.5.2 \
+helm install kimage kimage/kimage --version 0.6.0 \
   --namespace kimage-system --create-namespace \
   --set applicationNamespace=apps --wait --wait-for-jobs
 ```
@@ -191,16 +191,16 @@ and doctor check all matches; changes require one unambiguous selection. Add
 
 ## Upgrades, rollback and removal
 
+0.6.0 adds shared schema revision 6 through a guarded additive update. 0.5.2 cannot read its new fields, so returning to it is refused before changing runtime or data. Coordinate all installations in a cluster; older controllers cannot start against revision 6. Registry storage is unchanged. See [frozen OCI inputs](image-inputs.md#upgrade-boundary).
+
 Install the new CLI first. Updating the Cargo package does not change cluster
-components. The current supported release edge is **0.5.1 to 0.5.2 and back**:
+components. The current supported release edge is **0.5.2 to 0.6.0**:
 
 ```sh
-kimage upgrade --to 0.5.2 --check
-kimage upgrade --to 0.5.2
+kimage upgrade --to 0.6.0 --check
+kimage upgrade --to 0.6.0
 kimage status --json
 kimage doctor --json
-kimage rollback --to 0.5.1 --check
-kimage rollback --to 0.5.1
 ```
 
 Add `--namespace` and `--installation` for a non-default system identity. Checks

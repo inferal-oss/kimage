@@ -14,7 +14,7 @@ Image + provisioned inputs
   → Pod admission selects a release → kubelet pulls its digest
 ```
 
-Use kimage when image inputs already live in Kubernetes, when local image availability matters, or when the cluster must build and pull disconnected after dependencies have been provisioned. The current adapter builds scratch images from local inputs. Choose another workflow if you need arbitrary remote bases or a general CI pipeline today.
+Use kimage when image inputs already live in Kubernetes, when local image availability matters, or when the cluster must build and pull disconnected after dependencies have been provisioned. The Containerfile adapter supports local files and frozen named OCI base/toolchain images. Choose another workflow if you need arbitrary remote bases or a general CI pipeline today.
 
 A release belongs to an Image UID and exact version. Once published, different content cannot replace it. Deleting inputs, the Image, or disposable builder cache does not delete its retained artifact.
 
@@ -23,7 +23,7 @@ A release belongs to an Image UID and exact version. Once published, different c
 Use Rust 1.99.0 or newer. No source checkout is needed:
 
 ```
-cargo install kimage-control --version 0.5.2 --locked --bin kimage --bin kimage-install
+cargo install kimage-control --version 0.6.0 --locked --bin kimage --bin kimage-install
 kimage install --application-namespace apps
 ```
 
@@ -31,7 +31,7 @@ kimage install --application-namespace apps
 
 With no flags, `kimage install` manages the current kubeconfig namespace, uses `kimage-system` for components, a 1Gi retained PVC and the cluster's default StorageClass. It discovers native workers, generates credentials and waits for authenticated readiness. Use administrator kubeconfig and the [supported runtime](https://kimage.dev/docs/#compatibility). For the tested K3s profile, add `--runtime-profile k3s`.
 
-Server binaries are also available from `kimage-control` if needed. Gateway and proxy retain serving protocol version 0.3.0 independently of package version 0.5.2.
+Server binaries are also available from `kimage-control` if needed. Gateway and proxy retain serving protocol version 0.3.0 independently of package version 0.6.0.
 
 ## Release images and mirrors
 
@@ -43,7 +43,7 @@ GHCR supplies kimage's components. The included cluster-local registry still ret
 
 | Option | Purpose |
 | --- | --- |
-| `--release 0.5.2` | Exact official release; defaults to the CLI package version. |
+| `--release 0.6.0` | Exact official release; defaults to the CLI package version. |
 | `--image-catalog <path>` | Explicit administrator-trusted local catalog, including a registry mirror. |
 | `images.repository` | Helm registry mirror override; retain all published digest pins. |
 
@@ -176,7 +176,7 @@ source:
       size: <actual-manifest-byte-count>
 ```
 
-Single-platform manifests and nested indexes are verified without rewriting their bytes. Truncation, wrong sizes/digests/platforms, missing graph objects, and invalid DiffIDs fail verification. Multi-platform images, zstd layers, descriptor URLs, embedded data, and referrer graphs are unsupported.
+Single-platform manifests and nested indexes are verified without rewriting their bytes. Truncation, wrong sizes/digests/platforms, missing graph objects, and invalid DiffIDs fail verification. Complete native amd64/arm64 indexes are supported when platform is omitted. Zstd layers, descriptor URLs, embedded data, and referrer graphs are unsupported.
 
 For the complete generated CRD schemas, run `kimage-install schemas`. This prints schema JSON and does not install it; the operator owns guarded schema establishment.
 
@@ -229,7 +229,36 @@ Secret files stay outside the ordinary context; secret definition bytes and sens
 
 Secret values do not automatically invalidate BuildKit cache. Set a non-sensitive `cache.invalidationToken` when output depends on a changed secret; the initial adapter disables cache for such solves. Cache mode or placement alone does not force a published release to rebuild.
 
-**Offline adapter:** provision all inputs in advance. The supported build uses `FROM scratch`, local input files, and network-none RUN. Remote bases, remote ADD/context URLs, external syntax frontends, remote caches, and general base-image provisioning are unavailable.
+### Frozen OCI bases and toolchains
+
+From 0.6.0, declare named inputs that select exact, already published Images in the same namespace. Use their aliases in multi-stage Containerfiles:
+
+```
+imageInputs:
+  - name: toolchain
+    image: "platform://apps/go-toolchain:1.0.0"
+  - name: runtime
+    image: "platform://apps/runtime:1.0.0"
+definition:
+  inline: |
+    FROM toolchain AS build
+    WORKDIR /src
+    COPY . .
+    RUN CGO_ENABLED=0 go build -mod=vendor -o /out/service ./cmd/service
+    FROM runtime
+    COPY --from=build /out/service /service
+    ENTRYPOINT ["/service"]
+```
+
+Provision the compiler and all application dependencies first, for example Go's vendor directory. Existing `source.ociArchive` imports can publish approved external bases. kimage does not fetch upstream tags or recursively start dependency builds.
+
+The first attempt freezes dependency Image/release UIDs and complete OCI roots in an authenticated immutable per-version snapshot. Native children and later demand use that same root even after a dependency name is recreated. Prefer complete indexes before first use. If the root lacks a later platform, `ImageInputPlatformUnavailable` requires a complete base and a new consuming version. Base updates never replace a published consumer release.
+
+The session reads and verifies complete graphs through authenticated TLS, then supplies local OCI contexts to BuildKit. Only reader credentials reach the session; no registry credentials reach the worker. Exact source policy, denied worker egress and network-none RUN remain enforced. `cache.mode: Disabled` still requests a real no-cache solve.
+
+At most eight lowercase aliases are allowed; `scratch`, `context` and `dockerfile` are reserved. Ranges, channels and cross-namespace inputs are refused. The input graph budget is 1 GiB with a 4 GiB session workspace. `ImageRelease.spec.provenance.imageInputs` records the frozen full roots and selected native manifests. See the [complete example, failure reasons and upgrade boundary](https://github.com/inferal-oss/kimage/blob/main/docs/image-inputs.md).
+
+**Offline adapter:** provision all inputs in advance. The supported build uses `FROM scratch` or frozen named OCI bases, local input files, and network-none RUN. Undeclared remote bases, remote ADD/context URLs, external syntax frontends, remote caches, and general upstream base-image fetching are unavailable.
 
 Cancellation terminates the owned client and fences the dedicated worker under its execution lease, discarding disposable cache. A finalizer waits for build cleanup on Image deletion. Operator restart resumes durable attempt state and fences an expired attempt before starting another.
 
@@ -351,7 +380,7 @@ The installer creates missing requested namespaces, generates separate service i
 helm repo add kimage https://kimage.dev/charts
 helm repo update
 kubectl create namespace apps
-helm install kimage kimage/kimage --version 0.5.2 \
+helm install kimage kimage/kimage --version 0.6.0 \
   --namespace kimage-system --create-namespace \
   --set applicationNamespace=apps --wait --wait-for-jobs
 ```
@@ -393,7 +422,7 @@ spec:
   source:
     repoURL: https://kimage.dev/charts
     chart: kimage
-    targetRevision: 0.5.2
+    targetRevision: 0.6.0
     helm:
       releaseName: kimage
       valuesObject:
@@ -430,7 +459,7 @@ kimage status
 kimage doctor
 ```
 
-Interrupted provisioning retries automatically. Compatible version changes use the lifecycle Lease, exact-target journal and retained-identity checks. Keep the desired target unchanged while an operation is pending. Pin an exact chart version; a future release must declare and test the transition. Argo CD ownership starts at 0.5.1, so the 0.5.0 chart and runtime are not Argo CD rollback targets. Existing CLI/Helm installations are not adopted automatically. The current adjacent release edge is 0.5.1 to 0.5.2 and back; earlier tested edges remain supported.
+Interrupted provisioning retries automatically. Compatible version changes use the lifecycle Lease, exact-target journal and retained-identity checks. Keep the desired target unchanged while an operation is pending. Pin an exact chart version; a future release must declare and test the transition. Argo CD ownership starts at 0.5.1, so the 0.5.0 chart and runtime are not Argo CD rollback targets. Existing CLI/Helm installations are not adopted automatically. The current edge is 0.5.2 to 0.6.0, one way across shared schema revision 6. Older controllers cannot start against revision 6; coordinate all installations. Rollback to 0.5.2 is refused before mutation. Earlier tested same-schema edges remain supported.
 
 From 0.5.1, change the exact `targetRevision` for compatible upgrades or downgrades. The returning older provisioner automatically runs a short-lived Job using the installed newer operator’s recorded digest. That binary checks its exact compatibility edge and uses the same lifecycle Lease and journal. Both helper and provisioner interruptions resume automatically; keep the requested version unchanged until completion. No manual catalog override is needed. Unsupported edges remain refused.
 
@@ -465,15 +494,13 @@ Single status/doctor JSON keeps the existing object. Several results use `{"sche
 
 For Argo-managed upgrades and downgrades, change the Application's `targetRevision` in Git. CLI upgrade/rollback refuse direct runtime changes under Argo ownership; `--check` remains available for read-only compatibility checks.
 
-Install the new CLI first; this changes no cluster components. The supported release edge is **0.5.1 to 0.5.2 and back**. Use the same guarded commands for CLI and Helm installations:
+Install the new CLI first; this changes no cluster components. The supported release edge is **0.5.2 to 0.6.0**. This adds shared schema revision 6; returning to 0.5.2 is refused because it cannot read the new fields. Coordinate all installations in a cluster. Use the same guarded commands for CLI and Helm installations:
 
 ```
-kimage upgrade --to 0.5.2 --check
-kimage upgrade --to 0.5.2
+kimage upgrade --to 0.6.0 --check
+kimage upgrade --to 0.6.0
 kimage status --json
 kimage doctor --json
-kimage rollback --to 0.5.1 --check
-kimage rollback --to 0.5.1
 ```
 
 Add `--namespace` and `--installation` for a non-default system identity. Checks are read-only. The operation records exact catalogs and resumable phases, stops new reconciliation, terminates old clients and workers, and replaces components under an exclusive Lease. Completion verifies readiness and retained storage, CRD and credential identities. New builds, managed Pod admission and uncached pulls may pause; running application containers remain under their workload controller.
@@ -613,7 +640,7 @@ Both declare an `Image` and let a controller manage its production. Declarative 
 
 | Area | kpack | kimage |
 | --- | --- | --- |
-| Building | Cloud Native Buildpacks supply application language and runtime build logic. | Containerfiles with provisioned inputs, currently limited to `FROM scratch`. |
+| Building | Cloud Native Buildpacks supply application language and runtime build logic. | Containerfiles with provisioned inputs and frozen OCI base/toolchain images. |
 | Registry | Publish to a registry you configure and operate. It can be local. | A retained cluster-local registry and node-local serving are included. External export is optional. |
 | Releases | Maintain an image as source, buildpacks, and stack change; expose the latest digest and build history. | Immutable Image identity/version/platform releases, selected by exact version, range, or channel. |
 | Workloads | Deployment tooling consumes the resulting registry reference. | Workloads declare an Image name and accepted versions; admission resolves each new Pod to a digest. |

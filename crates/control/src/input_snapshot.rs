@@ -24,6 +24,8 @@ pub struct Capture {
     pub definition_digest: String,
     pub files: usize,
     pub bytes: u64,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub image_inputs: Vec<kimage_core::build::ImageMaterial>,
 }
 fn physical(root: &Path, logical: &str) -> Result<PathBuf> {
     kimage_core::build::absolute(logical)?;
@@ -302,6 +304,7 @@ pub fn capture(build: &Build, root: &Path, output: &Path, sensitive: &Path) -> R
         definition_digest,
         files: copier.files,
         bytes: copier.bytes,
+        image_inputs: Vec::new(),
     })
 }
 

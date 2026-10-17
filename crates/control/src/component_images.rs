@@ -126,12 +126,18 @@ impl ImageCatalog {
     }
 
     pub fn validate(&self, release: &str, official: bool) -> Result<()> {
-        ensure!(
-            self.schema == 1 && self.api_schema_revision == crate::schema::REVISION,
-            "ComponentCatalogSchemaMismatch"
-        );
+        ensure!(self.schema == 1, "ComponentCatalogSchemaMismatch");
         let tag = crate::release_bundle::release_tag(release)?;
         let version = kimage_core::selector::exact(tag.trim_start_matches('v'))?;
+        let expected_revision = if version.major == 0 && version.minor < 6 {
+            5
+        } else {
+            crate::schema::REVISION
+        };
+        ensure!(
+            self.api_schema_revision == expected_revision,
+            "ComponentCatalogSchemaMismatch"
+        );
         ensure!(
             version.major > 0 || version.minor >= 4,
             "ImagePullDeliveryRequires040"
@@ -245,7 +251,7 @@ mod tests {
     fn catalog() -> ImageCatalog {
         ImageCatalog {
             schema: 1,
-            release: "0.4.0".into(),
+            release: env!("CARGO_PKG_VERSION").into(),
             api_schema_revision: crate::schema::REVISION,
             repository: OFFICIAL_REPOSITORY.into(),
             components: ROLES
@@ -258,7 +264,7 @@ mod tests {
                                 "gateway" | "proxy" => crate::serving::VERSION,
                                 "registry" => "3.1.2",
                                 "builder" => "0.33.0",
-                                _ => "0.4.0",
+                                _ => env!("CARGO_PKG_VERSION"),
                             }
                             .into(),
                             digest: format!("sha256:{}", "a".repeat(64)),
@@ -278,7 +284,8 @@ mod tests {
     #[test]
     fn catalog_pins_complete_native_images_and_refuses_drift() {
         let good = catalog();
-        good.validate("v0.4.0", true).unwrap();
+        good.validate(&format!("v{}", env!("CARGO_PKG_VERSION")), true)
+            .unwrap();
         assert_eq!(
             good.reference("operator").unwrap(),
             format!("{OFFICIAL_REPOSITORY}/operator@sha256:{}", "a".repeat(64))
@@ -300,7 +307,7 @@ mod tests {
                 3 => bad.components.get_mut("operator").unwrap().version = "0.3.0".into(),
                 _ => bad.repository = "ghcr.io/another/project".into(),
             }
-            assert!(bad.validate("0.4.0", true).is_err());
+            assert!(bad.validate(env!("CARGO_PKG_VERSION"), true).is_err());
         }
         assert!(good.validate("0.4.1", true).is_err());
     }
@@ -308,7 +315,7 @@ mod tests {
     fn independently_selected_mirrors_still_require_complete_pinned_catalogs() {
         let mut mirror = catalog();
         mirror.repository = "registry.example.test:5443/mirror/kimage".into();
-        mirror.validate("0.4.0", false).unwrap();
+        mirror.validate(env!("CARGO_PKG_VERSION"), false).unwrap();
         for repository in [
             "https://ghcr.io/a",
             "ghcr.io/a/../b",
@@ -317,7 +324,7 @@ mod tests {
             "ghcr.io/a/",
         ] {
             mirror.repository = repository.into();
-            assert!(mirror.validate("0.4.0", false).is_err());
+            assert!(mirror.validate(env!("CARGO_PKG_VERSION"), false).is_err());
         }
     }
 

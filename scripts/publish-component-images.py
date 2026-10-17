@@ -36,7 +36,7 @@ def public_json(role,kind,digest):
 
 def verify(catalog):
     assert catalog['repository']==REPOSITORY
-    assert catalog['schema']==1 and catalog['apiSchemaRevision']==5
+    assert catalog['schema']==1 and catalog['apiSchemaRevision'] in (5,6)
     assert set(catalog['components'])=={'admission','builder','exporter','gateway','input','operator','proxy','registry'}
     for role,entry in catalog['components'].items():
         root=public_json(role,'manifests',entry['digest'])

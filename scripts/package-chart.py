@@ -15,7 +15,7 @@ ROLES={'admission','builder','exporter','gateway','input','operator','proxy','re
 def package(catalog_path,out,chart=None):
     catalog=json.loads(catalog_path.read_bytes());version=catalog['release']
     assert re.fullmatch(r'\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?',version)
-    assert catalog['schema']==1 and catalog['apiSchemaRevision']==5 and set(catalog['components'])==ROLES
+    assert catalog['schema']==1 and catalog['apiSchemaRevision']==6 and set(catalog['components'])==ROLES
     assert catalog['repository']=='ghcr.io/inferal-oss/kimage','official chart must use official release images'
     for entry in catalog['components'].values():
         assert re.fullmatch(r'sha256:[0-9a-f]{64}',entry['digest'])

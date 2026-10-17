@@ -1,0 +1,385 @@
+[
+  {
+    "apiVersion": "v1",
+    "kind": "ServiceAccount",
+    "metadata": {
+      "name": "${installation}-serving",
+      "namespace": "${namespace}",
+      "labels": {
+        "kimage.dev/installation": "${installation}"
+      },
+      "annotations": {
+        "kimage.dev/manager": "${manager}"
+      }
+    },
+    "automountServiceAccountToken": false
+  },
+  {
+    "apiVersion": "v1",
+    "kind": "Secret",
+    "metadata": {
+      "name": "${installation}-registry-credentials",
+      "labels": {
+        "kimage.dev/installation": "${installation}"
+      },
+      "namespace": "${namespace}",
+      "annotations": {
+        "kimage.dev/manager": "${manager}"
+      }
+    },
+    "type": "Opaque",
+    "data": "${registryCredentials}"
+  },
+  {
+    "apiVersion": "v1",
+    "kind": "Secret",
+    "metadata": {
+      "name": "${installation}-proxy-credentials",
+      "labels": {
+        "kimage.dev/installation": "${installation}"
+      },
+      "namespace": "${namespace}",
+      "annotations": {
+        "kimage.dev/manager": "${manager}"
+      }
+    },
+    "type": "Opaque",
+    "data": "${proxyCredentials}"
+  },
+  {
+    "apiVersion": "v1",
+    "kind": "Secret",
+    "metadata": {
+      "name": "${installation}-publisher-credentials",
+      "labels": {
+        "kimage.dev/installation": "${installation}"
+      },
+      "namespace": "${namespace}",
+      "annotations": {
+        "kimage.dev/manager": "${manager}"
+      }
+    },
+    "type": "Opaque",
+    "data": "${publisherCredentials}"
+  },
+  {
+    "apiVersion": "v1",
+    "kind": "Secret",
+    "metadata": {
+      "name": "${installation}-admission-credentials",
+      "labels": {
+        "kimage.dev/installation": "${installation}"
+      },
+      "namespace": "${namespace}",
+      "annotations": {
+        "kimage.dev/manager": "${manager}"
+      }
+    },
+    "type": "Opaque",
+    "data": "${admissionCredentials}"
+  },
+  {
+    "apiVersion": "v1",
+    "kind": "Secret",
+    "metadata": {
+      "name": "${installation}-builder-credentials",
+      "namespace": "${namespace}",
+      "labels": {
+        "kimage.dev/installation": "${installation}"
+      },
+      "annotations": {
+        "kimage.dev/manager": "${manager}"
+      }
+    },
+    "type": "Opaque",
+    "data": "${builderCredentials}"
+  },
+  {
+    "apiVersion": "v1",
+    "kind": "ConfigMap",
+    "metadata": {
+      "name": "${installation}-registry-config",
+      "labels": {
+        "kimage.dev/installation": "${installation}"
+      },
+      "namespace": "${namespace}",
+      "annotations": {
+        "kimage.dev/manager": "${manager}"
+      }
+    },
+    "data": {
+      "config.yml": "${registryConfiguration}"
+    },
+    "immutable": true
+  },
+  {
+    "apiVersion": "v1",
+    "kind": "ConfigMap",
+    "metadata": {
+      "name": "${installation}-component-images",
+      "labels": {
+        "kimage.dev/installation": "${installation}"
+      },
+      "namespace": "${namespace}",
+      "annotations": {
+        "kimage.dev/manager": "${manager}"
+      }
+    },
+    "data": {
+      "images.json": "${imageCatalog}"
+    }
+  },
+  {
+    "apiVersion": "v1",
+    "kind": "ConfigMap",
+    "metadata": {
+      "name": "${installation}-config",
+      "labels": {
+        "kimage.dev/installation": "${installation}"
+      },
+      "namespace": "${namespace}",
+      "annotations": {
+        "kimage.dev/manager": "${manager}"
+      }
+    },
+    "data": {
+      "configuration.json": "${buildConfiguration}"
+    }
+  },
+  {
+    "apiVersion": "v1",
+    "kind": "ConfigMap",
+    "metadata": {
+      "name": "${installation}-installation",
+      "labels": {
+        "kimage.dev/installation": "${installation}"
+      },
+      "namespace": "${namespace}",
+      "annotations": {
+        "kimage.dev/manager": "${manager}"
+      }
+    },
+    "data": {
+      "installation.json": "${installationConfiguration}"
+    }
+  },
+  {
+    "apiVersion": "v1",
+    "kind": "Service",
+    "metadata": {
+      "name": "${installation}-registry",
+      "labels": {
+        "kimage.dev/installation": "${installation}"
+      },
+      "namespace": "${namespace}",
+      "annotations": {
+        "kimage.dev/manager": "${manager}"
+      }
+    },
+    "spec": {
+      "selector": {
+        "kimage.dev/installation": "${installation}",
+        "kimage.dev/role": "registry"
+      },
+      "ports": [
+        {
+          "port": 5443,
+          "targetPort": 5443
+        }
+      ]
+    }
+  },
+  {
+    "apiVersion": "apps/v1",
+    "kind": "Deployment",
+    "metadata": {
+      "name": "${installation}-registry",
+      "labels": {
+        "kimage.dev/installation": "${installation}",
+        "kimage.dev/role": "registry"
+      },
+      "namespace": "${namespace}",
+      "annotations": {
+        "kimage.dev/manager": "${manager}"
+      }
+    },
+    "spec": {
+      "replicas": 1,
+      "strategy": {
+        "type": "Recreate"
+      },
+      "selector": {
+        "matchLabels": {
+          "kimage.dev/installation": "${installation}",
+          "kimage.dev/role": "registry"
+        }
+      },
+      "template": {
+        "metadata": {
+          "labels": {
+            "kimage.dev/installation": "${installation}",
+            "kimage.dev/role": "registry"
+          }
+        },
+        "spec": {
+          "automountServiceAccountToken": false,
+          "restartPolicy": "Always",
+          "hostNetwork": false,
+          "dnsPolicy": "ClusterFirst",
+          "securityContext": {
+            "seccompProfile": {
+              "type": "RuntimeDefault"
+            }
+          },
+          "containers": [
+            {
+              "name": "registry",
+              "image": "${registryImage}",
+              "imagePullPolicy": "IfNotPresent",
+              "command": [
+                "/kimage-registry"
+              ],
+              "args": [
+                "serve",
+                "/config/config.yml"
+              ],
+              "securityContext": {
+                "runAsUser": 0,
+                "runAsGroup": 0,
+                "runAsNonRoot": false,
+                "allowPrivilegeEscalation": false,
+                "readOnlyRootFilesystem": true,
+                "capabilities": {
+                  "drop": [
+                    "ALL"
+                  ]
+                }
+              },
+              "resources": {
+                "requests": {
+                  "cpu": "50m",
+                  "memory": "64Mi"
+                },
+                "limits": {
+                  "cpu": "1",
+                  "memory": "512Mi",
+                  "ephemeral-storage": "2Gi"
+                }
+              },
+              "volumeMounts": [
+                {
+                  "name": "config",
+                  "mountPath": "/config",
+                  "readOnly": true
+                },
+                {
+                  "name": "data",
+                  "mountPath": "/data",
+                  "readOnly": false
+                }
+              ]
+            },
+            {
+              "name": "gateway",
+              "image": "${gatewayImage}",
+              "imagePullPolicy": "IfNotPresent",
+              "command": [
+                "/kimage-gateway"
+              ],
+              "args": [
+                "--cert",
+                "/credentials/tls.crt",
+                "--key",
+                "/credentials/tls.key",
+                "--read-password",
+                "/credentials/reader-password",
+                "--write-password",
+                "/credentials/publisher-password",
+                "--namespaces",
+                "${allowedNamespaces}"
+              ],
+              "securityContext": {
+                "runAsUser": 65532,
+                "runAsGroup": 65532,
+                "runAsNonRoot": true,
+                "allowPrivilegeEscalation": false,
+                "readOnlyRootFilesystem": true,
+                "capabilities": {
+                  "drop": [
+                    "ALL"
+                  ]
+                }
+              },
+              "resources": {
+                "requests": {
+                  "cpu": "50m",
+                  "memory": "64Mi"
+                },
+                "limits": {
+                  "cpu": "1",
+                  "memory": "512Mi",
+                  "ephemeral-storage": "2Gi"
+                }
+              },
+              "volumeMounts": [
+                {
+                  "name": "credentials",
+                  "mountPath": "/credentials",
+                  "readOnly": true
+                }
+              ],
+              "readinessProbe": {
+                "tcpSocket": {
+                  "port": 5443
+                },
+                "periodSeconds": 2,
+                "timeoutSeconds": 3
+              }
+            }
+          ],
+          "volumes": [
+            {
+              "name": "config",
+              "configMap": {
+                "name": "${installation}-registry-config"
+              }
+            },
+            {
+              "name": "credentials",
+              "secret": {
+                "secretName": "${installation}-registry-credentials",
+                "defaultMode": 292
+              }
+            },
+            {
+              "name": "data",
+              "persistentVolumeClaim": {
+                "claimName": "${claimName}"
+              }
+            }
+          ],
+          "affinity": {
+            "nodeAffinity": {
+              "requiredDuringSchedulingIgnoredDuringExecution": {
+                "nodeSelectorTerms": [
+                  {
+                    "matchFields": [
+                      {
+                        "key": "metadata.name",
+                        "operator": "In",
+                        "values": [
+                          "${primaryNode}"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "serviceAccountName": "${installation}-serving"
+        }
+      }
+    }
+  }
+]

@@ -1,0 +1,97 @@
+[
+  {
+    "apiVersion": "batch/v1",
+    "kind": "Job",
+    "metadata": {
+      "name": "${workerCheckName}",
+      "namespace": "${namespace}",
+      "labels": {
+        "kimage.dev/installation": "${installation}",
+        "kimage.dev/role": "builder-client"
+      },
+      "annotations": {
+        "kimage.dev/manager": "${manager}"
+      }
+    },
+    "spec": {
+      "backoffLimit": 4,
+      "activeDeadlineSeconds": 300,
+      "template": {
+        "metadata": {
+          "labels": {
+            "kimage.dev/installation": "${installation}",
+            "kimage.dev/role": "builder-client"
+          }
+        },
+        "spec": {
+          "automountServiceAccountToken": false,
+          "restartPolicy": "OnFailure",
+          "nodeName": "${node}",
+          "containers": [
+            {
+              "name": "check",
+              "image": "${builderImage}",
+              "imagePullPolicy": "IfNotPresent",
+              "command": [
+                "/buildctl"
+              ],
+              "args": [
+                "--addr",
+                "tcp://${installation}-builder-${architecture}.${namespace}.svc:1234",
+                "--tlsservername",
+                "${installation}-builder.${namespace}.svc",
+                "--tlscacert",
+                "/credentials/ca.crt",
+                "--tlscert",
+                "/credentials/client.crt",
+                "--tlskey",
+                "/credentials/client.key",
+                "debug",
+                "workers"
+              ],
+              "volumeMounts": [
+                {
+                  "name": "credentials",
+                  "mountPath": "/credentials",
+                  "readOnly": true
+                }
+              ],
+              "resources": {
+                "requests": {
+                  "cpu": "10m",
+                  "memory": "16Mi"
+                },
+                "limits": {
+                  "cpu": "500m",
+                  "memory": "128Mi"
+                }
+              },
+              "securityContext": {
+                "runAsUser": 65532,
+                "runAsGroup": 65532,
+                "runAsNonRoot": true,
+                "allowPrivilegeEscalation": false,
+                "readOnlyRootFilesystem": true,
+                "capabilities": {
+                  "drop": [
+                    "ALL"
+                  ]
+                }
+              }
+            }
+          ],
+          "volumes": [
+            {
+              "name": "credentials",
+              "secret": {
+                "secretName": "${installation}-builder-client-${architecture}",
+                "defaultMode": 292
+              }
+            }
+          ],
+          "serviceAccountName": "${installation}-serving"
+        }
+      }
+    }
+  }
+]

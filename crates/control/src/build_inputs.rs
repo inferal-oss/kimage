@@ -38,6 +38,8 @@ pub struct Frozen {
     pub build: Build,
     pub references: Vec<Reference>,
     pub bindings: Vec<Binding>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub image_inputs: Vec<crate::image_inputs::FrozenImage>,
 }
 fn metadata(image: &Image, id: &str, name: &str) -> Result<Value> {
     ensure!(
@@ -238,6 +240,7 @@ pub async fn freeze(image: &Image, config: &Config, build: &Build, id: &str) -> 
         build: build.clone(),
         references: Vec::new(),
         bindings: Vec::new(),
+        image_inputs: crate::image_inputs::freeze(image, config, build).await?,
     };
     let mut pending = Vec::new();
     for (index, volume) in build.inputs.volumes.iter().enumerate() {

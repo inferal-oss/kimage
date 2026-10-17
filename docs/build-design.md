@@ -1,5 +1,7 @@
 # Direct build implementation decisions
 
+The [0.6.0 frozen OCI input extension](image-inputs.md) adds exact named base and toolchain images to this execution path. The milestone history below describes the original scratch-only boundary.
+
 For 0.3.0 platform selection, default on-demand production, eager configuration,
 and namespace/cluster installation, see [native platforms and scope](platforms-and-scope.md).
 Earlier acceptance receipts below describe the historical amd64 fixture; native

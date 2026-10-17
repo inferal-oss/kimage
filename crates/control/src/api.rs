@@ -146,6 +146,8 @@ pub struct BuildProvenance {
     pub format: String,
     pub adapter_version: String,
     pub inputs: Vec<kimage_core::build::ObjectIdentity>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub image_inputs: Vec<kimage_core::build::ImageMaterial>,
     pub execution: kimage_core::build::ExecutionReceipt,
 }
 #[derive(CustomResource, Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]

@@ -68,7 +68,7 @@ class ReleaseTests(unittest.TestCase):
                 bundle = fixture(location,architecture,'0.3.0')
                 inventory = json.loads((bundle/'inventory.json').read_text())
                 self.assertEqual(inventory['platform']['architecture'],architecture)
-                self.assertEqual(inventory['apiSchemaRevision'],5)
+                self.assertEqual(inventory['apiSchemaRevision'],6)
                 with patch.object(release_pack,'ROOT',root), contextlib.redirect_stdout(io.StringIO()):
                     release_pack.package(bundle,root/'release','0.3.0')
                 wrong = 'arm64' if architecture == 'amd64' else 'amd64'

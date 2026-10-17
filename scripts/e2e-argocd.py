@@ -36,8 +36,8 @@ class Argo:
         base['output']=str(self.output/'builds');base['timeoutSeconds']=config.get('timeoutSeconds',900)
         self.api=mixed.MixedCluster(base)
         self.api.command=config.get('kubectlCommand',['kubectl'])+self.api.command[1:]
-        self.catalog=json.loads(Path(config['catalog']).read_text());require(self.catalog['release']=='0.5.2','Exact 0.5.2 catalog required')
-        self.nodes={};self.labels={};self.report=dict(schema=1,test='argocd-installation',release='0.5.2',scope=config['scope'],checks=[],complete=False)
+        self.catalog=json.loads(Path(config['catalog']).read_text());require(self.catalog['release']=='0.6.0','Exact 0.6.0 catalog required')
+        self.nodes={};self.labels={};self.report=dict(schema=1,test='argocd-installation',release='0.6.0',scope=config['scope'],checks=[],complete=False)
         self.report['harnessSha256']='sha256:'+hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
         self.report['imageAssertionsSha256']='sha256:'+hashlib.sha256((ROOT/'scripts/e2e-image-assertions.py').read_bytes()).hexdigest()
         self.report['catalogSha256']='sha256:'+hashlib.sha256(Path(config['catalog']).read_bytes()).hexdigest()
@@ -153,7 +153,7 @@ class Argo:
     def version_roundtrip(self):
         require(self.config.get('sourceRevision'),'Conformance chart requires an exact Git source revision')
         future=json.loads(Path(self.config['nextCatalog']).read_text())
-        require(future['release']=='0.5.3-argocd-test.0','Exact isolated future conformance fixture required')
+        require(future['release']=='0.6.1-argocd-test.0','Exact isolated future conformance fixture required')
         self.report['conformanceCatalogSha256']='sha256:'+hashlib.sha256(Path(self.config['nextCatalog']).read_bytes()).hexdigest()
         identity=self.fingerprint()
         self.verify_graphs('before-argo-upgrade',self.catalog)
@@ -162,14 +162,14 @@ class Argo:
         self.verify_graphs('after-argo-upgrade',future)
         self.reconsume_retained()
         require(self.fingerprint()==identity,'Argo upgrade changed retained identities')
-        self.check('chart 0.5.2 to future-version conformance fixture resumes after provisioner interruption')
+        self.check('chart 0.6.0 to future-version conformance fixture resumes after provisioner interruption')
         self.chart_transition(self.catalog,'charts/kimage','helper')
         self.assert_native_components(self.catalog)
         self.verify_graphs('after-argo-downgrade',self.catalog)
         self.reconsume_retained()
         require(self.fingerprint()==identity,'Argo downgrade changed retained identities')
-        self.check('returning 0.5.2 chart automatically uses newer pinned helper and resumes after helper and provisioner interruption')
-        self.report['chartVersionRoundTrip']=['0.5.2',future['release'],'0.5.2']
+        self.check('returning 0.6.0 chart automatically uses newer pinned helper and resumes after helper and provisioner interruption')
+        self.report['chartVersionRoundTrip']=['0.6.0',future['release'],'0.6.0']
 
     def refused_target(self):
         deployment=self.api.get('deployment',self.id+'-provisioner',self.system)
@@ -272,7 +272,7 @@ class Argo:
             if self.config.get('sourceRevision'):
                 values['images']=dict(repository=self.catalog['repository'],digests={k:v['digest'] for k,v in self.catalog['components'].items()})
                 source.update(repoURL='https://github.com/inferal-oss/kimage.git',path='charts/kimage',targetRevision=self.config['sourceRevision'])
-            else:source.update(repoURL=self.config['chartRepository'],chart='kimage',targetRevision='0.5.2')
+            else:source.update(repoURL=self.config['chartRepository'],chart='kimage',targetRevision='0.6.0')
             self.application=dict(apiVersion='argoproj.io/v1alpha1',kind='Application',metadata=dict(name=self.id,namespace='argocd',finalizers=['resources-finalizer.argocd.argoproj.io']),spec=dict(project='default',source=source,destination=dict(server='https://kubernetes.default.svc',namespace=self.system),syncPolicy=dict(automated=dict(prune=True,selfHeal=True),syncOptions=['CreateNamespace=true'])))
             self.report['source']=dict(repoURL=source['repoURL'],targetRevision=source['targetRevision'])
             self.create_application()
@@ -336,7 +336,7 @@ class Argo:
             self.desired(dict(gitops=dict(enabled=True,targetCatalog=bad)))
             self.api.wait(self.refused_target,'unsupported target was observed, refused and remains unready')
             require(self.fingerprint()==identity,'Unsupported transition changed installation')
-            require(json.loads(self.api.get('configmap',self.id+'-installation',self.system)['data']['installation.json'])['release']=='0.5.2','Unsupported transition changed release')
+            require(json.loads(self.api.get('configmap',self.id+'-installation',self.system)['data']['installation.json'])['release']=='0.6.0','Unsupported transition changed release')
             self.stop_sync()
             self.desired(dict(gitops=dict(enabled=True)));self.wait_ready()
             self.check('unsupported runtime target is refused without changing credentials, data or installed version')

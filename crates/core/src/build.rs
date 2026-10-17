@@ -115,12 +115,41 @@ pub enum NetworkMode {
     #[default]
     None,
 }
+/// A named, already published dependency. Resolution never starts another build.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ImageInput {
+    pub name: String,
+    pub image: String,
+}
+impl ImageInput {
+    pub fn selector(&self) -> Result<crate::selector::Selector> {
+        use crate::selector::Selection;
+        let mut selector = crate::selector::Selector::parse(&self.image)?;
+        if let Selection::Range(requirement) = &selector.selection
+            && let [comparator] = requirement.comparators.as_slice()
+            && comparator.op == semver::Op::Exact
+            && let (Some(minor), Some(patch)) = (comparator.minor, comparator.patch)
+        {
+            let mut version = semver::Version::new(comparator.major, minor, patch);
+            version.pre = comparator.pre.clone();
+            selector.selection = Selection::Exact(version);
+        }
+        ensure!(
+            matches!(selector.selection, Selection::Exact(_)),
+            "ImageInputRequiresExactVersion"
+        );
+        Ok(selector)
+    }
+}
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Build {
     pub format: Format,
     pub definition: Definition,
     pub inputs: Inputs,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub image_inputs: Vec<ImageInput>,
     #[serde(default)]
     pub build_secrets: Vec<SecretBinding>,
     #[serde(default)]
@@ -290,6 +319,18 @@ impl Inputs {
 impl Build {
     pub fn validate(&self) -> Result<()> {
         self.inputs.validate()?;
+        ensure!(self.image_inputs.len() <= 8, "TooManyImageInputs");
+        let mut aliases = std::collections::BTreeSet::new();
+        for input in &self.image_inputs {
+            ensure!(input.image.len() <= 512, "ImageInputReferenceTooLong");
+            ensure!(
+                crate::selector::channel(&input.name)
+                    && !matches!(input.name.as_str(), "scratch" | "context" | "dockerfile")
+                    && aliases.insert(&input.name),
+                "InvalidOrDuplicateImageInputName"
+            );
+            input.selector()?;
+        }
         ensure!(
             crate::selector::dns_label(&self.execution.builder_ref),
             "InvalidBuilderReference"
@@ -342,6 +383,17 @@ pub struct ObjectIdentity {
     pub name: String,
     pub uid: String,
     pub resource_version: String,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageMaterial {
+    pub name: String,
+    pub image: String,
+    pub image_uid: String,
+    pub release_uid: String,
+    pub root: crate::oci::Descriptor,
+    pub manifest: crate::oci::Descriptor,
+    pub platform: Platform,
 }
 pub struct FrozenDefinition {
     pub format: Format,
@@ -399,6 +451,52 @@ mod tests {
     use serde_json::json;
     fn fixture() -> Build {
         serde_json::from_value(json!({"format":"Containerfile","definition":{"fromFile":{"path":"/workspace/inputs/recipe/Containerfile"}},"inputs":{"contextPath":"/workspace/context","volumes":[{"name":"recipe","configMap":{"name":"recipe","items":[{"key":"recipe","path":"Containerfile","mode":292}]}},{"name":"secret","secret":{"name":"license"}}],"volumeMounts":[{"name":"recipe","mountPath":"/workspace/inputs/recipe","readOnly":true},{"name":"secret","mountPath":"/run/kimage-build-secrets/license","readOnly":true}]},"execution":{"strategy":"Direct","builderRef":"default"},"cache":{"mode":"Local"},"buildSecrets":[{"id":"license","sourceFile":"/run/kimage-build-secrets/license/value"}]})).unwrap()
+    }
+    #[test]
+    fn named_image_inputs_require_exact_published_references_and_distinct_safe_aliases() {
+        let mut build = fixture();
+        for reference in [
+            "platform://apps/base:1.2.3",
+            "platform://apps/base?version==1.2.3",
+            "platform://apps/base:1.2.3-rc.1",
+        ] {
+            build.image_inputs = vec![ImageInput {
+                name: "toolchain".into(),
+                image: reference.into(),
+            }];
+            build.validate().unwrap();
+        }
+        for reference in [
+            "ubuntu:latest",
+            "platform://apps/base:^1.0.0",
+            "platform://apps/base:stable",
+            "platform://apps/base:1.2",
+            "platform://apps/base?version=1.2.3",
+        ] {
+            build.image_inputs[0].image = reference.into();
+            assert!(build.validate().is_err(), "{reference}");
+        }
+        build.image_inputs[0].image = "platform://apps/base:1.2.3".into();
+        for name in [
+            "scratch",
+            "context",
+            "dockerfile",
+            "123",
+            "a,b",
+            "../base",
+            "Upper",
+        ] {
+            build.image_inputs[0].name = name.into();
+            assert!(build.validate().is_err(), "{name}");
+        }
+        build.image_inputs[0].name = "toolchain".into();
+        build.image_inputs.push(build.image_inputs[0].clone());
+        assert!(build.validate().is_err());
+        let legacy = serde_json::to_value(fixture()).unwrap();
+        assert!(
+            legacy.get("imageInputs").is_none(),
+            "Empty additions must preserve old request digests"
+        );
     }
     #[test]
     fn declaration_keeps_definition_context_and_secret_namespaces_distinct() {

@@ -26,9 +26,9 @@ class Fixture(unittest.TestCase):
                 self.assertFalse((root/'crates/control/src/bin'/('kimage-'+role+'.rs')).exists())
             contract=json.loads((root/'crates/control/src/release-compatibility.json').read_text())
             self.assertEqual(contract['release'],fixture.VERSION)
-            self.assertIn(dict(**{'from':'0.5.2','to':fixture.VERSION},rollbackSafe=True),contract['transitions'])
-            self.assertEqual(json.loads((ROOT/'crates/control/src/release-compatibility.json').read_text())['release'],'0.5.2')
+            self.assertIn(dict(**{'from':'0.6.0','to':fixture.VERSION},rollbackSafe=True),contract['transitions'])
+            self.assertEqual(json.loads((ROOT/'crates/control/src/release-compatibility.json').read_text())['release'],'0.6.0')
             templates=root/'crates/control/src/pull_install/templates'
-            for source in templates.glob('*.json'):self.assertEqual(source.read_bytes(),(templates/'v0.5.2'/source.name).read_bytes())
+            for source in templates.glob('*.json'):self.assertEqual(source.read_bytes(),(templates/'v0.6.0'/source.name).read_bytes())
 
 if __name__=='__main__':unittest.main()

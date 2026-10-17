@@ -18,6 +18,12 @@ pub struct Session {
     pub tls_server_name: String,
     pub worker_uid: String,
     pub snapshot_id: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub image_inputs: Vec<crate::image_inputs::FrozenImage>,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub namespace: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub registry_origin: String,
 }
 #[derive(Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -49,14 +55,19 @@ pub fn validate_definition(bytes: &[u8]) -> Result<()> {
     }
     Ok(())
 }
-pub fn source_policy() -> Value {
+pub fn source_policy(inputs: &[crate::image_inputs::FrozenImage]) -> Value {
     // The pinned engine uses the LAST matching allow/deny rule. Local sessions
     // are the only source type exposed by this initial offline adapter.
-    json!({"version":1,"rules":[{"action":"DENY","selector":{"identifier":"(?s)^.*$","match_type":"REGEX"}},{"action":"ALLOW","selector":{"identifier":"local://context","match_type":"EXACT"}},{"action":"ALLOW","selector":{"identifier":"local://dockerfile","match_type":"EXACT"}}]})
+    let mut policy = json!({"version":1,"rules":[{"action":"DENY","selector":{"identifier":"(?s)^.*$","match_type":"REGEX"}},{"action":"ALLOW","selector":{"identifier":"local://context","match_type":"EXACT"}},{"action":"ALLOW","selector":{"identifier":"local://dockerfile","match_type":"EXACT"}}]});
+    for input in inputs {
+        policy["rules"].as_array_mut().unwrap().push(json!({"action":"ALLOW","selector":{"identifier":format!("oci-layout://docker.io/library/{}@{}",input.name,input.root.digest),"match_type":"EXACT"}}));
+    }
+    policy
 }
 pub fn arguments(session: &Session, capture: &Capture) -> Result<Vec<String>> {
     ensure!(session.platform.supported(), "UnsupportedBuildPlatform");
     session.build.validate()?;
+    crate::image_inputs::validate(&session.image_inputs, &session.build, &session.namespace)?;
     ensure!(
         session.build.execution.builder_ref == "default",
         "UnsupportedBuilder"
@@ -134,6 +145,17 @@ pub fn arguments(session: &Session, capture: &Capture) -> Result<Vec<String>> {
         "--progress".into(),
         "rawjson".into(),
     ];
+    for input in &session.image_inputs {
+        args.extend([
+            "--oci-layout".into(),
+            format!("{}=/snapshot/image-inputs/{}", input.name, input.name),
+            "--opt".into(),
+            format!(
+                "context:{}=oci-layout://{}@{}",
+                input.name, input.name, input.root.digest
+            ),
+        ]);
+    }
     if session.build.cache.mode == CacheMode::Disabled
         || session.build.cache.invalidation_token.is_some()
     {
@@ -231,7 +253,7 @@ pub async fn solve(
     validate_definition(&std::fs::read(definition)?)?;
     std::fs::write(
         "/snapshot/source-policy.json",
-        serde_json::to_vec(&source_policy())?,
+        serde_json::to_vec(&source_policy(&session.image_inputs))?,
     )?;
     let mut child = tokio::process::Command::new("/buildctl")
         .args(arguments(session, capture)?)
@@ -437,6 +459,7 @@ mod tests {
             definition_digest: kimage_core::oci::digest(b"definition"),
             files: 1,
             bytes: 1,
+            image_inputs: Vec::new(),
         };
         for architecture in ["amd64", "arm64"] {
             let mut session = Session {
@@ -446,6 +469,9 @@ mod tests {
                 tls_server_name: "dev-builder.system.svc".into(),
                 worker_uid: "worker".into(),
                 snapshot_id: "a".repeat(64),
+                image_inputs: Vec::new(),
+                namespace: String::new(),
+                registry_origin: String::new(),
             };
             let args = arguments(&session, &capture).unwrap();
             assert_eq!(args[1], session.endpoint);

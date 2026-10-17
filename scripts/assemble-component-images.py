@@ -81,7 +81,7 @@ def assemble(directories,out,repository):
     releases={v[1]['release'] for v in sources.values()};assert len(releases)==1,'native release mismatch'
     version=releases.pop()
     out.mkdir(parents=True,exist_ok=False)
-    catalog=dict(schema=1,release=version,apiSchemaRevision=5,repository=repository,components={})
+    catalog=dict(schema=1,release=version,apiSchemaRevision=6,repository=repository,components={})
     for role in images.ROLES:
         blobs={};children=[];versions=set()
         for arch in ['amd64','arm64']:

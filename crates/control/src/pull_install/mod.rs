@@ -172,6 +172,23 @@ fn selected_template(name: &str, bindings: &BTreeMap<String, Value>) -> Result<&
             _ => anyhow::bail!("UnknownPredecessorTemplate"),
         });
     }
+    if bindings.get("release").and_then(Value::as_str) == Some("0.5.2") {
+        return Ok(match name {
+            "base.json" => include_str!("templates/v0.5.2/base.json"),
+            "builder-check.json" => include_str!("templates/v0.5.2/builder-check.json"),
+            "builder-pod.json" => include_str!("templates/v0.5.2/builder-pod.json"),
+            "builder.json" => include_str!("templates/v0.5.2/builder.json"),
+            "control.json" => include_str!("templates/v0.5.2/control.json"),
+            "exporter.json" => include_str!("templates/v0.5.2/exporter.json"),
+            "node-policy.json" => include_str!("templates/v0.5.2/node-policy.json"),
+            "proxy.json" => include_str!("templates/v0.5.2/proxy.json"),
+            "scope-cluster.json" => include_str!("templates/v0.5.2/scope-cluster.json"),
+            "scope-namespace.json" => include_str!("templates/v0.5.2/scope-namespace.json"),
+            "storage.json" => include_str!("templates/v0.5.2/storage.json"),
+            "webhooks.json" => include_str!("templates/v0.5.2/webhooks.json"),
+            _ => anyhow::bail!("UnknownPredecessorTemplate"),
+        });
+    }
     template(name)
 }
 
@@ -800,7 +817,7 @@ mod tests {
         use crate::component_images::{Component, OFFICIAL_REPOSITORY, ROLES};
         ImageCatalog {
             schema: 1,
-            release: "0.4.0".into(),
+            release: env!("CARGO_PKG_VERSION").into(),
             api_schema_revision: crate::schema::REVISION,
             repository: OFFICIAL_REPOSITORY.into(),
             components: ROLES
@@ -813,7 +830,7 @@ mod tests {
                                 "gateway" | "proxy" => crate::serving::VERSION,
                                 "registry" => "3.1.2",
                                 "builder" => "0.33.0",
-                                _ => "0.4.0",
+                                _ => env!("CARGO_PKG_VERSION"),
                             }
                             .into(),
                             digest: format!("sha256:{}", "a".repeat(64)),
@@ -861,6 +878,12 @@ mod tests {
             for release in ["0.4.1", "0.5.0", "0.6.0"] {
                 let mut catalog = catalog();
                 catalog.release = release.into();
+                catalog.api_schema_revision =
+                    if release.starts_with("0.4.") || release.starts_with("0.5.") {
+                        5
+                    } else {
+                        6
+                    };
                 for role in ["operator", "input", "admission", "exporter"] {
                     catalog.components.get_mut(role).unwrap().version = release.into();
                 }
@@ -895,6 +918,12 @@ mod tests {
         for release in ["0.4.1", "0.5.0"] {
             let mut catalog = catalog();
             catalog.release = release.into();
+            catalog.api_schema_revision =
+                if release.starts_with("0.4.") || release.starts_with("0.5.") {
+                    5
+                } else {
+                    6
+                };
             for role in ["operator", "admission", "input", "exporter"] {
                 catalog.components.get_mut(role).unwrap().version = release.into();
             }

@@ -2,8 +2,8 @@ apiVersion: v2
 name: kimage
 description: A Kubernetes-native image catalog, builder, and delivery system
 type: application
-version: 0.5.2
-appVersion: "0.5.2"
+version: 0.6.0
+appVersion: "0.6.0"
 home: https://kimage.dev
 sources:
   - https://github.com/inferal-oss/kimage

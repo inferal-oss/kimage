@@ -56,13 +56,13 @@ its prior values, and never deletes or cordons Nodes. It temporarily removes
 eligibility from the arm64 node and an ordinary amd64 node, checks worker fencing
 and proxy revocation, then restores both.
 
-## Version transitions from 0.5.2
+## Version transitions from 0.6.0
 
 `nextCatalog` enables a real chart-version round trip through the separate
-`0.5.3-argocd-test.0` conformance build. Native workflows build its actual
-versioned binaries, frozen 0.5.2 templates and exact compatibility contract in
+`0.6.1-argocd-test.0` conformance build. Native workflows build its actual
+versioned binaries, frozen 0.6.0 templates and exact compatibility contract in
 an isolated workspace. Candidate publication uses separate conformance image
-tags. This is not a Cargo or GitHub release of 0.5.3.
+tags. This is not a Cargo or GitHub release of 0.6.1.
 
 The Application selects the conformance chart at
 `tests/fixtures/argocd-next-chart`, then returns to `charts/kimage` at the same
@@ -80,7 +80,7 @@ and replace `sourceRevision` with:
 {"chartRepository": "https://kimage.dev/charts"}
 ```
 
-That path selects the exact public 0.5.2 chart. It repeats installation,
+That path selects the exact public 0.6.0 chart. It repeats installation,
 reconciliation, native demand/build/pull, refusal and retention checks. It uses
 the published chart's own image pins without image overrides, then compares
 actual native component identities against the independently verified catalog.

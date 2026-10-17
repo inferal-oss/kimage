@@ -50,6 +50,14 @@ pub fn pod(image: &Image, config: &Config, settings: &Settings, record: &Record)
         json!({"name":"configuration","mountPath":"/configuration","readOnly":true}),
         json!({"name":"builder-credentials","mountPath":"/builder-credentials","readOnly":true}),
     ];
+    if !record.session.image_inputs.is_empty() {
+        volumes[0]["emptyDir"]["sizeLimit"] = json!("4Gi");
+        mounts.push(json!({"name":"snapshot","mountPath":"/tmp"}));
+        volumes.push(json!({"name":"image-credentials","secret":{"secretName":format!("build-{}-image-credentials",&id[..20]),"defaultMode":292}}));
+        mounts.push(
+            json!({"name":"image-credentials","mountPath":"/image-credentials","readOnly":true}),
+        );
+    }
     for (index, volume) in record.frozen.build.inputs.volumes.iter().enumerate() {
         let name = format!("input-{index}");
         let value = if let Some(source) = volume.config_map.as_ref().or(volume.secret.as_ref()) {
@@ -93,9 +101,11 @@ pub fn pod(image: &Image, config: &Config, settings: &Settings, record: &Record)
     prepare["runAsUser"] = json!(0);
     prepare["runAsGroup"] = json!(0);
     prepare["runAsNonRoot"] = json!(false);
-    Ok(
-        json!({"apiVersion":"v1","kind":"Pod","metadata":metadata,"spec":{"hostNetwork":false,"hostPID":false,"hostIPC":false,"nodeName":config.node,"automountServiceAccountToken":false,"restartPolicy":"Never","securityContext":{"seccompProfile":{"type":"RuntimeDefault"}},"initContainers":[{"name":"workspace","image":config.input_image,"imagePullPolicy":"IfNotPresent","command":["/kimage-input","prepare-build"],"securityContext":prepare,"resources":{"requests":{"cpu":"10m","memory":"16Mi"},"limits":{"cpu":"100m","memory":"64Mi"}},"volumeMounts":[{"name":"snapshot","mountPath":"/snapshot"},{"name":"sensitive","mountPath":"/sensitive"}]}],"containers":[{"name":"client","image":settings.builder_image,"imagePullPolicy":"IfNotPresent","command":["/snapshot/session","build-session"],"securityContext":secure,"resources":{"requests":{"cpu":"50m","memory":"64Mi"},"limits":{"cpu":"1","memory":"512Mi","ephemeral-storage":"2Gi"}},"readinessProbe":{"exec":{"command":["/snapshot/session","build-ready"]},"periodSeconds":2,"timeoutSeconds":2},"volumeMounts":mounts}],"volumes":volumes}}),
-    )
+    let mut value = json!({"apiVersion":"v1","kind":"Pod","metadata":metadata,"spec":{"hostNetwork":false,"hostPID":false,"hostIPC":false,"nodeName":config.node,"automountServiceAccountToken":false,"restartPolicy":"Never","securityContext":{"seccompProfile":{"type":"RuntimeDefault"}},"initContainers":[{"name":"workspace","image":config.input_image,"imagePullPolicy":"IfNotPresent","command":["/kimage-input","prepare-build"],"securityContext":prepare,"resources":{"requests":{"cpu":"10m","memory":"16Mi"},"limits":{"cpu":"100m","memory":"64Mi"}},"volumeMounts":[{"name":"snapshot","mountPath":"/snapshot"},{"name":"sensitive","mountPath":"/sensitive"}]}],"containers":[{"name":"client","image":settings.builder_image,"imagePullPolicy":"IfNotPresent","command":["/snapshot/session","build-session"],"securityContext":secure,"resources":{"requests":{"cpu":"50m","memory":"64Mi"},"limits":{"cpu":"1","memory":"512Mi","ephemeral-storage":"2Gi"}},"readinessProbe":{"exec":{"command":["/snapshot/session","build-ready"]},"periodSeconds":2,"timeoutSeconds":2},"volumeMounts":mounts}],"volumes":volumes}});
+    if !record.session.image_inputs.is_empty() {
+        value["spec"]["containers"][0]["resources"]["limits"]["ephemeral-storage"] = json!("4Gi");
+    }
+    Ok(value)
 }
 pub async fn create(
     image: &Image,
@@ -113,6 +123,9 @@ pub async fn create(
             tls_server_name: approved.tls_server_name.clone(),
             worker_uid: approved.pod.uid().context("MissingWorkerUid")?,
             snapshot_id: id.into(),
+            image_inputs: frozen.image_inputs.clone(),
+            namespace: config.namespace.clone(),
+            registry_origin: config.registry_origin.to_string(),
         },
         frozen,
         request_digest: crate::reconcile::request_digest(image)?,
@@ -133,6 +146,32 @@ pub async fn create(
     )?;
     secret.data = Some(approved.credentials.clone());
     secrets.create(&PostParams::default(), &secret).await?;
+    if !record.session.image_inputs.is_empty() {
+        let system_secrets: Api<Secret> =
+            Api::namespaced(config.client.clone(), &settings.system_namespace);
+        let reader = system_secrets
+            .get(&format!("{}-proxy-credentials", settings.installation))
+            .await?;
+        ensure!(
+            reader.labels().get(crate::install::LABEL) == Some(&settings.installation),
+            "ImageInputCredentialOwnershipConflict"
+        );
+        let data = reader.data.context("ImageInputReaderCredentialsMissing")?;
+        let mut selected = std::collections::BTreeMap::new();
+        for key in ["ca.crt", "reader-password"] {
+            selected.insert(
+                key.to_owned(),
+                data.get(key)
+                    .context("ImageInputReaderCredentialsMissing")?
+                    .clone(),
+            );
+        }
+        let mut secret: Secret = serde_json::from_value(
+            json!({"apiVersion":"v1","kind":"Secret","metadata":build_inputs::object_metadata(image,config,id,"image-credentials")?,"immutable":true,"type":"Opaque"}),
+        )?;
+        secret.data = Some(selected);
+        secrets.create(&PostParams::default(), &secret).await?;
+    }
     let desired: Pod = serde_json::from_value(pod(image, config, settings, &record)?)?;
     let pods: Api<Pod> = Api::namespaced(config.client.clone(), &config.namespace);
     pods.create(&PostParams::default(), &desired).await?;

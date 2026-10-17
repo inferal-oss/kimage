@@ -32,6 +32,18 @@ pub(crate) fn source(union: &Value) -> Result<Value> {
     let archive = member(union, "ociArchive")?;
     let mut build = member(union, "build")?;
     let props = &mut build["properties"];
+    let image_inputs = &mut props["imageInputs"];
+    image_inputs["maxItems"] = json!(8);
+    image_inputs["x-kubernetes-list-type"] = json!("map");
+    image_inputs["x-kubernetes-list-map-keys"] = json!(["name"]);
+    let input = &mut image_inputs["items"]["properties"];
+    bound_string(&mut input["name"], 63);
+    input["name"]["pattern"] = json!("^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$");
+    bound_string(&mut input["image"], 512);
+    input["image"]["pattern"] = json!(
+        r"^platform://[a-z0-9.-]+/[a-z0-9.-]+(:=?|\?version==)[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$"
+    );
+    image_inputs["items"]["x-kubernetes-validations"] = json!([{"rule":"!(self.name in ['scratch', 'context', 'dockerfile'])","message":"Reserved image input name"}]);
     let definition = &mut props["definition"];
     *definition = json!({"type":"object","properties":{"inline":member(definition,"inline")?,"fromFile":member(definition,"fromFile")?},"x-kubernetes-validations":[{"rule":"has(self.inline) != has(self.fromFile)","message":"Select exactly one definition source"}]});
     bound_string(&mut definition["properties"]["inline"], 65536);

@@ -16,7 +16,11 @@ fn catalog(release: &str) -> ImageCatalog {
     ImageCatalog {
         schema: 1,
         release: release.into(),
-        api_schema_revision: 5,
+        api_schema_revision: if release.starts_with("0.4.") || release.starts_with("0.5.") {
+            5
+        } else {
+            6
+        },
         repository: "ghcr.io/inferal-oss/kimage".into(),
         components: ROLES
             .into_iter()
@@ -136,7 +140,7 @@ async fn fixture() -> (kube::Client, Arc<Mutex<Store>>, tokio::task::JoinHandle<
         store.put(value);
     }
     store.put(json!({"apiVersion":"v1","kind":"PersistentVolume","metadata":{"name":"volume"},"spec":{"capacity":{"storage":"1Gi"},"accessModes":["ReadWriteOnce"],"persistentVolumeReclaimPolicy":"Retain","local":{"path":"/fixture"}}}));
-    for crd in kimage_control::schema::definitions().unwrap() {
+    for crd in serde_json::from_str::<Vec<k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition>>(include_str!("../schemas/revision-5.json")).unwrap() {
         store.put(serde_json::to_value(crd).unwrap());
     }
     let store = Arc::new(Mutex::new(store));
@@ -198,7 +202,7 @@ async fn fixture() -> (kube::Client, Arc<Mutex<Store>>, tokio::task::JoinHandle<
 async fn recovering_workers_defer_capture_until_pod_and_service_endpoints_are_ready() {
     for ready in [false, true] {
         let (client, records, server) = fixture().await;
-        for version in ["0.5.0", "0.5.1", env!("CARGO_PKG_VERSION")] {
+        for version in ["0.5.0", "0.5.1", "0.5.2", env!("CARGO_PKG_VERSION")] {
             lifecycle::transition(
                 client.clone(),
                 "system",
@@ -545,7 +549,7 @@ async fn an_older_operator_can_ignore_a_completed_newer_journal_but_fences_unkno
 #[tokio::test]
 async fn node_replacement_revokes_new_builds_before_waiting_for_an_active_worker_lease() {
     let (client, store, server) = fixture().await;
-    for version in ["0.5.0", "0.5.1", env!("CARGO_PKG_VERSION")] {
+    for version in ["0.5.0", "0.5.1", "0.5.2", env!("CARGO_PKG_VERSION")] {
         lifecycle::transition(
             client.clone(),
             "system",
@@ -736,7 +740,7 @@ fn gitops_configuration_refuses_unknown_releases_old_targets_and_private_materia
             .to_string()
             .contains("TargetDoesNotSupportArgoCD")
     );
-    desired.catalog = catalog("0.6.0");
+    desired.catalog = catalog("0.7.0");
     assert!(
         desired
             .validate()
@@ -854,8 +858,8 @@ async fn patch_upgrade_interruption_resume_and_rollback_preserve_frozen_predeces
 #[tokio::test]
 async fn returning_argo_chart_uses_newer_pinned_helper_and_resumes_from_journal_source() {
     let (client, records, server) = fixture().await;
-    let future = catalog("0.5.3-argocd-test.0");
-    let target = catalog("0.5.2");
+    let future = catalog("0.6.1-argocd-test.0");
+    let target = catalog("0.6.0");
     let (mut installed, mut options, _) = lifecycle::state(client.clone(), "system", "dev")
         .await
         .unwrap();
@@ -1085,4 +1089,16 @@ async fn retained_root_preflight_excludes_only_releases_that_predate_the_registr
         assert_eq!(records.lock().unwrap().writes, writes);
         server.abort();
     }
+}
+
+#[test]
+fn frozen_image_api_upgrade_is_explicit_and_shared_schema_rollback_is_refused() {
+    lifecycle::compatible(&catalog("0.5.2"), &catalog("0.6.0")).unwrap();
+    assert!(
+        lifecycle::compatible(&catalog("0.6.0"), &catalog("0.5.2"))
+            .unwrap_err()
+            .to_string()
+            .contains("SharedSchemaDowngradeUnsupported")
+    );
+    assert!(lifecycle::compatible(&catalog("0.5.1"), &catalog("0.6.0")).is_err());
 }

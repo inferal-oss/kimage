@@ -98,12 +98,12 @@ def main():
     catalog=json.loads(args.image_catalog.read_bytes())
     assert catalog['repository']=='127.0.0.1:14901/kimage'
     common=['--namespace',system,'--installation',installation,'--scope',args.scope,'--runtime-profile','k3s','--storage-class','local-path']
-    common += ['--application-namespace',app] if args.scope=='namespace' else ['--exclude-namespace',excluded]
+    common += ['--application-namespace',app] if args.scope=='namespace' else ['--exclude-namespace',excluded,'--exclude-namespace','upgrade-app']
     def install():
         if args.mode=='cli':
             return run([args.installer.resolve(),'install',*common,'--image-catalog',args.image_catalog.resolve()],timeout=1200,ok=False)
         assert args.chart
-        values=dict(scope=args.scope,applicationNamespace=app if args.scope=='namespace' else '',excludedNamespaces=[] if args.scope=='namespace' else [excluded],runtimeProfile='k3s',persistence=dict(storageClass='local-path'),images=dict(repository=catalog['repository']))
+        values=dict(scope=args.scope,applicationNamespace=app if args.scope=='namespace' else '',excludedNamespaces=[] if args.scope=='namespace' else [excluded,'upgrade-app'],runtimeProfile='k3s',persistence=dict(storageClass='local-path'),images=dict(repository=catalog['repository']))
         path=args.output/'helm-values.json';path.write_text(json.dumps(values))
         return run(['helm','upgrade','--install',installation,args.chart.resolve(),'--namespace',system,'-f',path,'--wait','--wait-for-jobs','--timeout','15m'],timeout=1200,ok=False)
     try:
