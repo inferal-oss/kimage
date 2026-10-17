@@ -346,12 +346,13 @@ belongs only to that system namespace, not application namespaces or admission.
 
 kimage uninstall --namespace kimage-system --installation kimage, or helm uninstall
 kimage --namespace kimage-system --wait, preserves PVCs, CRDs, Images and releases.
-After rollback to 0.4.1, first scale deployment/INSTALLATION-operator to zero and
+After rollback to a predecessor such as 0.5.0 or 0.4.1, first scale
+deployment/INSTALLATION-operator to zero and
 wait for its operator Pods to be deleted, delete its named INSTALLATION-builder-amd64
 and INSTALLATION-builder-arm64 Pods with --ignore-not-found --wait=true, then helm
 uninstall. Published 0.4.1 recreates workers without Helm tracking metadata.
 Use the installation label plus kimage.dev/role=operator for the Pod wait.
-CLI uninstall already stops supervisors first. Fresh 0.5.0 Helm removal is
+CLI uninstall already stops supervisors first. Fresh 0.5.1 Helm removal is
 tested directly; predecessor removal uses the documented shutdown procedure.
 Never remove retained namespaces/backends/finalizers as normal cleanup. Back up
 whole registry backend plus release UIDs, roots and schema coordination state.
@@ -454,6 +455,6 @@ For GitOpsTransitionPending, inspect Jobs labelled
 `kimage.dev/gitops-transition=INSTALLATION` and their bounded failure reasons.
 Application deletion
 removes desired-state control but leaves runtime and data. For runtime removal,
-first delete the Application and wait for its provisioner Deployment and transition Jobs/Pods to disappear,
+first delete the Application and wait for its provisioner Deployment, provisioner Pods and transition Jobs/Pods to disappear,
 then run `kimage uninstall`; retained PVC, Images, releases and CRDs survive.
 Read the [Argo CD installation guide](https://kimage.dev/docs/#argocd).

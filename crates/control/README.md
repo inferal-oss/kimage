@@ -19,19 +19,26 @@ in process. No component binaries or images are uploaded through the API.
 and the supported Pod user-namespace/runtime profile are required.
 
 Alternatively, install the pinned release Helm chart from
-`https://kimage.dev/charts`. Both modes support namespace and cluster scope,
+`https://kimage.dev/charts`. CLI and Helm support namespace and cluster scope,
 preserve application artifacts on removal, and include a local application
 registry. See the [installation guide](https://kimage.dev/docs/#cluster-setup)
 and [agent essentials](https://kimage.dev/llms.txt).
+
+From 0.5.1, Argo CD can use the same chart with `gitops.enabled: true`.
+An in-cluster provisioner discovers native nodes and generates credentials once.
+Changing the pinned chart version supports compatible upgrades and downgrades
+from 0.5.1 onward, including interruption recovery. See the
+[Argo CD guide](https://kimage.dev/docs/#argocd).
 
 The crate includes the operator, admission server, helpers and serving tools.
 Gateway/proxy retain serving protocol version 0.3.0 independently of Cargo's
 package version. The crate named `kimage` is a separate project.
 
-For an existing 0.4.1 installation, update this CLI, then run
+For an existing 0.5.0 installation, update this CLI, then run
 `kimage upgrade --to 0.5.1 --check` and `kimage upgrade --to 0.5.1`.
-`kimage rollback --to 0.4.1` performs the compatible reverse transition. Both
+`kimage rollback --to 0.5.0` performs the compatible reverse transition. Both
 managers preserve their ownership, registry storage and release metadata.
+Older installations must pass through their supported adjacent releases.
 `kimage status` and `kimage doctor` report installation health. Use
 `kimage builds IMAGE -n apps` and `kimage logs IMAGE -n apps --follow` for private,
 bounded per-attempt diagnostics. Build output can contain printed secrets.

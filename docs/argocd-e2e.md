@@ -90,6 +90,12 @@ version transitions and retention results. The nested build receipt records
 fresh Image UIDs, native roots and consumer placement. Credential bytes and
 private build output are not included.
 
+The harness waits for provisioner Deployments, their Pods and transition Jobs/Pods
+to disappear before explicit runtime removal. It records the retained claim and
+release UIDs before that command. A failed local uninstall saves
+`uninstall.private.log` with owner-only permissions; keep it private. CI records
+only the exit code and allowlisted reason codes, without copying command output.
+
 Successful acceptance deletes its Application and disposable runtime through
 the supported removal path. It removes only its consumer Deployments/Pods and
 preserves fixture namespaces, registry PVC, Images and releases. Failure leaves
@@ -97,3 +103,24 @@ bounded diagnostic metadata and may leave the isolated Application/runtime for
 inspection. Use the same fixture identity with the documented Application and
 runtime removal procedure; never remove shared Nodes, unrelated Applications,
 retained data or shared CRDs to clean up a test.
+
+To repeat the full test on its already-uninstalled retained fixture, use a new
+output directory and explicitly supply the observed namespace and registry claim
+UIDs. This avoids deleting data to recreate a supposedly fresh fixture:
+
+```json
+{
+  "retainedFixture": {
+    "namespaceUids": {
+      "kimage-argo-test-app": "EXACT_APPLICATION_NAMESPACE_UID",
+      "kimage-argo-test-system": "EXACT_SYSTEM_NAMESPACE_UID"
+    },
+    "pvcUid": "EXACT_INSTALLATION_DATA_CLAIM_UID"
+  }
+}
+```
+
+This option refuses replaced namespaces/claims, an existing installation record
+or active owned runtime resources. It preserves the previous receipt and retained
+data; every image placement case still creates a fresh Image UID. Ordinary runs
+continue to require fresh namespaces.

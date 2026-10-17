@@ -23,6 +23,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 ### Fixed
 
 - Helm upgrades from 0.5.0 tolerate reused values without an Argo CD configuration section.
+- Release instructions use the supported adjacent 0.5.0 to 0.5.1 upgrade and reverse transition. Argo removal guidance and acceptance wait for provisioner Pods to finish before runtime cleanup.
 - Argo CD transitions verify retained image bytes through the authenticated in-cluster registry service, preserving TLS, root digest and size checks without API port-forward privileges.
 - Argo CD runtime uninstall waits for downgrade helper Jobs and Pods to disappear, preventing them from racing explicit removal.
 - Installation and GitOps policy updates recheck installation identity and pending operations after acquiring the lifecycle lock, refusing stale preflight state before applying resources.

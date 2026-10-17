@@ -246,9 +246,10 @@ kimage uninstall --namespace kimage-system --installation kimage
 helm uninstall kimage --namespace kimage-system --wait
 ```
 
-After a rollback to 0.4.1, stop its operator before Helm removal. That published
-controller recreates workers without Helm tracking metadata. Stop it, then remove
-its named workers before removing the chart:
+After rollback to a predecessor such as 0.5.0 or 0.4.1, stop its operator before
+Helm removal to prevent worker reconciliation from racing chart deletion.
+Version 0.4.1 can recreate workers without Helm tracking metadata. Stop the
+operator, then remove its named workers before removing the chart:
 
 ```sh
 kubectl -n kimage-system scale deployment/kimage-operator --replicas=0
@@ -259,7 +260,7 @@ helm uninstall kimage --namespace kimage-system --wait
 
 Use your installation name and system namespace. The CLI uninstall command
 already stops the operator before removing workers. Native acceptance tests fresh
-0.5.0 Helm removal directly and uses this shutdown procedure after rollback to
+0.5.1 Helm removal directly and uses this shutdown procedure after rollback to
 the published predecessor.
 
 Both preserve the registry PVC, Images, ImageReleases and shared CRDs. Do not delete

@@ -178,7 +178,7 @@ for CLI and Helm, both scopes, on native amd64 and arm64 Linux runners. It exerc
 builds/pulls, all supported controller templates, dry-run, pending demand, eager
 production, RBAC and namespace boundaries, and retained storage on uninstall.
 The release workflow requires that matrix to pass before publication. Each case
-also runs the published 0.4.1 predecessor through interrupted upgrade and rollback,
+also runs the published 0.5.0 predecessor through interrupted upgrade to 0.5.1 and rollback,
 checks failed-attempt diagnostics, and verifies complete retained OCI graphs
 after rollback and uninstall/reinstall.
 

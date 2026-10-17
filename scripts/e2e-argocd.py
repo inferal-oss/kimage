@@ -26,7 +26,7 @@ def require(value,message):
 class Argo:
     def __init__(self,config):
         required={'kubeconfig','context','namespace','systemNamespace','installation','probes','output','catalog','installer','scope','port','registryNode','runtimeProfile'}
-        require(required<=config.keys() and not config.keys()-required-{'sourceRevision','chartRepository','nextCatalog','nodeChanges','kubectlCommand','timeoutSeconds'},'Invalid Argo fixture configuration')
+        require(required<=config.keys() and not config.keys()-required-{'sourceRevision','chartRepository','nextCatalog','nodeChanges','kubectlCommand','timeoutSeconds','retainedFixture'},'Invalid Argo fixture configuration')
         require(config['scope'] in ('namespace','cluster'),'Invalid fixture scope')
         require(bool(config.get('sourceRevision'))!=bool(config.get('chartRepository')),'Select an exact Git source revision or public chart repository')
         self.config=config;self.app=config['namespace'];self.system=config['systemNamespace'];self.id=config['installation']
@@ -221,7 +221,25 @@ class Argo:
         self.raw('delete','/apis/argoproj.io/v1alpha1/namespaces/argocd/applications/'+self.id,dict(apiVersion='v1',kind='DeleteOptions',preconditions=dict(uid=value['metadata']['uid'])))
         self.api.wait(lambda:self.application_state() is None,'owned Application deletion')
         self.api.wait(lambda:self.api.get('deployment',self.id+'-provisioner',self.system) is None,'provisioner removed by Argo cascade')
+        self.api.wait(lambda:not self.api.get('pods',namespace=self.system,selector='kimage.dev/provisioner='+self.id)['items'],'provisioner Pods removed by Argo cascade')
         self.api.wait(lambda:not self.api.get('jobs',namespace=self.system,selector='kimage.dev/gitops-transition='+self.id)['items'] and not self.api.get('pods',namespace=self.system,selector='kimage.dev/gitops-transition='+self.id)['items'],'transition Jobs and Pods removed by Argo cascade')
+    def prepare_namespaces(self):
+        retained=self.config.get('retainedFixture')
+        if retained is None:
+            require(self.api.get('namespace',self.app) is None and self.api.get('namespace',self.system) is None,'Fresh fixture namespaces required')
+            for ns in [self.app,self.system]:self.raw('create','/api/v1/namespaces?fieldValidation=Strict',dict(apiVersion='v1',kind='Namespace',metadata=dict(name=ns)))
+            return
+        require(set(retained)=={'namespaceUids','pvcUid'} and set(retained['namespaceUids'])=={self.app,self.system},'Exact retained fixture identities required')
+        for ns,uid in retained['namespaceUids'].items():
+            value=self.api.get('namespace',ns)
+            require(uid and value and value['metadata']['uid']==uid,'Retained fixture namespace identity changed')
+        pvc=self.api.get('pvc',self.id+'-data',self.system)
+        require(retained['pvcUid'] and pvc and pvc['metadata']['uid']==retained['pvcUid'],'Retained fixture registry claim identity changed')
+        require(self.api.get('configmap',self.id+'-installation',self.system) is None,'Retained fixture runtime must already be uninstalled')
+        for kind in ['pods','deployments','jobs']:
+            require(not self.api.get(kind,namespace=self.system,selector='kimage.dev/installation='+self.id)['items'],'Retained fixture has active runtime resources')
+        self.report['retainedFixture']=retained
+        self.check('explicit UID-bound retained fixture reused without deleting data; image cases remain fresh')
     def failure_state(self):
         value=self.application_state() or {};status=value.get('status',{})
         result=dict(application=dict(health=status.get('health'),sync=status.get('sync',{}).get('status'),operationPhase=status.get('operationState',{}).get('phase'),conditions=[dict(type=c.get('type'),message=c.get('message','')[:1000]) for c in status.get('conditions',[])]))
@@ -242,12 +260,11 @@ class Argo:
     def run(self):
         try:
             require(self.application_state() is None,'Fresh Argo Application identity required')
-            require(self.api.get('namespace',self.app) is None and self.api.get('namespace',self.system) is None,'Fresh fixture namespaces required')
             self.nodes={n['metadata']['name']:n for n in self.api.get('nodes')['items']}
             arches={n['status']['nodeInfo']['architecture'] for n in self.nodes.values()}
             require(arches<=mixed.ARCHITECTURES and arches,'Supported native architectures required')
             require(not self.config.get('nodeChanges') or arches=={'amd64','arm64'},'Node-change acceptance requires a real mixed cluster')
-            for ns in [self.app,self.system]:self.raw('create','/api/v1/namespaces?fieldValidation=Strict',dict(apiVersion='v1',kind='Namespace',metadata=dict(name=ns)))
+            self.prepare_namespaces()
             values=dict(installation=self.id,scope=self.config['scope'],port=self.config['port'],runtimeProfile=self.config['runtimeProfile'],registryNode=self.config['registryNode'],persistence=dict(storageClass='local-path'),gitops=dict(enabled=True),images=dict(repository=self.catalog['repository'],digests={k:v['digest'] for k,v in self.catalog['components'].items()}))
             if self.config['scope']=='namespace':values['applicationNamespace']=self.app
             else:values['excludedNamespaces']=sorted(n['metadata']['name'] for n in self.api.get('namespaces')['items'] if n['metadata']['name'] not in (self.app,self.system) and not n['metadata']['name'].startswith('kube-'))
@@ -285,8 +302,9 @@ class Argo:
             self.sync();require(self.api.get('configmap',self.id+'-config',self.system)['data']['configuration.json']==raw,'Default desired state overwrote administrator policy')
             self.check('null policy values preserve administrator configuration bytes')
             existing=self.api.get('secret',self.id+'-registry-credentials',self.system)
-            self.raw('create','/api/v1/namespaces/'+self.system+'/secrets?fieldValidation=Strict',dict(apiVersion='v1',kind='Secret',metadata=dict(name=self.id+'-external-registry'),type='Opaque',data=existing['data']))
-            self.desired(dict(gitops=dict(enabled=True,credentialSecrets=dict(registry=self.id+'-external-registry'))));self.wait_ready()
+            external=(self.id+'-external')[:50]+'-'+self.api.run_id[:12]
+            self.raw('create','/api/v1/namespaces/'+self.system+'/secrets?fieldValidation=Strict',dict(apiVersion='v1',kind='Secret',metadata=dict(name=external),type='Opaque',data=existing['data']))
+            self.desired(dict(gitops=dict(enabled=True,credentialSecrets=dict(registry=external))));self.wait_ready()
             require(self.fingerprint()==identity,'Existing credential reference changed identity')
             self.desired(dict(gitops=dict(enabled=True)));self.wait_ready()
             self.check('external credential Secret reference is resolved in cluster without material in desired state')
@@ -318,8 +336,15 @@ class Argo:
             self.verify_graphs('after-application-reinstall',self.catalog)
             self.check('Application reinstall resumes the retained installation with unchanged release and storage identities')
             self.delete_application()
+            self.report['retainedBeforeUninstall']=dict(pvcUid=identity['pvc/'+self.id+'-data']['uid'],releases=identity['releases']);self.save()
             environment=dict(os.environ,KUBECONFIG=self.config['kubeconfig'])
             result=subprocess.run([self.config['installer'],'uninstall','--namespace',self.system,'--installation',self.id],env=environment,text=True,capture_output=True,timeout=900)
+            if result.returncode:
+                reasons=['ArgoCDProvisionerActive','ArgoCDTransitionActive','CleanupIdentityConflict','ComponentDeletionPending','OperationLeaseLost','InstallationOperationPending']
+                self.report['uninstallFailure']=dict(exitCode=result.returncode,reasons=[r for r in reasons if r in result.stderr])
+                if os.environ.get('GITHUB_ACTIONS')!='true':
+                    descriptor=os.open(self.output/'uninstall.private.log',os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
+                    with os.fdopen(descriptor,'w') as output:output.write(result.stdout+'\n'+result.stderr)
             require(result.returncode==0,'Explicit runtime uninstall failed; inspect private local output')
             require(self.api.get('pvc',self.id+'-data',self.system)['metadata']['uid']==identity['pvc/'+self.id+'-data']['uid'],'Uninstall removed registry claim')
             require({r['metadata']['name']:r['metadata']['uid'] for r in self.api.get('imagereleases.kimage.dev',namespace=self.app)['items']}==identity['releases'],'Uninstall removed releases')

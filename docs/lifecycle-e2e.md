@@ -1,15 +1,15 @@
 # Installation lifecycle acceptance
 
-Native CI tests the published 0.4.1 predecessor against the 0.5.0 candidate on
+Native CI tests the published 0.5.0 predecessor against the 0.5.1 candidate on
 native amd64 and arm64 runners, with CLI/Helm and namespace/cluster scope. Each
 case uses a disposable, single-node K3s cluster. It does not emulate a mixed
 cluster with QEMU or nested multi-platform Docker.
 
-Fresh 0.5.0 Helm removal is tested directly. After rollback, the test drains the
-published 0.4.1 operator and retires its exact template-matching native workers
+Fresh 0.5.1 Helm removal is tested directly. After rollback, the test drains the
+published 0.5.0 operator and retires its exact template-matching native workers
 with UID/resource-version delete guards before Helm removal, following the
-[documented predecessor shutdown procedure](installation.md). That older
-controller recreates workers without Helm tracking metadata. Foreign owners and
+[documented predecessor shutdown procedure](installation.md). This prevents
+predecessor reconciliation from racing chart removal. Foreign owners and
 specification changes are refused. Cleanup
 still requires every disposable system resource to disappear; retained PVC/PV,
 Image and release identities and complete OCI readback remain required.
@@ -33,7 +33,7 @@ cargo build --locked --release -p kimage-control --bin kimage-install
 
 The predecessor fetch checks GitHub's recorded asset size and SHA-256. Do not
 substitute an old checkout compiled with a newer toolchain. Obtain independently
-verified target `component-images.json` and `kimage-0.5.0.tgz` from the release, or
+verified target `component-images.json` and `kimage-0.5.1.tgz` from the release, or
 from the candidate workflow's `component-catalog-chart` artifact. Candidate images
 must pass native acceptance and anonymous GHCR verification before live testing.
 See [the release procedure](releasing.md#upgrade-acceptance-for-every-release).
@@ -52,7 +52,7 @@ Create a private JSON configuration, replacing paths and names for your cluster:
   "installer": "/absolute/path/kimage/target/release/kimage-install",
   "previous": "/absolute/path/kimage/.local/upgrade-previous",
   "catalog": "/absolute/path/kimage/.local/upgrade-target/component-images.json",
-  "chart": "/absolute/path/kimage/.local/upgrade-target/kimage-0.5.0.tgz",
+  "chart": "/absolute/path/kimage/.local/upgrade-target/kimage-0.5.1.tgz",
   "mode": "cli",
   "scope": "namespace",
   "runtimeProfile": "inferal",
@@ -75,7 +75,7 @@ The test installs the published predecessor, builds and runs a fresh Image,
 interrupts each transition during application, and resumes with the exact catalog.
 It checks retained identities, native image pins, status/doctor, fresh unknown and
 explicit placement cases, private failed-attempt output and reserved-input denial
-after rollback. It also builds a fresh Image after returning to 0.4.1. Complete
+after rollback. It also builds a fresh Image after returning to 0.5.0. Complete
 OCI graphs are read back inside the cluster over authenticated TLS, including
 after uninstall/reinstall; application layers do not cross the desktop API link.
 

@@ -70,4 +70,20 @@ class Boundaries(unittest.TestCase):
         config['chartRepository']='https://kimage.dev/charts'
         with self.assertRaisesRegex(RuntimeError,'exact Git source revision or public chart'):argo.Argo(config)
 
+    def test_retained_fixture_refuses_replacement_claim_or_active_runtime(self):
+        retained=dict(namespaceUids=dict(app='app-uid',system='system-uid'),pvcUid='claim-uid')
+        for replacement,active,expected in [(True,False,'registry claim identity changed'),(False,True,'active runtime resources'),(False,False,None)]:
+            fixture=argo.Argo.__new__(argo.Argo);fixture.app='app';fixture.system='system';fixture.id='fixture';fixture.config=dict(retainedFixture=retained);fixture.report={};fixture.check=lambda message:None
+            class API:
+                def get(self,kind,name=None,namespace=None,selector=None):
+                    if kind=='namespace':return dict(metadata=dict(uid=retained['namespaceUids'][name]))
+                    if kind=='pvc':return dict(metadata=dict(uid='replacement' if replacement else 'claim-uid'))
+                    if kind=='configmap':return None
+                    return dict(items=[{}] if active else [])
+            fixture.api=API();fixture.raw=lambda *args:self.fail('Retained fixture must not create or replace namespace identities')
+            if expected:
+                with self.assertRaisesRegex(RuntimeError,expected):fixture.prepare_namespaces()
+            else:
+                fixture.prepare_namespaces();self.assertEqual(fixture.report['retainedFixture'],retained)
+
 if __name__=='__main__':unittest.main()

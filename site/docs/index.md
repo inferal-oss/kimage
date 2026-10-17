@@ -434,11 +434,13 @@ Interrupted provisioning retries automatically. Compatible version changes use t
 
 From 0.5.1, change the exact `targetRevision` for compatible upgrades or downgrades. The returning older provisioner automatically runs a short-lived Job using the installed newer operator’s recorded digest. That binary checks its exact compatibility edge and uses the same lifecycle Lease and journal. Both helper and provisioner interruptions resume automatically; keep the requested version unchanged until completion. No manual catalog override is needed. Unsupported edges remain refused.
 
+Provisioners and transition Jobs need Kubernetes API, DNS and HTTPS access to the included registry Service on port 5443. Retained-byte checks use its CA and reader credentials; no API port-forward permission is required. For `GitOpsTransitionPending`, inspect Jobs with label `kimage.dev/gitops-transition=<installation>` and their bounded reason codes.
+
 ### Deletion and retained data
 
 Application deletion or pruning removes the provisioner and desired-state resources, leaving the runtime, registry PVC, Images, ImageReleases and shared CRDs. Runtime objects do not inherit Argo CD tracking or ownership from the provisioner. Recreating the same Application resumes with the same credentials and data.
 
-For runtime removal, first delete the Application and wait for its provisioner Deployment and transition Jobs/Pods to disappear, then run `kimage uninstall --namespace kimage-system --installation kimage`. Uninstall refuses while the provisioner is active and preserves retained data. Deleting the system namespace discards that protection.
+For runtime removal, first delete the Application and wait for its provisioner Deployment, provisioner Pods and transition Jobs/Pods to disappear, then run `kimage uninstall --namespace kimage-system --installation kimage`. Uninstall refuses while the provisioner Deployment or transition resources are present and preserves retained data. Deleting the system namespace discards that protection.
 
 The [complete Argo CD guide](https://github.com/inferal-oss/kimage/blob/main/docs/argocd.md) lists credential keys, advanced target catalogs, retention and ownership boundaries. No repo-server plugin, broad diff exclusions or manual credential-generation script is required.
 
@@ -491,7 +493,7 @@ kimage uninstall --namespace kimage-system --installation kimage
 helm uninstall kimage --namespace kimage-system --wait
 ```
 
-After rollback to 0.4.1, stop its operator and remove its named workers before Helm removal. That published controller recreates workers without Helm tracking metadata. The CLI uninstall command already stops supervisors first. Use your installation name and namespace:
+After rollback to a predecessor such as 0.5.0 or 0.4.1, stop its operator and remove its named workers before Helm removal to prevent reconciliation from racing chart deletion. Version 0.4.1 can recreate workers without Helm tracking metadata. The CLI uninstall command already stops supervisors first. Use your installation name and namespace:
 
 ```
 kubectl -n kimage-system scale deployment/kimage-operator --replicas=0

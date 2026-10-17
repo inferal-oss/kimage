@@ -180,7 +180,8 @@ chart resource. Application deletion is not a data-deletion operation.
 
 Recreating the same Application resumes the same installation and retains its
 credentials and data. To remove runtime components as well, first delete the
-Application and wait for its provisioner Deployment and transition Jobs/Pods to disappear, then:
+Application and wait for its provisioner Deployment, provisioner Pods and
+transition Jobs/Pods to disappear, then:
 
 ```sh
 kimage uninstall --namespace kimage-system --installation kimage
