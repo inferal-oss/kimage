@@ -70,7 +70,10 @@
         <div class="release-feed">
 <article id="unreleased" class="release unreleased">
 <header class="release-heading"><div><h2>Unreleased</h2><span class="release-date">In development</span></div><span class="release-badge pending-badge">UP NEXT</span></header>
-<details class="pending-changes"><summary>2 upcoming changes</summary><div class="release-body"><h3 class="category category-fixed">Fixed</h3>
+<details class="pending-changes"><summary>3 upcoming changes</summary><div class="release-body"><h3 class="category category-fixed">Fixed</h3>
+<ul>
+<li>Namespace-scoped operators can derive session read keys by getting only their installation&#x27;s named reader credential Secret, without broader system Secret access. Implementation pending commit.</li>
+</ul>
 <ul>
 <li>Native lifecycle acceptance uses Helm to remove Helm-owned installations before retained-data reinstall, respecting the CLI manager guard. Implementation pending commit.</li>
 </ul>

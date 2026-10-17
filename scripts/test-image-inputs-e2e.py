@@ -24,7 +24,7 @@ class Boundaries(unittest.TestCase):
             class API:
                 namespace='apps';config=dict(kubeconfig=str(root/'config'))
                 def get(self,*args,**kwargs):
-                    return dict(items=[dict(metadata=dict(name=name),status=dict(conditions=[dict(reason=reason,message='PRIVATE_MESSAGE')])) for name,reason in [('fixture-owned','ContainerfileSolveFailed'),('fixture-tampered','PRIVATE_REASON'),('foreign','ContainerfileSolveFailed')]])
+                    return dict(items=[dict(metadata=dict(name=name,uid=name+'-uid'),status=dict(conditions=[dict(reason=reason,message='PRIVATE_MESSAGE')])) for name,reason in [('fixture-owned','ContainerfileSolveFailed'),('fixture-tampered','PRIVATE_REASON'),('foreign','ContainerfileSolveFailed')]])
             fixture=inputs.ImageInputs.__new__(inputs.ImageInputs)
             fixture.api=API();fixture.output=root;fixture.prefix='fixture';fixture.report={};fixture.installer=binary;fixture.active_image='fixture-owned';fixture.architectures={'amd64','arm64'}
             public=io.StringIO()

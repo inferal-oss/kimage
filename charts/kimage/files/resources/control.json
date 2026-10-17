@@ -212,7 +212,8 @@
         ],
         "resourceNames": [
           "${installation}-builder-client-amd64",
-          "${installation}-builder-client-arm64"
+          "${installation}-builder-client-arm64",
+          "${installation}-proxy-credentials"
         ]
       },
       {

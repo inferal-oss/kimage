@@ -1079,6 +1079,24 @@ mod tests {
                         && v["metadata"]["name"] == "kimage-operator"
                 })
                 .unwrap();
+            let reader_rule = system_role["rules"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|r| {
+                    r["resourceNames"]
+                        .as_array()
+                        .is_some_and(|names| names.contains(&json!("kimage-proxy-credentials")))
+                })
+                .expect("namespace installs must derive scoped reader keys");
+            assert_eq!(reader_rule["resources"], json!(["secrets"]));
+            assert_eq!(reader_rule["verbs"], json!(["get"]));
+            assert!(
+                !reader_rule["resourceNames"]
+                    .as_array()
+                    .unwrap()
+                    .contains(&json!("kimage-registry-credentials"))
+            );
             for resource in ["pods", "jobs"] {
                 let grants = |role: &Value| {
                     role["rules"].as_array().unwrap().iter().any(|r| {

@@ -13,6 +13,8 @@ commits and original release attribution. Uncommitted work is marked explicitly.
 
 ### Fixed
 
+- Namespace-scoped operators can derive session read keys by getting only their installation's named reader credential Secret, without broader system Secret access. Implementation pending commit.
+
 - Native lifecycle acceptance uses Helm to remove Helm-owned installations before retained-data reinstall, respecting the CLI manager guard. Implementation pending commit.
 
 - After reinstalling, published consumers authenticate their frozen dependency bindings from retained verified release provenance when regenerated service credentials no longer match the original snapshot signature. Names are never resolved again. Implementation pending commit.

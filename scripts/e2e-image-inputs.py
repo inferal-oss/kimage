@@ -75,7 +75,7 @@ class ImageInputs:
         def running():
             parent=self.api.get('images.kimage.dev',image,self.api.namespace)
             children=self.api.get('images.kimage.dev',namespace=self.api.namespace,selector='kimage.dev/platform-parent='+parent['metadata']['uid'])['items']
-            fatal={'ContainerfileSolveFailed','BuildInputOrEngineFailed','ImageInputPlatformUnavailable','ImageInputSnapshotAuthenticationFailed','ImageInputVersionConflict','ImageInputReaderCredentialsMissing','ImageInputCredentialOwnershipConflict','PlatformSourceSnapshotMismatch'}
+            fatal={'BuildPermissionOrAdmissionDenied','ContainerfileSolveFailed','BuildInputOrEngineFailed','ImageInputPlatformUnavailable','ImageInputSnapshotAuthenticationFailed','ImageInputVersionConflict','ImageInputReaderCredentialsMissing','ImageInputCredentialOwnershipConflict','PlatformSourceSnapshotMismatch'}
             for current in [parent]+children:
                 for condition in (current.get('status') or {}).get('conditions',[]):
                     if condition.get('type')=='Ready' and condition.get('status')=='False' and condition.get('reason') in fatal:
@@ -123,7 +123,7 @@ class ImageInputs:
         return name
 
     def denied(self,label,body,reason,architecture=None):
-        name=self.prefix+'-'+label;body['metadata']['name']=name
+        name=self.prefix+'-'+label;self.active_image=name;body['metadata']['name']=name
         body['spec'].pop('platforms',None);body['spec']['platform']=dict(os='linux',architecture=architecture or next(iter(sorted(self.architectures))))
         self.api.create(body)
         def failed():
@@ -140,7 +140,8 @@ class ImageInputs:
         # encrypted directly from memory; the recipient key never enters CI.
         allowed={'AwaitingDemand','NativePlatformsPending','NativePlatformsPublished','PlatformSourceSnapshotMismatch','BuildUnavailable','ContainerfileSolveFailed','BuildInputOrEngineFailed','BuildPermissionOrAdmissionDenied','ImageInputNotPublished','ImageInputPlatformUnavailable','ImageInputSnapshotAuthenticationFailed','ImageInputVersionConflict','ImageInputReaderCredentialsMissing','ImageInputCredentialOwnershipConflict','BuildDeadlineExceeded','BuilderUnavailable','BuilderBusy','Captured','Capturing','Executing','Published','Failed','Backoff','BuildClientStopped'}
         images=self.api.get('images.kimage.dev',namespace=self.api.namespace)['items']
-        owned=[i for i in images if i['metadata']['name'].startswith(self.prefix)][:24]
+        parents={i['metadata']['uid'] for i in images if i['metadata']['name'].startswith(self.prefix)}
+        owned=[i for i in images if i['metadata']['name'].startswith(self.prefix) or i['metadata'].get('labels',{}).get('kimage.dev/platform-parent') in parents][:24]
         self.report['failureStatus']=[dict(image=i['metadata']['name'],reasons=[c.get('reason') if c.get('reason') in allowed else 'unexpected' for c in (i.get('status') or {}).get('conditions',[])[:8]]) for i in owned]
         print('Frozen input failure status: '+json.dumps(self.report['failureStatus'],sort_keys=True),flush=True)
         certificate=os.environ.get('KIMAGE_TEST_DIAGNOSTIC_CERT','')

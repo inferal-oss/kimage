@@ -145,6 +145,8 @@ class Upgrade:
             for resource in ['pods','jobs']:
                 allowed=self.api.call(['auth','can-i','patch',resource,'-n',self.system,'--as=system:serviceaccount:'+self.system+':'+self.id+'-operator'],ok=False)
                 require(allowed.stdout.strip()=='yes','Native operator lacks system '+resource+' metadata patch permission')
+        allowed=self.api.call(['auth','can-i','get','secret/'+self.id+'-proxy-credentials','-n',self.system,'--as=system:serviceaccount:'+self.system+':'+self.id+'-operator'],ok=False)
+        require(allowed.stdout.strip()=='yes','Operator cannot read the named system reader credential for namespace-scoped derivation')
         last_issues=None
         def healthy():
             nonlocal last_issues

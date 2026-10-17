@@ -194,6 +194,7 @@ impl Installer {
                     &self.name("builder-client"),
                     &self.name("builder-client-amd64"),
                     &self.name("builder-client-arm64"),
+                    &self.name("proxy-credentials"),
                 ],
             ),
             named_rule(
