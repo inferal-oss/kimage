@@ -1193,6 +1193,12 @@ python3 scripts/check-site.py</code></pre>
               built only the requested platform. Both runs removed their
               consumer Deployments and Pods.
             </p>
+            <p>The <a href="https://github.com/inferal-oss/kimage/blob/main/docs/native-0.5.1-results.json">0.5.1 native acceptance matrix</a>
+              covers published 0.5.0 → 0.5.1 → 0.5.0 with CLI and Helm in all eight cases,
+              plus four actual Argo CD cases. Argo changes chart versions from 0.5.1 to a
+              separate future-version conformance fixture and back, including interrupted
+              provisioner and downgrade-helper recovery. The fixture is not a public release.
+            </p>
             <p>The <a href="https://github.com/inferal-oss/kimage/blob/main/docs/native-upgrade-results.json">0.5.0 native lifecycle matrix</a>
               covers published 0.4.1 → 0.5.0 → 0.4.1 with CLI and Helm, both scopes and architectures.
               Interrupted upgrades and rollbacks resume, private failed-build output survives client cleanup,

@@ -24,6 +24,8 @@ spec=importlib.util.spec_from_file_location('mixed',ROOT/'scripts/e2e-mixed-clus
 mixed=importlib.util.module_from_spec(spec);spec.loader.exec_module(mixed)
 spec=importlib.util.spec_from_file_location('log_assertions',ROOT/'scripts/e2e-log-assertions.py')
 log_assertions=importlib.util.module_from_spec(spec);spec.loader.exec_module(log_assertions)
+spec=importlib.util.spec_from_file_location('image_assertions',ROOT/'scripts/e2e-image-assertions.py')
+image_assertions=importlib.util.module_from_spec(spec);spec.loader.exec_module(image_assertions)
 
 
 def require(value,message):
@@ -59,6 +61,7 @@ class Upgrade:
             require(len(data)==asset['size'] and 'sha256:'+hashlib.sha256(data).hexdigest()==asset['sha256'],'Predecessor asset changed')
         self.report=dict(schema=1,test='installation-lifecycle',source=self.source,target=self.version,manager=config['mode'],scope=config['scope'],checks=[],complete=False)
         self.report['harnessSha256']='sha256:'+hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+        self.report['imageAssertionsSha256']='sha256:'+hashlib.sha256((ROOT/'scripts/e2e-image-assertions.py').read_bytes()).hexdigest()
         self.report['artifacts']={key:'sha256:'+hashlib.sha256(Path(config[key]).read_bytes()).hexdigest() for key in ['installer','catalog','chart']}
         self.report['predecessor']=verified
         self.nodes={}
@@ -133,29 +136,8 @@ class Upgrade:
         self.check('actual published '+self.source+' installed with native component pulls')
 
     def assert_images(self,version,catalog):
-        record=json.loads(self.api.get('configmap',self.id+'-installation',self.system)['data']['installation.json'])
-        require(record['release']==version,'Wrong installed release')
-        def active_pods():
-            return [p for p in self.api.get('pods',namespace=self.system)['items'] if p['metadata'].get('labels',{}).get('kimage.dev/installation')==self.id and not p['metadata'].get('deletionTimestamp') and p.get('status',{}).get('phase') not in ('Succeeded','Failed')]
-        def pulled():
-            pods=active_pods()
-            return bool(pods) and all(p.get('spec',{}).get('nodeName') and {s['name'] for s in p.get('status',{}).get('containerStatuses',[]) if s.get('imageID') and s.get('ready')} >= {c['name'] for c in p['spec']['containers']} for p in pods)
-        self.api.wait(pulled,'native container image identities and readiness after transition')
-        own=active_pods()
-        observed=set()
-        identities=[]
-        pins={catalog['repository']+'/'+role+'@'+entry['digest'] for role,entry in catalog['components'].items()}
-        for pod in own:
-            arch=self.nodes[pod['spec']['nodeName']]['status']['nodeInfo']['architecture']
-            require(arch in self.architectures,'Non-native fixture placement')
-            for status in pod.get('status',{}).get('containerStatuses',[]):
-                require(status.get('imageID'),'Runtime did not report an image identity')
-                identities.append(dict(role=pod['metadata'].get('labels',{}).get('kimage.dev/role'),architecture=arch,container=status['name'],imageId=status['imageID']))
-            for container in pod['spec']['containers']+pod['spec'].get('initContainers',[]):
-                require(container['image'] in pins,'Unpinned component image')
-            if pod['metadata'].get('labels',{}).get('kimage.dev/role') in ('builder','node-proxy'):observed.add(arch)
-        require(observed==self.architectures,'Components did not run on every native architecture')
-        self.report.setdefault('nativeComponents',[]).append(dict(release=version,identities=identities))
+        receipt=image_assertions.native_components(self.api,self.system,self.id,self.nodes,self.architectures,version,catalog)
+        self.report.setdefault('nativeComponents',[]).append(receipt)
 
     def installation_diagnostics(self):
         before=self.operation()
@@ -421,29 +403,9 @@ class Upgrade:
         self.check('published predecessor preserves private log input protection after rollback')
 
     def verify_graphs(self,stage):
-        releases=self.api.get('imagereleases.kimage.dev',namespace=self.app)['items']
-        require(releases and all(r.get('status',{}).get('verified') for r in releases),'Expected verified retained releases')
-        requests=[dict(repository=self.app+'/'+r['spec']['imageUid'],root=r['spec']['root']) for r in releases]
-        name=self.id+'-graph-'+uuid.uuid4().hex[:8]
-        labels={'kimage.dev/lifecycle-graph':name}
-        request=dict(apiVersion='v1',kind='ConfigMap',metadata=dict(name=name,namespace=self.system,labels=labels),immutable=True,data={'requests.json':json.dumps(requests,separators=(',',':'))})
-        security=dict(runAsUser=65532,runAsGroup=65532,runAsNonRoot=True,allowPrivilegeEscalation=False,readOnlyRootFilesystem=True,capabilities=dict(drop=['ALL']))
-        job=dict(apiVersion='batch/v1',kind='Job',metadata=dict(name=name,namespace=self.system,labels=labels),spec=dict(backoffLimit=0,activeDeadlineSeconds=600,template=dict(metadata=dict(labels=labels),spec=dict(automountServiceAccountToken=False,serviceAccountName=self.id+'-serving',nodeName=self.primary,restartPolicy='Never',securityContext=dict(fsGroup=65532,seccompProfile=dict(type='RuntimeDefault')),containers=[dict(name='verify',image=self.target['repository']+'/input@'+self.target['components']['input']['digest'],imagePullPolicy='IfNotPresent',command=['/kimage-input','verify-registry','--request','/request/requests.json','--origin','https://'+self.id+'-registry.'+self.system+'.svc:5443/','--credentials','/credentials'],securityContext=security,resources=dict(requests=dict(cpu='50m',memory='64Mi'),limits=dict(cpu='1',memory='512Mi',**{'ephemeral-storage':'2Gi'})),volumeMounts=[dict(name='request',mountPath='/request',readOnly=True),dict(name='credentials',mountPath='/credentials',readOnly=True),dict(name='scratch',mountPath='/tmp')])],volumes=[dict(name='request',configMap=dict(name=name,defaultMode=292)),dict(name='credentials',secret=dict(secretName=self.id+'-proxy-credentials',defaultMode=292)),dict(name='scratch',emptyDir=dict(sizeLimit='2Gi'))]))))
-        self.api.call(['create','--raw','/api/v1/namespaces/'+self.system+'/configmaps?fieldValidation=Strict','-f','-'],request)
-        try:
-            self.api.call(['create','--raw','/apis/batch/v1/namespaces/'+self.system+'/jobs?fieldValidation=Strict','-f','-'],job)
-            def finished():
-                current=self.api.get('job',name,self.system)
-                require(not current.get('status',{}).get('failed'),'Registry full graph verification failed')
-                return current.get('status',{}).get('succeeded')
-            self.api.wait(finished,'cluster-local authenticated full OCI graph readback')
-            receipt=json.loads(self.api.call(['logs','job/'+name,'-n',self.system,'-c','verify']).stdout)
-            require(receipt['complete'] and receipt['verifiedReleases']==len(releases),'Incomplete retained OCI graph readback')
-            self.report.setdefault('registryReadback',[]).append(dict(stage=stage,**receipt))
-            self.check(stage+': all retained OCI graphs verified locally with authenticated TLS, sizes, SHA-256 and DiffIDs')
-        finally:
-            self.api.call(['delete','job',name,'-n',self.system,'--ignore-not-found','--cascade=foreground','--wait=true'],ok=False)
-            self.api.call(['delete','configmap',name,'-n',self.system,'--ignore-not-found'],ok=False)
+        receipt=image_assertions.verify_graphs(self.api,self.app,self.system,self.id,self.primary,self.target)
+        self.report.setdefault('registryReadback',[]).append(dict(stage=stage,**receipt))
+        self.check(stage+': all retained OCI graphs verified locally with authenticated TLS, sizes, SHA-256 and DiffIDs')
 
     def run(self):
         try:

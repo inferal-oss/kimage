@@ -17,6 +17,8 @@ import time
 ROOT=Path(__file__).resolve().parents[1]
 spec=importlib.util.spec_from_file_location('mixed',ROOT/'scripts/e2e-mixed-cluster.py')
 mixed=importlib.util.module_from_spec(spec);spec.loader.exec_module(mixed)
+spec=importlib.util.spec_from_file_location('image_assertions',ROOT/'scripts/e2e-image-assertions.py')
+image_assertions=importlib.util.module_from_spec(spec);spec.loader.exec_module(image_assertions)
 
 def require(value,message):
     if not value:raise RuntimeError(message)
@@ -37,6 +39,7 @@ class Argo:
         self.catalog=json.loads(Path(config['catalog']).read_text());require(self.catalog['release']=='0.5.1','Exact 0.5.1 catalog required')
         self.nodes={};self.labels={};self.report=dict(schema=1,test='argocd-installation',release='0.5.1',scope=config['scope'],checks=[],complete=False)
         self.report['harnessSha256']='sha256:'+hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+        self.report['imageAssertionsSha256']='sha256:'+hashlib.sha256((ROOT/'scripts/e2e-image-assertions.py').read_bytes()).hexdigest()
         self.report['catalogSha256']='sha256:'+hashlib.sha256(Path(config['catalog']).read_bytes()).hexdigest()
         self.application=None
 
@@ -85,6 +88,14 @@ class Argo:
             if kind=='secret':result[kind+'/'+name]['sha256']='sha256:'+hashlib.sha256(json.dumps(obj['data'],sort_keys=True).encode()).hexdigest()
         result['releases']={r['metadata']['name']:r['metadata']['uid'] for r in self.api.get('imagereleases.kimage.dev',namespace=self.app)['items']}
         return result
+    def assert_native_components(self,catalog):
+        architectures={n['status']['nodeInfo']['architecture'] for n in self.nodes.values()}
+        receipt=image_assertions.native_components(self.api,self.system,self.id,self.nodes,architectures,catalog['release'],catalog)
+        self.report.setdefault('nativeComponents',[]).append(receipt);self.save()
+    def verify_graphs(self,stage,catalog):
+        receipt=image_assertions.verify_graphs(self.api,self.app,self.system,self.id,self.config['registryNode'],catalog)
+        self.report.setdefault('registryReadback',[]).append(dict(stage=stage,**receipt))
+        self.check(stage+': complete retained OCI graphs verified through authenticated TLS, sizes, SHA-256 and DiffIDs')
     def chart_transition(self,catalog,path,interrupt):
         current=self.application_state();source=copy.deepcopy(current['spec']['source'])
         values=source['helm']['valuesObject']
@@ -145,11 +156,16 @@ class Argo:
         require(future['release']=='0.5.2-argocd-test.0','Exact isolated future conformance fixture required')
         self.report['conformanceCatalogSha256']='sha256:'+hashlib.sha256(Path(self.config['nextCatalog']).read_bytes()).hexdigest()
         identity=self.fingerprint()
+        self.verify_graphs('before-argo-upgrade',self.catalog)
         self.chart_transition(future,'tests/fixtures/argocd-next-chart','provisioner')
+        self.assert_native_components(future)
+        self.verify_graphs('after-argo-upgrade',future)
         self.reconsume_retained()
         require(self.fingerprint()==identity,'Argo upgrade changed retained identities')
         self.check('chart 0.5.1 to future-version conformance fixture resumes after provisioner interruption')
         self.chart_transition(self.catalog,'charts/kimage','helper')
+        self.assert_native_components(self.catalog)
+        self.verify_graphs('after-argo-downgrade',self.catalog)
         self.reconsume_retained()
         require(self.fingerprint()==identity,'Argo downgrade changed retained identities')
         self.check('returning 0.5.1 chart automatically uses newer pinned helper and resumes after helper and provisioner interruption')
@@ -243,7 +259,7 @@ class Argo:
             self.create_application()
             self.api.wait(lambda:self.api.get('secret',self.id+'-registry-credentials',self.system),'first credentials persisted before initial provisioning interruption')
             self.restart('kimage.dev/provisioner='+self.id,self.system)
-            self.wait_ready();self.check('fresh install resumes after provisioner interruption and becomes Healthy/Synced')
+            self.wait_ready();self.assert_native_components(self.catalog);self.check('fresh install resumes after provisioner interruption and becomes Healthy/Synced')
             identity=self.fingerprint()
             require(self.api.get('configmap',self.id+'-installation',self.system)['metadata']['annotations']['kimage.dev/manager']=='argocd','Wrong installation manager')
             self.sync();self.sync();require(self.fingerprint()==identity,'Repeated sync changed retained identities')
@@ -294,10 +310,12 @@ class Argo:
             self.desired(dict(gitops=dict(enabled=True)));self.wait_ready()
             self.check('unsupported runtime target is refused without changing credentials, data or installed version')
             self.delete_application();require(self.fingerprint()==identity,'Application deletion removed retained identity or release')
+            self.verify_graphs('after-application-removal',self.catalog)
             self.check('Application cascade leaves runtime, registry data, credentials and release UIDs intact')
             # Recreate the exact desired Application after deletion.
             self.application['spec']['source']=source
             self.create_application();self.wait_ready();require(self.fingerprint()==identity,'Reinstall changed retained identities')
+            self.verify_graphs('after-application-reinstall',self.catalog)
             self.check('Application reinstall resumes the retained installation with unchanged release and storage identities')
             self.delete_application()
             environment=dict(os.environ,KUBECONFIG=self.config['kubeconfig'])

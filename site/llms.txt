@@ -389,6 +389,13 @@ hostile-tenant image confidentiality. Native clients keep TLS verification on.
 Rust tests run on macOS/arm64 and native Linux/amd64 and Linux/arm64 musl. Separate two-node
 acceptance harnesses cover lifecycle/recovery/binary rollback/export and remain historical evidence; native amd64/arm64 namespace/cluster install E2E is now a release gate; historical live bundles predate the latest selector/CLI metadata.
 
+0.5.1 native acceptance: eight CLI/Helm × namespace/cluster × amd64/arm64 cases
+through published 0.5.0 to 0.5.1 and back, plus four actual Argo CD cases.
+Argo chart-version round trips use a separate future-version conformance fixture,
+with interrupted provisioner and newer downgrade-helper recovery. That fixture
+is not a Cargo or GitHub release.
+Receipt: https://github.com/inferal-oss/kimage/blob/main/docs/native-0.5.1-results.json
+
 0.5.0 acceptance: eight native CLI/Helm × namespace/cluster × amd64/arm64 cases
 and two real mixed-cluster CLI/Helm round trips from actual published 0.4.1 to
 0.5.0 and back. Includes interruptions/resume, fresh native builds/pulls, private
@@ -441,6 +448,10 @@ short-lived Job using the installed newer operator's recorded digest, which
 checks its exact compatibility edge and uses the same lifecycle Lease/journal.
 Both provisioner and helper interruptions resume automatically. Keep the desired
 target unchanged until completion; incompatible edges remain refused.
+Provisioner/helper network access needs the API, DNS and authenticated registry
+Service on port 5443. No API port-forward permission is needed for Argo readback.
+For GitOpsTransitionPending, inspect Jobs labelled
+`kimage.dev/gitops-transition=INSTALLATION` and their bounded failure reasons.
 Application deletion
 removes desired-state control but leaves runtime and data. For runtime removal,
 first delete the Application and wait for its provisioner Deployment and transition Jobs/Pods to disappear,
