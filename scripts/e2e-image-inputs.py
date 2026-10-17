@@ -73,6 +73,13 @@ class ImageInputs:
         body['spec']['template']['spec']['containers'][0]['image']='platform://'+self.api.namespace+'/'+image+':1.0.0'
         resource=self.api.create(body);self.consumers.append((name,resource['metadata']['uid']))
         def running():
+            parent=self.api.get('images.kimage.dev',image,self.api.namespace)
+            children=self.api.get('images.kimage.dev',namespace=self.api.namespace,selector='kimage.dev/platform-parent='+parent['metadata']['uid'])['items']
+            fatal={'ContainerfileSolveFailed','BuildInputOrEngineFailed','ImageInputPlatformUnavailable','ImageInputSnapshotAuthenticationFailed','ImageInputVersionConflict','ImageInputReaderCredentialsMissing','ImageInputCredentialOwnershipConflict','PlatformSourceSnapshotMismatch'}
+            for current in [parent]+children:
+                for condition in (current.get('status') or {}).get('conditions',[]):
+                    if condition.get('type')=='Ready' and condition.get('status')=='False' and condition.get('reason') in fatal:
+                        raise RuntimeError('Native OCI input build failed: '+condition['reason'])
             pods=self.api.get('pods',namespace=self.api.namespace,selector='kimage.dev/mixed-e2e-case='+name)['items']
             if len(pods)!=len(expected) or not all(any(c['type']=='Ready' and c['status']=='True' for c in p.get('status',{}).get('conditions',[])) for p in pods):return None
             seen=set()
