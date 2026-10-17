@@ -2,7 +2,7 @@
 """Validate the buildless website's local assets, anchors, and metadata."""
 from html.parser import HTMLParser
 from pathlib import Path
-from urllib.parse import unquote, urlsplit
+from urllib.parse import unquote, urljoin, urlsplit
 import xml.etree.ElementTree as ET
 import re
 import subprocess
@@ -23,9 +23,15 @@ class Page(HTMLParser):
         self.canonical = False
         self.example = None
         self.examples = {}
+        self.main_navigation = False
+        self.changelog_navigation = False
 
     def handle_starttag(self, tag, attributes):
         attrs = dict(attributes)
+        if tag == 'nav' and attrs.get('aria-label') == 'Main navigation':
+            self.main_navigation = True
+        if tag == 'a' and self.main_navigation:
+            self.changelog_navigation |= urljoin(self.expected_canonical, attrs.get('href', '')) == 'https://kimage.dev/changelog/'
         if tag == 'pre' and 'data-example' in attrs:
             self.example = attrs['data-example']
             self.examples[self.example] = ''
@@ -51,6 +57,8 @@ class Page(HTMLParser):
             self.examples[self.example] += data
 
     def handle_endtag(self, tag):
+        if tag == 'nav':
+            self.main_navigation = False
         if tag == 'pre':
             self.example = None
 
@@ -63,6 +71,7 @@ for file in ROOT.rglob('*.html'):
     page.feed(file.read_text())
     assert page.headings == 1, f'{relative}: expected exactly one h1'
     assert page.description and page.canonical, f'{relative}: missing description or canonical URL'
+    assert page.changelog_navigation, f'{relative}: missing changelog in main navigation'
     for control in page.controls:
         assert control in page.ids, f'{relative}: missing accessible target: {control}'
     for name, content in page.examples.items():
@@ -103,9 +112,10 @@ assert agent_image and agent_image[1].strip() == (ROOT.parent / 'examples/hello/
 for name in ('main.rs', 'image.yaml', 'deployment.yaml'):
     assert (ROOT / 'examples/hello' / name).read_bytes() == (ROOT.parent / 'examples/hello' / name).read_bytes(), f'website example drift: {name}'
 subprocess.run([sys.executable, str(ROOT.parent / 'scripts/export-site-docs.py'), '--check'], check=True)
+subprocess.run([sys.executable, str(ROOT.parent / 'scripts/render-changelog.py'), '--check'], check=True)
 ET.parse(ROOT / 'mark.svg')
 sitemap = ET.parse(ROOT / 'sitemap.xml')
 assert {entry.text for entry in sitemap.findall('.//{*}loc')} == {
-    'https://kimage.dev/', 'https://kimage.dev/docs/'}
+    'https://kimage.dev/', 'https://kimage.dev/docs/', 'https://kimage.dev/changelog/'}
 assert 'https://kimage.dev/sitemap.xml' in (ROOT / 'robots.txt').read_text()
 print(f'Checked {len(pages)} pages, {sum(len(page.references) for page in pages.values())} HTML references, Markdown/agent links, example parity, accessible targets, SVG, and sitemap.')

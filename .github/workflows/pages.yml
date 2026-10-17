@@ -5,6 +5,10 @@ on:
     branches: [main]
     paths:
       - site/**
+      - CHANGELOG.md
+      - scripts/check-changelog.py
+      - scripts/render-changelog.py
+      - scripts/templates/changelog.html
       - scripts/check-site.py
       - scripts/export-site-docs.py
       - scripts/site-release-ready.py
@@ -36,6 +40,8 @@ jobs:
           persist-credentials: false
       - name: Validate static site
         run: |
+          python3 scripts/render-changelog.py
+          python3 scripts/check-changelog.py
           python3 scripts/check-site.py
           node --check site/site.js
           node --check site/docs/docs.js

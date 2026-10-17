@@ -18,6 +18,19 @@ Always keep `CHANGELOG.md` current using the
   release with HEAD, and each release compares with its predecessor.
 - Preserve historical release notes and acceptance evidence. Correct factual
   mistakes explicitly; never relabel an old test receipt as a newer release.
+- Link each change inline to its implementing commits and associated pull
+  requests when available. Use full commit URLs with short SHA labels and PR
+  URLs with `#123` labels. Include a complete inline commit list for each release
+  tag range and a PR list when applicable. Keep later follow-up commits attached
+  to the actual change or receipt; do not imply they shipped in an earlier tag.
+  Mark uncommitted Unreleased entries as `Implementation pending commit.` and
+  replace that marker with real links once the implementation is committed.
+  Omit empty PR lists and commentary about the absence of PRs.
+- Publish `CHANGELOG.md` as the rendered `/changelog/` page on every GitHub Pages
+  deployment, linked from the main navigation on every page, including mobile.
+  Run `python3 scripts/render-changelog.py` after editing the notes or page
+  template; CI must reject generated-page drift. Preview layout changes locally
+  and show a screenshot before publishing them.
 - Run `python3 scripts/check-changelog.py` before committing and releasing.
 
 ## Release documentation

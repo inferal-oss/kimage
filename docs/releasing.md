@@ -13,11 +13,21 @@ appVersion, handbook, website commands, clipboard command and llms.txt together.
 Gateway/proxy retain their separate serving compatibility version, currently
 0.3.0. A Cargo version bump does not change that contract.
 
+Link each changelog entry to its implementing commits and associated PRs. Include
+the complete release tag-range commit list, adding a PR list when applicable.
+Keep follow-up acceptance evidence linked to its actual commit and original
+release. Replace pending-commit markers when committing the implementation.
+Run `python3 scripts/render-changelog.py` after editing `CHANGELOG.md`; this
+refreshes the rendered `/changelog/` page linked from the website navigation.
+Every Pages deployment regenerates it, and CI rejects stale generated HTML.
+Show a local screenshot before publishing changes to the changelog layout.
+
 ```sh
 cargo fmt --all --check
 cargo clippy --locked --workspace --all-targets -- -D warnings
 cargo test --locked --workspace
 python3 scripts/check-changelog.py
+python3 scripts/render-changelog.py --check
 python3 scripts/test-release.py
 python3 scripts/test-component-images.py
 python3 scripts/test-mixed-e2e.py

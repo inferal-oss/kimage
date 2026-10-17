@@ -1038,6 +1038,15 @@ h3 {
     display: block;
     font-size: 11px;
   }
+  .header nav a[href="./docs/"],
+  .header nav a[href="../docs/"],
+  .header nav a[aria-current="page"] {
+    display: block;
+    font-size: 11px;
+  }
+  .header nav {
+    gap: 13px;
+  }
   .header nav {
     margin-left: auto;
   }

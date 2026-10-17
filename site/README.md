@@ -1,12 +1,21 @@
 # kimage.dev website
 
-Buildless HTML, CSS, JavaScript, and an original SVG mark. No package installation
-or build step is needed. Edit `index.html`, `style.css`, and `site.js` directly.
+Static HTML, CSS, JavaScript, and an original SVG mark. No package installation
+is needed. Edit `index.html`, `style.css`, and `site.js` directly.
 The handbook lives in `docs/index.html` with its own `docs/docs.css`. It uses
 ordinary anchors and native details panels. A small progressive enhancement
 collapses the contents on mobile; the full page also works without JavaScript.
 After editing its content, run `python3 scripts/export-site-docs.py` to regenerate
 the clean Markdown download. The HTML is the source of truth; CI rejects drift.
+
+The release log lives at `/changelog/`, linked from the main navigation on desktop
+and mobile. `CHANGELOG.md` is its source of truth. After editing release notes or
+`scripts/templates/changelog.html`, run `python3 scripts/render-changelog.py`.
+This uses only Python's standard library and preserves inline commit/PR links,
+acceptance evidence and complete release commit lists. The generated HTML is
+checked in for local previews; `check-site.py` rejects drift. Each Pages build
+regenerates it before validation and packaging. Changelog-only changes trigger
+the Pages workflow too. Keep inline references current as described in AGENTS.md.
 
 `llms.txt` contains the essential agent context and a complete build example,
 followed by a few optional references. Keep it useful without additional fetching.

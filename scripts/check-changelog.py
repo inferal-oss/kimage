@@ -13,6 +13,13 @@ assert sections and sections[0][0] == 'Unreleased' and not sections[0][1].strip(
 assert len({name for name, _, _ in sections}) == len(sections)
 assert any(name == version for name, _, _ in sections), 'current release needs changelog notes'
 for name, suffix, body in sections:
+    prose = re.sub(r'(?ms)^```.*?^```[^\n]*', '', body)
+    for entry in re.findall(r'(?ms)^- .*?(?=\n(?:\n|- )|\Z)', prose):
+        linked = re.search(r'\[[0-9a-f]{7,40}\]\(https://github.com/inferal-oss/kimage/commit/[0-9a-f]{40}\)', entry)
+        pending = name == 'Unreleased' and 'Implementation pending commit.' in entry
+        assert linked or pending, f'{name}: each change needs an inline commit link (or an explicit Unreleased pending marker)'
+    if re.search(r'^- ', prose, re.M):
+        assert re.search(r'^\*\*Commits:\*\* \[', body, re.M), f'{name}: missing inline commit list'
     if name == 'Unreleased':
         continue
     assert re.fullmatch(r' - \d{4}-\d{2}-\d{2}', suffix), 'released sections require ISO dates'
