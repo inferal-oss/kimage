@@ -22,4 +22,14 @@ class Diagnostics(unittest.TestCase):
             overlap=subprocess.run([str(directory/'bin/helm'),'install'],capture_output=True)
             self.assertEqual(overlap.returncode,9);self.assertIn(b'InstallationScopeOverlap',overlap.stderr);self.assertNotIn(b'PRIVATE_',overlap.stdout+overlap.stderr)
             self.assertEqual(len(list((directory/'output').iterdir())),2)
+            fakebin=root/'fake-bin';fakebin.mkdir();kubectl=fakebin/'k3s'
+            kubectl.write_text('#!'+sys.executable+'\nimport json,sys\npod={"metadata":{"name":"upgrade-fixture"},"spec":{"containers":[{"name":"app"}]},"private":"PRIVATE_RUNTIME_VALUE"}\nprint(json.dumps({"items":[pod]}) if "get" in sys.argv else "PRIVATE_COMPONENT_LOG")\n');kubectl.chmod(0o700)
+            before=set((directory/'output').iterdir())
+            captured=subprocess.run([str(directory/'bin/helm'),'install','upgrade','--namespace','upgrade-system'],env=dict(os.environ,GITHUB_ACTIONS='true',PATH=str(fakebin)+os.pathsep+os.environ['PATH']),capture_output=True)
+            self.assertEqual(captured.returncode,9);self.assertNotIn(b'PRIVATE_',captured.stdout+captured.stderr)
+            artifact,=set((directory/'output').iterdir())-before
+            self.assertNotIn(b'PRIVATE_',artifact.read_bytes());self.assertEqual(artifact.stat().st_mode&0o777,0o600)
+            decoded=subprocess.run(['openssl','cms','-decrypt','-binary','-inform','DER','-in',str(artifact),'-inkey',str(key),'-recip',str(cert)],check=True,capture_output=True)
+            runtime=json.loads(decoded.stdout)['runtime']
+            self.assertIn('PRIVATE_RUNTIME_VALUE',runtime['pods']['stdout']);self.assertIn('PRIVATE_COMPONENT_LOG',runtime['logs/upgrade-fixture/app']['stdout'])
 if __name__=='__main__':unittest.main()

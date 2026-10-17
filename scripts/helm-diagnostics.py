@@ -4,8 +4,36 @@
 The recipient private key never enters CI. No raw failed-command output is emitted
 or written to disk. Normal release/install workflows do not enable this wrapper.
 """
-import argparse,json,os,shlex,subprocess,sys,uuid
+import argparse,json,os,re,shlex,shutil,subprocess,sys,uuid
 from pathlib import Path
+
+
+def runtime_state(args):
+    # Only disposable CI fixtures. Everything returned stays inside ciphertext.
+    if os.environ.get('GITHUB_ACTIONS')!='true' or '--namespace' not in args:return None
+    namespace=args[args.index('--namespace')+1]
+    if namespace not in ('upgrade-system','kimage-e2e-system'):return None
+    command=['k3s','kubectl'] if shutil.which('k3s') else ['kubectl']
+    result={}
+    def capture(key,arguments):
+        try:
+            value=subprocess.run(command+arguments,capture_output=True,timeout=30)
+            result[key]=dict(returncode=value.returncode,stdout=value.stdout[:1048576].decode(errors='replace'),stderr=value.stderr[:8192].decode(errors='replace'))
+            return value
+        except (OSError,subprocess.TimeoutExpired):result[key]=dict(unavailable=True)
+    pods=capture('pods',['get','pods','-n',namespace,'-o','json'])
+    capture('events',['get','events','-n',namespace,'-o','json'])
+    capture('nodes',['get','nodes','-o','json'])
+    if pods and pods.returncode==0:
+        try:items=json.loads(pods.stdout)['items']
+        except (KeyError,ValueError):items=[]
+        for pod in items[:12]:
+            name=pod.get('metadata',{}).get('name','')
+            if not re.fullmatch(r'[a-z0-9][a-z0-9-]{0,252}',name):continue
+            for container in pod.get('spec',{}).get('containers',[])[:3]:
+                cname=container.get('name','')
+                if re.fullmatch(r'[a-z0-9][a-z0-9-]{0,62}',cname):capture('logs/'+name+'/'+cname,['logs',name,'-n',namespace,'-c',cname,'--tail=40','--limit-bytes=16384'])
+    return result
 
 
 def invoke(helm,certificate,output,args):
@@ -16,7 +44,7 @@ def invoke(helm,certificate,output,args):
         return 0
     action=args[0] if args and args[0] in ('install','upgrade','rollback','get','history','uninstall','template','version') else 'command'
     name='helm-'+action+'-'+uuid.uuid4().hex
-    payload=json.dumps(dict(schema=1,action=action,returncode=result.returncode,stdout=result.stdout.decode(errors='replace'),stderr=result.stderr.decode(errors='replace'))).encode()
+    payload=json.dumps(dict(schema=1,action=action,returncode=result.returncode,stdout=result.stdout.decode(errors='replace'),stderr=result.stderr.decode(errors='replace'),runtime=runtime_state(args) if action in ('install','upgrade') else None)).encode()
     if len(payload)>8*1024*1024:
         sys.stderr.write('PrivateHelmDiagnosticTooLarge\n');return result.returncode
     output=Path(output);output.mkdir(parents=True,exist_ok=True)
