@@ -26,6 +26,20 @@ def prerequisite_images(node):
     return images if any('mirrored-pause@sha256:' in name for image in images for name in (image.get('names') or [])) else None
 
 
+def fixture_cache_ids(images):
+    """Only loopback references created by this disposable CI fixture."""
+    result=[]
+    for image in images:
+        names=(image.get('repoTags') or [])+(image.get('repoDigests') or [])
+        loopback=[name for name in names if name.startswith('127.0.0.1:')]
+        assert all(name.startswith(('127.0.0.1:14901/kimage/','127.0.0.1:17702/upgrade-app/')) for name in loopback), 'Unexpected loopback image outside the owned CI fixture'
+        if loopback:
+            identity=image['id']
+            assert identity.startswith('sha256:') and len(identity)==71 and all(c in '0123456789abcdef' for c in identity[7:])
+            result.append(identity)
+    return sorted(set(result))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--scope', choices=['namespace', 'cluster'], required=True)
@@ -91,8 +105,16 @@ def main():
     def cached_prerequisites():
         value = json.loads(kubectl(['get', 'nodes', '-o', 'json']).stdout)['items'][0]
         return prerequisite_images(value)
-    images = wait(cached_prerequisites, 'kubelet cached prerequisite image report', 180)
-    assert not any(name.startswith('127.0.0.1:') for image in images for name in (image.get('names') or []))
+    # Schema-5 predecessor acceptance must run first. Retire only its loopback
+    # fixture images so this stage still proves genuinely cold registry pulls.
+    cached=json.loads(run(['sudo','k3s','crictl','images','--output','json']).stdout)['images']
+    for identity in fixture_cache_ids(cached):run(['sudo','k3s','crictl','rmi',identity])
+    assert not fixture_cache_ids(json.loads(run(['sudo','k3s','crictl','images','--output','json']).stdout)['images'])
+    def cold_prerequisites():
+        images=cached_prerequisites()
+        return images if images and not any(name.startswith('127.0.0.1:') for image in images for name in (image.get('names') or [])) else None
+    wait(cold_prerequisites, 'cold fixture cache reported by kubelet', 180)
+    check('owned predecessor image cache retired; fresh native registry pulls remain required')
     for namespace in [system, app, other, excluded]:
         kubectl(['create', 'namespace', namespace])
     catalog=json.loads(args.image_catalog.read_bytes())

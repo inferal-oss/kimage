@@ -36,6 +36,14 @@ class Preflight(unittest.TestCase):
         self.assertIn('Executing',summary)
         self.assertNotIn('private',summary)
 
+    def test_cache_reset_only_selects_owned_loopback_fixture_images(self):
+        pause=dict(id='sha256:'+'1'*64,repoDigests=['docker.io/rancher/mirrored-pause@sha256:fixture'])
+        role=dict(id='sha256:'+'2'*64,repoTags=None,repoDigests=['127.0.0.1:14901/kimage/input@sha256:fixture'])
+        app=dict(id='sha256:'+'3'*64,repoTags=[],repoDigests=['127.0.0.1:17702/upgrade-app/image-uid@sha256:fixture'])
+        self.assertEqual(install.fixture_cache_ids([pause,role,app,role]),[role['id'],app['id']])
+        with self.assertRaisesRegex(AssertionError,'outside the owned CI fixture'):
+            install.fixture_cache_ids([dict(id='sha256:'+'4'*64,repoTags=['127.0.0.1:18000/unrelated:latest'])])
+
     def test_incomplete_kubelet_reports_keep_waiting(self):
         for status in [{}, {'images': None}, {'images': []}, {'images': [{'names': None}]},
                        {'images': [{'names': ['unrelated:latest']}]}]:
