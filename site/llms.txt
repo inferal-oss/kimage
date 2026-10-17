@@ -315,6 +315,8 @@ a new consumer version. Missing published dependencies retry as
 ImageInputNotPublished. Base updates never rebuild an already published version.
 The session fetches full graphs from the included registry using reader-only
 credentials, verifies sizes/SHA-256/DiffIDs and stages local OCI contexts.
+Session read credentials are derived for its namespace; the installation-wide
+reader password stays in the system namespace. Other namespaces and writes are denied.
 BuildKit receives no registry credentials; worker egress and RUN networking stay
 denied. Undeclared image sources and external frontends remain denied. Disabled
 cache still performs a real no-cache solve. Sum of input graphs <=1GiB, session

@@ -13,6 +13,8 @@ commits and original release attribution. Uncommitted work is marked explicitly.
 
 ### Fixed
 
+- Application build sessions receive derived namespace-only registry read credentials; the installation-wide reader password stays in the system namespace. Implementation pending commit.
+
 - Frozen OCI capture keeps temporary verification files and staged layouts beneath one mount, avoiding Linux cross-mount hard-link failures. Implementation pending commit.
 
 - Input-capture failures retain error context in the bounded private build log while phase, public status and operator output keep stable reason codes. Implementation pending commit.

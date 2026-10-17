@@ -29,6 +29,45 @@ fn equals(expected: &[u8], provided: &[u8]) -> bool {
     p.update(provided);
     p.verify_slice(&e.finalize().into_bytes()).is_ok()
 }
+/// Give application sessions read access to one namespace without exposing the
+/// installation-wide reader password. Legacy system readers remain compatible.
+pub fn namespace_reader_password(password: &str, namespace: &str) -> Result<String> {
+    anyhow::ensure!(
+        !password.is_empty()
+            && password.len() <= 4096
+            && kimage_core::selector::dns_label(namespace),
+        "InvalidNamespaceReader"
+    );
+    let mut mac = Hmac::<Sha256>::new_from_slice(password.as_bytes())?;
+    mac.update(b"kimage-namespace-reader-v1\0");
+    mac.update(namespace.as_bytes());
+    Ok(hex::encode(mac.finalize().into_bytes()))
+}
+fn credential_matches(name: &str, provided: &str, expected: &str) -> bool {
+    if let Some(namespace) = name.strip_prefix("reader/") {
+        namespace_reader_password(expected, namespace)
+            .is_ok_and(|key| equals(key.as_bytes(), provided.as_bytes()))
+    } else {
+        matches!(name, "reader" | "publisher") && equals(expected.as_bytes(), provided.as_bytes())
+    }
+}
+fn readable(
+    name: &str,
+    method: &Method,
+    path: &str,
+    query: Option<&str>,
+    namespaces: &BTreeSet<String>,
+) -> bool {
+    if !crate::proxy::allowed(method, path, query, namespaces) {
+        return false;
+    }
+    match name.strip_prefix("reader/") {
+        Some(namespace) => {
+            crate::proxy::allowed(method, path, query, &BTreeSet::from([namespace.to_owned()]))
+        }
+        None => name == "reader",
+    }
+}
 pub fn router(namespaces: BTreeSet<String>, read: PathBuf, write: PathBuf) -> Result<Router> {
     anyhow::ensure!(
         kimage_core::scope::valid_registry_namespaces(&namespaces),
@@ -108,12 +147,13 @@ async fn forward(State(g): State<Arc<Gate>>, r: Request) -> Response {
         let file = match name {
             "reader" => Some(&g.read),
             "publisher" => Some(&g.write),
+            _ if name.starts_with("reader/") => Some(&g.read),
             _ => None,
         };
         file.and_then(|p| std::fs::read_to_string(p).ok())
             .is_some_and(|expected| {
                 !expected.trim_end().is_empty()
-                    && equals(expected.trim_end().as_bytes(), password.as_bytes())
+                    && credential_matches(name, password, expected.trim_end())
             })
     } else {
         false
@@ -129,7 +169,13 @@ async fn forward(State(g): State<Arc<Gate>>, r: Request) -> Response {
     if !(if publisher {
         writable(r.method(), r.uri().path(), r.uri().query(), &g.namespaces)
     } else {
-        crate::proxy::allowed(r.method(), r.uri().path(), r.uri().query(), &g.namespaces)
+        readable(
+            credentials.unwrap().0,
+            r.method(),
+            r.uri().path(),
+            r.uri().query(),
+            &g.namespaces,
+        )
     }) {
         return StatusCode::FORBIDDEN.into_response();
     }
@@ -208,6 +254,156 @@ async fn forward(State(g): State<Arc<Gate>>, r: Request) -> Response {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn namespace_reader_http_requests_refuse_other_scopes_and_privileges() {
+        let directory = tempfile::tempdir().unwrap();
+        let read = directory.path().join("read");
+        let write = directory.path().join("write");
+        std::fs::write(&read, "read-system-password").unwrap();
+        std::fs::write(&write, "write-system-password").unwrap();
+        let app = router(BTreeSet::from(["apps".into(), "other".into()]), read, write).unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let client = reqwest::Client::builder().no_proxy().build().unwrap();
+        let key = namespace_reader_password("read-system-password", "apps").unwrap();
+        let own = format!(
+            "/v2/apps/system-fixture/manifests/sha256:{}",
+            "a".repeat(64)
+        );
+        let foreign = own.replace("/apps/", "/other/");
+        for (method, name, password, path, expected) in [
+            (
+                Method::GET,
+                "reader/apps",
+                key.as_str(),
+                foreign.as_str(),
+                StatusCode::FORBIDDEN,
+            ),
+            (
+                Method::PUT,
+                "reader/apps",
+                key.as_str(),
+                own.as_str(),
+                StatusCode::FORBIDDEN,
+            ),
+            (
+                Method::GET,
+                "reader/other",
+                key.as_str(),
+                foreign.as_str(),
+                StatusCode::UNAUTHORIZED,
+            ),
+            (
+                Method::GET,
+                "reader",
+                key.as_str(),
+                own.as_str(),
+                StatusCode::UNAUTHORIZED,
+            ),
+            (
+                Method::PUT,
+                "publisher",
+                key.as_str(),
+                own.as_str(),
+                StatusCode::UNAUTHORIZED,
+            ),
+            (
+                Method::GET,
+                "reader/apps",
+                "read-system-password",
+                own.as_str(),
+                StatusCode::UNAUTHORIZED,
+            ),
+        ] {
+            let response = client
+                .request(method, format!("http://{address}{path}"))
+                .basic_auth(name, Some(password))
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(response.status(), expected);
+        }
+        server.abort();
+    }
+    #[test]
+    fn derived_readers_cannot_change_namespaces_write_or_impersonate_system_readers() {
+        let secret = "installation-read-password";
+        let apps = namespace_reader_password(secret, "apps").unwrap();
+        let other = namespace_reader_password(secret, "other").unwrap();
+        assert_eq!(apps.len(), 64);
+        assert_ne!(apps, other);
+        assert_eq!(apps, namespace_reader_password(secret, "apps").unwrap());
+        assert!(credential_matches("reader/apps", &apps, secret));
+        assert!(!credential_matches("reader/other", &apps, secret));
+        assert!(!credential_matches("reader", &apps, secret));
+        assert!(!credential_matches("publisher", &apps, "publish-password"));
+        assert!(!credential_matches("reader/apps", secret, secret));
+        assert!(credential_matches("reader", secret, secret));
+        assert!(credential_matches(
+            "publisher",
+            "publish-password",
+            "publish-password"
+        ));
+        for namespace in ["", "../apps", "apps/other", "Apps", "a_b"] {
+            assert!(namespace_reader_password(secret, namespace).is_err());
+        }
+        let namespaces = BTreeSet::from(["apps".into(), "other".into()]);
+        let digest = format!("sha256:{}", "a".repeat(64));
+        for kind in ["manifests", "blobs"] {
+            let own = format!("/v2/apps/system-fixture/{kind}/{digest}");
+            let foreign = own.replace("/apps/", "/other/");
+            assert!(readable(
+                "reader/apps",
+                &Method::GET,
+                &own,
+                None,
+                &namespaces
+            ));
+            assert!(readable(
+                "reader/apps",
+                &Method::HEAD,
+                &own,
+                None,
+                &namespaces
+            ));
+            assert!(!readable(
+                "reader/apps",
+                &Method::GET,
+                &foreign,
+                None,
+                &namespaces
+            ));
+            assert!(!readable(
+                "reader/apps",
+                &Method::PUT,
+                &own,
+                None,
+                &namespaces
+            ));
+            assert!(!readable(
+                "reader/apps",
+                &Method::GET,
+                &own,
+                Some("tag=latest"),
+                &namespaces
+            ));
+            assert!(readable(
+                "reader",
+                &Method::GET,
+                &foreign,
+                None,
+                &namespaces
+            ));
+            assert!(!readable(
+                "reader/apps",
+                &Method::GET,
+                &own,
+                None,
+                &BTreeSet::from(["other".into()])
+            ));
+        }
+    }
     #[test]
     fn independent_write_scope_and_constant_time_credentials() {
         let ns = BTreeSet::from(["ns".into()]);

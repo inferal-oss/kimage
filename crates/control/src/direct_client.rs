@@ -160,14 +160,24 @@ pub async fn create(
         );
         let data = reader.data.context("ImageInputReaderCredentialsMissing")?;
         let mut selected = std::collections::BTreeMap::new();
-        for key in ["ca.crt", "reader-password"] {
-            selected.insert(
-                key.to_owned(),
-                data.get(key)
-                    .context("ImageInputReaderCredentialsMissing")?
-                    .clone(),
-            );
-        }
+        selected.insert(
+            "ca.crt".into(),
+            data.get("ca.crt")
+                .context("ImageInputReaderCredentialsMissing")?
+                .clone(),
+        );
+        let password = data
+            .get("reader-password")
+            .context("ImageInputReaderCredentialsMissing")?;
+        let password =
+            std::str::from_utf8(&password.0).context("ImageInputReaderCredentialsInvalid")?;
+        selected.insert(
+            "reader-password".into(),
+            k8s_openapi::ByteString(
+                crate::gateway::namespace_reader_password(password.trim_end(), &config.namespace)?
+                    .into_bytes(),
+            ),
+        );
         let mut secret: Secret = serde_json::from_value(
             json!({"apiVersion":"v1","kind":"Secret","metadata":build_inputs::object_metadata(image,config,id,"image-credentials")?,"immutable":true,"type":"Opaque"}),
         )?;

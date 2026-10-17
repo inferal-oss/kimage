@@ -85,6 +85,11 @@ a new consuming Image version. Publishing a new base version does not rebuild
 or replace an existing consuming release. Changed output still requires a new
 Image version.
 
+The session receives a derived namespace-only read password. The installation-wide
+reader password stays in the system namespace; the gateway refuses other
+namespaces and all writes with the session credential. System proxy credentials
+and serving compatibility remain unchanged.
+
 ## Boundaries and diagnostics
 
 - `ImageInputNotPublished` waits for an already published dependency. kimage does

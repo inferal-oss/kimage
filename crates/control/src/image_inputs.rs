@@ -344,7 +344,7 @@ pub async fn capture(
             format!("{}/{}", input.namespace, input.image_uid),
             &ca,
             None,
-            "reader".into(),
+            format!("reader/{}", session.namespace),
             password.trim_end().into(),
         )?;
         let graph = registry
