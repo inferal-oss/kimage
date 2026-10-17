@@ -11,12 +11,6 @@ commits and original release attribution. Uncommitted work is marked explicitly.
 
 ## [Unreleased]
 
-### Changed
-
-- Recorded [post-publication 0.6.0 verification](https://github.com/inferal-oss/kimage/blob/main/docs/published-0.6.0-results.json): exact-tag assets and both crates, public native GHCR indexes, Cargo installation and automatic catalog fetching. The permanent mixed cluster runs the official public Helm chart through Argo CD with built-in pins, healthy status/doctor, retained storage, 203 prior release contracts, nine credentials and policy, and complete readback of 18 prior and 35 new graphs. Implementation pending commit.
-
-**Commits:** [b6e72be](https://github.com/inferal-oss/kimage/commit/b6e72bee5e87c72b3f9cce45539840b91598e445) (release source; publication receipt implementation pending commit).
-
 ## [0.6.0] - 2026-10-17
 
 ### Added
@@ -26,6 +20,8 @@ commits and original release attribution. Uncommitted work is marked explicitly.
 - A dedicated, rendered website changelog linked from the top navigation, regenerated from these notes on every GitHub Pages build. Commits: [9c1636e](https://github.com/inferal-oss/kimage/commit/9c1636e6863bab0a018e1745bab407ecab39dcb6).
 
 ### Changed
+
+- Recorded [post-publication 0.6.0 verification](https://github.com/inferal-oss/kimage/blob/main/docs/published-0.6.0-results.json): exact-tag assets and both crates, public native GHCR indexes, Cargo installation and automatic catalog fetching. The permanent mixed cluster runs the official public Helm chart through Argo CD with built-in pins, healthy status/doctor, retained storage, 203 prior release contracts, nine credentials and policy, and complete readback of 18 prior and 35 new graphs. Post-publication follow-up: [2ca96a9](https://github.com/inferal-oss/kimage/commit/2ca96a9c318a476b79fa5cf7f4b6371477087df1).
 
 - Recorded [eight native CLI/Helm and four Argo CD cases](https://github.com/inferal-oss/kimage/blob/main/docs/native-0.6.0-results.json) and [real mixed-cluster frozen-input acceptance](https://github.com/inferal-oss/kimage/blob/main/docs/mixed-0.6.0-results.json). Native placement, cache controls, refusal cases and later platform demand retain the original dependency roots. The permanent upgrade preserves 203 prior release contracts, nine credentials, storage and policy, with complete readback of 18 prior and 35 new graphs. Commits: [a3cb744](https://github.com/inferal-oss/kimage/commit/a3cb744812e54fcd29dfb37fc7d8b12905ca003e).
 - Optional encrypted Helm diagnostics capture disposable CI runtime state and bounded component logs after a failed install, while keeping plaintext out of artifacts and output. Commits: [045cbd7](https://github.com/inferal-oss/kimage/commit/045cbd7a3b47bd3b6bf067178169abbb13964b40).
