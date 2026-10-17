@@ -1,5 +1,18 @@
 # Clean implementation acceptance ledger
 
+2026-10-17, 0.6.0 candidate: [eight native CLI/Helm and four Argo CD cases](native-0.6.0-results.json)
+pass upgrades from actual published 0.5.2, interruptions, schema downgrade refusal,
+frozen OCI inputs and retained-data reinstall. [Real mixed-cluster acceptance](mixed-0.6.0-results.json)
+upgrades the permanent cluster-wide Argo installation and tests fresh unknown,
+amd64 and arm64 consumers, warm/disabled cache, denied sources, a missing native
+base platform and later arm64 demand after same-name base UID replacement.
+All material roots remain frozen. Installation/storage identities, all nine
+service credentials, administrator policy and 203 retained release contracts
+remain intact. Complete readback verifies 18 prior and 35 new release graphs.
+Status/doctor and default discovery pass. These checks use immutable public
+candidate images before the final tag; publication is verified separately.
+Shared Nodes are unchanged and the permanent runtime remains installed.
+
 2026-10-17, 0.5.2: [eight native CLI/Helm cases and four Argo CD cases](native-0.5.2-results.json)
 pass predecessor transitions, interruptions and retained-image recovery.
 The [published-artifact and real-upgrade receipt](published-0.5.2-results.json)

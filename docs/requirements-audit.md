@@ -1,6 +1,14 @@
 # Original brief acceptance audit
 
-Current 0.5.2 [native acceptance](native-0.5.2-results.json) and
+Current 0.6.0 [native acceptance](native-0.6.0-results.json) and
+[real mixed-cluster acceptance](mixed-0.6.0-results.json) cover frozen OCI
+base/toolchain inputs, both native architectures, placement, cache controls,
+source refusal and preserved input identities after dependency recreation.
+The permanent cluster-wide Argo upgrade preserves prior storage, credential,
+policy and release contracts, with complete OCI graph readback. Candidate
+acceptance precedes final publication; historical evidence remains unchanged.
+
+Earlier 0.5.2 [native acceptance](native-0.5.2-results.json) and
 [publication/real-upgrade evidence](published-0.5.2-results.json) cover the exact
 public artifacts and the permanent mixed-cluster Argo installation. Historical
 receipts retain their original release and scope.

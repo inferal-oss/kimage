@@ -1,0 +1,1186 @@
+{
+  "schema": 1,
+  "verifiedAt": "2026-10-17T19:31:33.617279+00:00",
+  "testedPackageVersion": "0.6.0",
+  "testedCandidateCommit": "393cc7403c381e73be2749743919d217ba0a93c4",
+  "candidateWorkflow": "https://github.com/inferal-oss/kimage/actions/runs/39059712390",
+  "test": "real-mixed-cluster-frozen-oci-inputs-and-guarded-argocd-upgrade",
+  "note": "Runs before the final release tag against immutable public GHCR candidate digests. The existing cluster-wide Argo installation upgrades from published 0.5.2 to 0.6.0. Fresh consuming Images test unknown placement, explicit AMD64/ARM64, cache controls, source refusal, a missing native base platform, and later ARM64 demand after deleting and recreating only the disposable fixture base Image. All material roots are complete two-platform indexes and retain the original dependency identities. Consumer Deployments and Pods are removed; registry data and release contracts remain. The permanent installation is not uninstalled, downgraded, interrupted or moved between Nodes. CLI/Helm removals and interruptions are covered in the separate native matrix. No Node labels or eligibility are changed. Publication is verified separately. Internal Node names, kubeconfig context, private repository references and credential material are omitted.",
+  "nodes": {
+    "total": 4,
+    "amd64": 3,
+    "arm64": 1
+  },
+  "beforeUpgrade": {
+    "schema": 1,
+    "verifiedAt": "2026-10-17T19:17:17.258563+00:00",
+    "release": "0.5.2",
+    "manager": "argocd",
+    "scope": "cluster",
+    "nodes": {
+      "total": 4,
+      "amd64": 3,
+      "arm64": 1
+    },
+    "retainedInstallationIdentity": true,
+    "retainedPvcAndVolumeIdentity": true,
+    "retainedCredentialIdentitiesAndBytes": 9,
+    "retainedReleaseIdentitiesAndSpecs": 203,
+    "nativeComponents": {
+      "release": "0.5.2",
+      "identities": [
+        {
+          "role": "admission",
+          "architecture": "amd64",
+          "container": "admission",
+          "imageId": "ghcr.io/inferal-oss/kimage/admission@sha256:3206189899a80b8796ffa58d05eddfe1d92c47730d654fd72310712409d2828c"
+        },
+        {
+          "role": "builder",
+          "architecture": "amd64",
+          "container": "builder",
+          "imageId": "ghcr.io/inferal-oss/kimage/builder@sha256:e9a03c0e3220f990c0895a2a9b331053b11f6b9da401aef37ee8fd48b757c443"
+        },
+        {
+          "role": "builder",
+          "architecture": "arm64",
+          "container": "builder",
+          "imageId": "ghcr.io/inferal-oss/kimage/builder@sha256:e9a03c0e3220f990c0895a2a9b331053b11f6b9da401aef37ee8fd48b757c443"
+        },
+        {
+          "role": "node-proxy",
+          "architecture": "amd64",
+          "container": "proxy",
+          "imageId": "ghcr.io/inferal-oss/kimage/proxy@sha256:34a2f7dc0c24492acad9901602a1a3355f14fc15c3f529b3cd2477911c55bcfd"
+        },
+        {
+          "role": "node-proxy",
+          "architecture": "arm64",
+          "container": "proxy",
+          "imageId": "ghcr.io/inferal-oss/kimage/proxy@sha256:34a2f7dc0c24492acad9901602a1a3355f14fc15c3f529b3cd2477911c55bcfd"
+        },
+        {
+          "role": "node-proxy",
+          "architecture": "amd64",
+          "container": "proxy",
+          "imageId": "ghcr.io/inferal-oss/kimage/proxy@sha256:34a2f7dc0c24492acad9901602a1a3355f14fc15c3f529b3cd2477911c55bcfd"
+        },
+        {
+          "role": "node-proxy",
+          "architecture": "amd64",
+          "container": "proxy",
+          "imageId": "ghcr.io/inferal-oss/kimage/proxy@sha256:34a2f7dc0c24492acad9901602a1a3355f14fc15c3f529b3cd2477911c55bcfd"
+        },
+        {
+          "role": "operator",
+          "architecture": "amd64",
+          "container": "operator",
+          "imageId": "ghcr.io/inferal-oss/kimage/operator@sha256:869c2d71096842a9a3c76eae326d0dfc9f26cf4e8372aaf69efc1f547cc5e38e"
+        },
+        {
+          "role": "registry",
+          "architecture": "amd64",
+          "container": "gateway",
+          "imageId": "ghcr.io/inferal-oss/kimage/gateway@sha256:4bef820b936dec83deef71ae8860614d34a229d64a4fa24434d5f00573f4be2d"
+        },
+        {
+          "role": "registry",
+          "architecture": "amd64",
+          "container": "registry",
+          "imageId": "ghcr.io/inferal-oss/kimage/registry@sha256:c4ec09ba0f4fc4a09eadaaf8893dc3d0c44922a3c05b197ef18bb1b8cc660f96"
+        }
+      ]
+    },
+    "registryReadback": {
+      "kimage-052-upgrade-check": {
+        "complete": true,
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "verification": "authenticated TLS full OCI graph, descriptor sizes, SHA-256 and DiffIDs",
+        "verifiedReleases": 18
+      }
+    },
+    "argo": {
+      "repoURL": "https://kimage.dev/charts",
+      "targetRevision": "0.5.2",
+      "observedRevision": "0.5.2",
+      "sync": "Synced",
+      "health": "Healthy",
+      "operation": "Succeeded",
+      "imageOverrides": false
+    },
+    "componentImages": {
+      "schema": 1,
+      "release": "0.5.2",
+      "apiSchemaRevision": 5,
+      "repository": "ghcr.io/inferal-oss/kimage",
+      "components": {
+        "admission": {
+          "version": "0.5.2",
+          "digest": "sha256:3206189899a80b8796ffa58d05eddfe1d92c47730d654fd72310712409d2828c",
+          "platforms": [
+            {
+              "os": "linux",
+              "architecture": "amd64"
+            },
+            {
+              "os": "linux",
+              "architecture": "arm64"
+            }
+          ]
+        },
+        "builder": {
+          "version": "0.33.0",
+          "digest": "sha256:e9a03c0e3220f990c0895a2a9b331053b11f6b9da401aef37ee8fd48b757c443",
+          "platforms": [
+            {
+              "os": "linux",
+              "architecture": "amd64"
+            },
+            {
+              "os": "linux",
+              "architecture": "arm64"
+            }
+          ]
+        },
+        "exporter": {
+          "version": "0.5.2",
+          "digest": "sha256:7ab41f885a84b311787ce1b0f876ccc79090c65f19a04578b25e66cf49089050",
+          "platforms": [
+            {
+              "os": "linux",
+              "architecture": "amd64"
+            },
+            {
+              "os": "linux",
+              "architecture": "arm64"
+            }
+          ]
+        },
+        "gateway": {
+          "version": "0.3.0",
+          "digest": "sha256:4bef820b936dec83deef71ae8860614d34a229d64a4fa24434d5f00573f4be2d",
+          "platforms": [
+            {
+              "os": "linux",
+              "architecture": "amd64"
+            },
+            {
+              "os": "linux",
+              "architecture": "arm64"
+            }
+          ]
+        },
+        "input": {
+          "version": "0.5.2",
+          "digest": "sha256:218385ff15faace0fc02fdf53518c785ddb996a82820041f40bf34139ff954c5",
+          "platforms": [
+            {
+              "os": "linux",
+              "architecture": "amd64"
+            },
+            {
+              "os": "linux",
+              "architecture": "arm64"
+            }
+          ]
+        },
+        "operator": {
+          "version": "0.5.2",
+          "digest": "sha256:869c2d71096842a9a3c76eae326d0dfc9f26cf4e8372aaf69efc1f547cc5e38e",
+          "platforms": [
+            {
+              "os": "linux",
+              "architecture": "amd64"
+            },
+            {
+              "os": "linux",
+              "architecture": "arm64"
+            }
+          ]
+        },
+        "proxy": {
+          "version": "0.3.0",
+          "digest": "sha256:34a2f7dc0c24492acad9901602a1a3355f14fc15c3f529b3cd2477911c55bcfd",
+          "platforms": [
+            {
+              "os": "linux",
+              "architecture": "amd64"
+            },
+            {
+              "os": "linux",
+              "architecture": "arm64"
+            }
+          ]
+        },
+        "registry": {
+          "version": "3.1.2",
+          "digest": "sha256:c4ec09ba0f4fc4a09eadaaf8893dc3d0c44922a3c05b197ef18bb1b8cc660f96",
+          "platforms": [
+            {
+              "os": "linux",
+              "architecture": "amd64"
+            },
+            {
+              "os": "linux",
+              "architecture": "arm64"
+            }
+          ]
+        }
+      }
+    },
+    "complete": true
+  },
+  "afterUpgrade": {
+    "schema": 1,
+    "verifiedAt": "2026-10-17T19:30:50.018005+00:00",
+    "release": "0.6.0",
+    "manager": "argocd",
+    "scope": "cluster",
+    "nodes": {
+      "total": 4,
+      "amd64": 3,
+      "arm64": 1
+    },
+    "retainedInstallationIdentity": true,
+    "retainedPvcAndVolumeIdentity": true,
+    "retainedCredentialIdentitiesAndBytes": 9,
+    "retainedAdministratorPolicyBytes": true,
+    "retainedReleaseIdentitiesAndSpecs": 203,
+    "nativeComponents": {
+      "release": "0.6.0",
+      "identities": [
+        {
+          "role": "admission",
+          "architecture": "amd64",
+          "container": "admission",
+          "imageId": "ghcr.io/inferal-oss/kimage/admission@sha256:84dc730893000c7bb3a9a896c5edd2e637384c497953e7cbfb601d6af8233394"
+        },
+        {
+          "role": "builder",
+          "architecture": "amd64",
+          "container": "builder",
+          "imageId": "ghcr.io/inferal-oss/kimage/builder@sha256:fb17ec0e74fedc4dedd2fa8ec2eb419def98c6e29d617d8f0360d47766bd493d"
+        },
+        {
+          "role": "builder",
+          "architecture": "arm64",
+          "container": "builder",
+          "imageId": "ghcr.io/inferal-oss/kimage/builder@sha256:fb17ec0e74fedc4dedd2fa8ec2eb419def98c6e29d617d8f0360d47766bd493d"
+        },
+        {
+          "role": "node-proxy",
+          "architecture": "amd64",
+          "container": "proxy",
+          "imageId": "ghcr.io/inferal-oss/kimage/proxy@sha256:cdc478f1ff8ca724a95e4cbbb77b56e2c2ed7b09a68ec801e02a7939c7181714"
+        },
+        {
+          "role": "node-proxy",
+          "architecture": "arm64",
+          "container": "proxy",
+          "imageId": "ghcr.io/inferal-oss/kimage/proxy@sha256:cdc478f1ff8ca724a95e4cbbb77b56e2c2ed7b09a68ec801e02a7939c7181714"
+        },
+        {
+          "role": "node-proxy",
+          "architecture": "amd64",
+          "container": "proxy",
+          "imageId": "ghcr.io/inferal-oss/kimage/proxy@sha256:cdc478f1ff8ca724a95e4cbbb77b56e2c2ed7b09a68ec801e02a7939c7181714"
+        },
+        {
+          "role": "node-proxy",
+          "architecture": "amd64",
+          "container": "proxy",
+          "imageId": "ghcr.io/inferal-oss/kimage/proxy@sha256:cdc478f1ff8ca724a95e4cbbb77b56e2c2ed7b09a68ec801e02a7939c7181714"
+        },
+        {
+          "role": "operator",
+          "architecture": "amd64",
+          "container": "operator",
+          "imageId": "ghcr.io/inferal-oss/kimage/operator@sha256:d0052eb4a9e0ce8a4ef03a9253453db33215b703778511792ce2d1cd68a00355"
+        },
+        {
+          "role": "registry",
+          "architecture": "amd64",
+          "container": "gateway",
+          "imageId": "ghcr.io/inferal-oss/kimage/gateway@sha256:bf529df443c86f31fed80a0bdacdebebe433e22863dcb3a794724125d2bc1618"
+        },
+        {
+          "role": "registry",
+          "architecture": "amd64",
+          "container": "registry",
+          "imageId": "ghcr.io/inferal-oss/kimage/registry@sha256:6a2421872d4ab4c379613f6a8bed13c311dd7fc358fc6b150e595101702598fa"
+        }
+      ]
+    },
+    "registryReadback": {
+      "kimage-052-upgrade-check": {
+        "complete": true,
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "verification": "authenticated TLS full OCI graph, descriptor sizes, SHA-256 and DiffIDs",
+        "verifiedReleases": 18
+      },
+      "kimage-060-input-check": {
+        "complete": true,
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "verification": "authenticated TLS full OCI graph, descriptor sizes, SHA-256 and DiffIDs",
+        "verifiedReleases": 35
+      }
+    },
+    "argo": {
+      "repoURL": "https://github.com/inferal-oss/kimage.git",
+      "targetRevision": "393cc7403c381e73be2749743919d217ba0a93c4",
+      "observedRevision": "393cc7403c381e73be2749743919d217ba0a93c4",
+      "sync": "Synced",
+      "health": "Healthy",
+      "operation": "Succeeded",
+      "imageOverrides": true
+    },
+    "componentImages": {
+      "schema": 1,
+      "release": "0.6.0",
+      "apiSchemaRevision": 6,
+      "repository": "ghcr.io/inferal-oss/kimage",
+      "components": {
+        "admission": {
+          "version": "0.6.0",
+          "digest": "sha256:84dc730893000c7bb3a9a896c5edd2e637384c497953e7cbfb601d6af8233394",
+          "platforms": [
+            {
+              "os": "linux",
+              "architecture": "amd64"
+            },
+            {
+              "os": "linux",
+              "architecture": "arm64"
+            }
+          ]
+        },
+        "builder": {
+          "version": "0.33.0",
+          "digest": "sha256:fb17ec0e74fedc4dedd2fa8ec2eb419def98c6e29d617d8f0360d47766bd493d",
+          "platforms": [
+            {
+              "os": "linux",
+              "architecture": "amd64"
+            },
+            {
+              "os": "linux",
+              "architecture": "arm64"
+            }
+          ]
+        },
+        "exporter": {
+          "version": "0.6.0",
+          "digest": "sha256:77e3ea288bee20b08af454e659496626b4fe4d1812c9dba68c6ee5b85b80f690",
+          "platforms": [
+            {
+              "os": "linux",
+              "architecture": "amd64"
+            },
+            {
+              "os": "linux",
+              "architecture": "arm64"
+            }
+          ]
+        },
+        "gateway": {
+          "version": "0.3.0",
+          "digest": "sha256:bf529df443c86f31fed80a0bdacdebebe433e22863dcb3a794724125d2bc1618",
+          "platforms": [
+            {
+              "os": "linux",
+              "architecture": "amd64"
+            },
+            {
+              "os": "linux",
+              "architecture": "arm64"
+            }
+          ]
+        },
+        "input": {
+          "version": "0.6.0",
+          "digest": "sha256:02dc3f88ea876f655d3c051f6d0aeee1c600326f01ae1b8f11ce9a72d09ed830",
+          "platforms": [
+            {
+              "os": "linux",
+              "architecture": "amd64"
+            },
+            {
+              "os": "linux",
+              "architecture": "arm64"
+            }
+          ]
+        },
+        "operator": {
+          "version": "0.6.0",
+          "digest": "sha256:d0052eb4a9e0ce8a4ef03a9253453db33215b703778511792ce2d1cd68a00355",
+          "platforms": [
+            {
+              "os": "linux",
+              "architecture": "amd64"
+            },
+            {
+              "os": "linux",
+              "architecture": "arm64"
+            }
+          ]
+        },
+        "proxy": {
+          "version": "0.3.0",
+          "digest": "sha256:cdc478f1ff8ca724a95e4cbbb77b56e2c2ed7b09a68ec801e02a7939c7181714",
+          "platforms": [
+            {
+              "os": "linux",
+              "architecture": "amd64"
+            },
+            {
+              "os": "linux",
+              "architecture": "arm64"
+            }
+          ]
+        },
+        "registry": {
+          "version": "3.1.2",
+          "digest": "sha256:6a2421872d4ab4c379613f6a8bed13c311dd7fc358fc6b150e595101702598fa",
+          "platforms": [
+            {
+              "os": "linux",
+              "architecture": "amd64"
+            },
+            {
+              "os": "linux",
+              "architecture": "arm64"
+            }
+          ]
+        }
+      }
+    },
+    "complete": true
+  },
+  "defaultDiscovery": true,
+  "diagnostics": {
+    "status": {
+      "healthy": true,
+      "release": "0.6.0"
+    },
+    "doctor": {
+      "healthy": true,
+      "release": "0.6.0"
+    }
+  },
+  "frozenInputs": {
+    "schema": 1,
+    "test": "frozen-oci-image-inputs",
+    "release": "0.6.0",
+    "architectures": [
+      "amd64",
+      "arm64"
+    ],
+    "cases": [
+      {
+        "image": "oci-input-206171a3af-unknown",
+        "imageUid": "1ca30a75-9882-42d8-a22f-fafdc05c2fb6",
+        "platforms": [
+          "amd64",
+          "arm64"
+        ],
+        "materials": [
+          {
+            "platform": {
+              "architecture": "amd64",
+              "os": "linux"
+            },
+            "inputs": [
+              {
+                "image": "platform://kimage-060-input-check/oci-input-206171a3af-base:1.0.0",
+                "imageUid": "20c339a6-3681-40b7-a200-2832f8fea55c",
+                "manifest": {
+                  "annotations": {},
+                  "digest": "sha256:33900de4c90560df5c7516b865a7f11cc0da43afe4ace4361d4b37d8d27d8a3b",
+                  "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                  "platform": {
+                    "architecture": "amd64",
+                    "os": "linux"
+                  },
+                  "size": 479
+                },
+                "name": "toolchain",
+                "platform": {
+                  "architecture": "amd64",
+                  "os": "linux"
+                },
+                "releaseUid": "f11b18a1-6fe0-4c13-9389-db6234307726",
+                "root": {
+                  "annotations": {},
+                  "digest": "sha256:65685088bf96ce78206c48c7f4adfad94d313e665a4e8812193ce25f1ec60861",
+                  "mediaType": "application/vnd.oci.image.index.v1+json",
+                  "size": 491
+                }
+              },
+              {
+                "image": "platform://kimage-060-input-check/oci-input-206171a3af-base:2.0.0",
+                "imageUid": "20c339a6-3681-40b7-a200-2832f8fea55c",
+                "manifest": {
+                  "annotations": {},
+                  "digest": "sha256:2d74024a60d617c53bf193068fd45cc18615288f925904cbcd981932394a62bc",
+                  "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                  "platform": {
+                    "architecture": "amd64",
+                    "os": "linux"
+                  },
+                  "size": 479
+                },
+                "name": "runtime",
+                "platform": {
+                  "architecture": "amd64",
+                  "os": "linux"
+                },
+                "releaseUid": "67247bc9-c6bb-460d-9252-f154a77ea35a",
+                "root": {
+                  "annotations": {},
+                  "digest": "sha256:901ba99c1a385f774f726990ed705efba84ec41cf140353be17fe161f5ffcb1b",
+                  "mediaType": "application/vnd.oci.image.index.v1+json",
+                  "size": 491
+                }
+              }
+            ],
+            "execution": {
+              "adapterVersion": "kimage.dev/containerfile-v1",
+              "attemptId": "db0b2bdb5c3363ae460cd798c8d83a764da069b222bfe6d8afe2d0ef6d312020",
+              "builder": "default",
+              "cacheMode": "Local",
+              "cachedExecutionSteps": 0,
+              "engine": "BuildKit",
+              "engineOperationId": "pia0b3mn4rx7nd94dp3lq3oon",
+              "engineVersion": "0.33.0",
+              "engineWorkerId": "hlv6ik9ylusk8a8dpytk8d7b3",
+              "executedSteps": 1,
+              "platform": {
+                "architecture": "amd64",
+                "os": "linux"
+              },
+              "strategy": "Direct",
+              "workerUid": "ea968075-08d1-4a5e-ad6c-695b0762b85e"
+            }
+          },
+          {
+            "platform": {
+              "architecture": "arm64",
+              "os": "linux"
+            },
+            "inputs": [
+              {
+                "image": "platform://kimage-060-input-check/oci-input-206171a3af-base:1.0.0",
+                "imageUid": "20c339a6-3681-40b7-a200-2832f8fea55c",
+                "manifest": {
+                  "annotations": {},
+                  "digest": "sha256:fb934e099a0b84d9252a3b8b7d7fc210c17d1e0ffee7378d73c212cc3beeb87b",
+                  "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                  "platform": {
+                    "architecture": "arm64",
+                    "os": "linux"
+                  },
+                  "size": 479
+                },
+                "name": "toolchain",
+                "platform": {
+                  "architecture": "arm64",
+                  "os": "linux"
+                },
+                "releaseUid": "f11b18a1-6fe0-4c13-9389-db6234307726",
+                "root": {
+                  "annotations": {},
+                  "digest": "sha256:65685088bf96ce78206c48c7f4adfad94d313e665a4e8812193ce25f1ec60861",
+                  "mediaType": "application/vnd.oci.image.index.v1+json",
+                  "size": 491
+                }
+              },
+              {
+                "image": "platform://kimage-060-input-check/oci-input-206171a3af-base:2.0.0",
+                "imageUid": "20c339a6-3681-40b7-a200-2832f8fea55c",
+                "manifest": {
+                  "annotations": {},
+                  "digest": "sha256:02d0b37abee928e61e9faf20d185844369230cda23556375aa8317c545c2696d",
+                  "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                  "platform": {
+                    "architecture": "arm64",
+                    "os": "linux"
+                  },
+                  "size": 479
+                },
+                "name": "runtime",
+                "platform": {
+                  "architecture": "arm64",
+                  "os": "linux"
+                },
+                "releaseUid": "67247bc9-c6bb-460d-9252-f154a77ea35a",
+                "root": {
+                  "annotations": {},
+                  "digest": "sha256:901ba99c1a385f774f726990ed705efba84ec41cf140353be17fe161f5ffcb1b",
+                  "mediaType": "application/vnd.oci.image.index.v1+json",
+                  "size": 491
+                }
+              }
+            ],
+            "execution": {
+              "adapterVersion": "kimage.dev/containerfile-v1",
+              "attemptId": "f97e12d772811cb7846628e2d84f89fa2ef7ad10920caf2aac6213f20d98bb35",
+              "builder": "default",
+              "cacheMode": "Local",
+              "cachedExecutionSteps": 0,
+              "engine": "BuildKit",
+              "engineOperationId": "x8kklwjr1s6tgud2uhb2ub1b3",
+              "engineVersion": "0.33.0",
+              "engineWorkerId": "w3mqznk748asrhr1535lqtfxs",
+              "executedSteps": 1,
+              "platform": {
+                "architecture": "arm64",
+                "os": "linux"
+              },
+              "strategy": "Direct",
+              "workerUid": "428f3170-c46c-4fd3-b558-023273716e75"
+            }
+          }
+        ],
+        "case": "unknown"
+      },
+      {
+        "image": "oci-input-206171a3af-amd64",
+        "imageUid": "53b2bc76-15d3-4cfc-9f9d-dd7f80cc9673",
+        "platforms": [
+          "amd64"
+        ],
+        "materials": [
+          {
+            "platform": {
+              "architecture": "amd64",
+              "os": "linux"
+            },
+            "inputs": [
+              {
+                "image": "platform://kimage-060-input-check/oci-input-206171a3af-base:1.0.0",
+                "imageUid": "20c339a6-3681-40b7-a200-2832f8fea55c",
+                "manifest": {
+                  "annotations": {},
+                  "digest": "sha256:33900de4c90560df5c7516b865a7f11cc0da43afe4ace4361d4b37d8d27d8a3b",
+                  "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                  "platform": {
+                    "architecture": "amd64",
+                    "os": "linux"
+                  },
+                  "size": 479
+                },
+                "name": "toolchain",
+                "platform": {
+                  "architecture": "amd64",
+                  "os": "linux"
+                },
+                "releaseUid": "f11b18a1-6fe0-4c13-9389-db6234307726",
+                "root": {
+                  "annotations": {},
+                  "digest": "sha256:65685088bf96ce78206c48c7f4adfad94d313e665a4e8812193ce25f1ec60861",
+                  "mediaType": "application/vnd.oci.image.index.v1+json",
+                  "size": 491
+                }
+              },
+              {
+                "image": "platform://kimage-060-input-check/oci-input-206171a3af-base:2.0.0",
+                "imageUid": "20c339a6-3681-40b7-a200-2832f8fea55c",
+                "manifest": {
+                  "annotations": {},
+                  "digest": "sha256:2d74024a60d617c53bf193068fd45cc18615288f925904cbcd981932394a62bc",
+                  "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                  "platform": {
+                    "architecture": "amd64",
+                    "os": "linux"
+                  },
+                  "size": 479
+                },
+                "name": "runtime",
+                "platform": {
+                  "architecture": "amd64",
+                  "os": "linux"
+                },
+                "releaseUid": "67247bc9-c6bb-460d-9252-f154a77ea35a",
+                "root": {
+                  "annotations": {},
+                  "digest": "sha256:901ba99c1a385f774f726990ed705efba84ec41cf140353be17fe161f5ffcb1b",
+                  "mediaType": "application/vnd.oci.image.index.v1+json",
+                  "size": 491
+                }
+              }
+            ],
+            "execution": {
+              "adapterVersion": "kimage.dev/containerfile-v1",
+              "attemptId": "1a0cdc381c28f928041994a5952500460cde10c616b7595102afb13b9c3170eb",
+              "builder": "default",
+              "cacheMode": "Local",
+              "cachedExecutionSteps": 1,
+              "engine": "BuildKit",
+              "engineOperationId": "wgiut8lzmaoc3u0pdzjjin92w",
+              "engineVersion": "0.33.0",
+              "engineWorkerId": "hlv6ik9ylusk8a8dpytk8d7b3",
+              "executedSteps": 0,
+              "platform": {
+                "architecture": "amd64",
+                "os": "linux"
+              },
+              "strategy": "Direct",
+              "workerUid": "ea968075-08d1-4a5e-ad6c-695b0762b85e"
+            }
+          }
+        ],
+        "case": "amd64"
+      },
+      {
+        "image": "oci-input-206171a3af-arm64",
+        "imageUid": "ba2dfefc-6bdd-43eb-89ac-239c17fce845",
+        "platforms": [
+          "arm64"
+        ],
+        "materials": [
+          {
+            "platform": {
+              "architecture": "arm64",
+              "os": "linux"
+            },
+            "inputs": [
+              {
+                "image": "platform://kimage-060-input-check/oci-input-206171a3af-base:1.0.0",
+                "imageUid": "20c339a6-3681-40b7-a200-2832f8fea55c",
+                "manifest": {
+                  "annotations": {},
+                  "digest": "sha256:fb934e099a0b84d9252a3b8b7d7fc210c17d1e0ffee7378d73c212cc3beeb87b",
+                  "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                  "platform": {
+                    "architecture": "arm64",
+                    "os": "linux"
+                  },
+                  "size": 479
+                },
+                "name": "toolchain",
+                "platform": {
+                  "architecture": "arm64",
+                  "os": "linux"
+                },
+                "releaseUid": "f11b18a1-6fe0-4c13-9389-db6234307726",
+                "root": {
+                  "annotations": {},
+                  "digest": "sha256:65685088bf96ce78206c48c7f4adfad94d313e665a4e8812193ce25f1ec60861",
+                  "mediaType": "application/vnd.oci.image.index.v1+json",
+                  "size": 491
+                }
+              },
+              {
+                "image": "platform://kimage-060-input-check/oci-input-206171a3af-base:2.0.0",
+                "imageUid": "20c339a6-3681-40b7-a200-2832f8fea55c",
+                "manifest": {
+                  "annotations": {},
+                  "digest": "sha256:02d0b37abee928e61e9faf20d185844369230cda23556375aa8317c545c2696d",
+                  "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                  "platform": {
+                    "architecture": "arm64",
+                    "os": "linux"
+                  },
+                  "size": 479
+                },
+                "name": "runtime",
+                "platform": {
+                  "architecture": "arm64",
+                  "os": "linux"
+                },
+                "releaseUid": "67247bc9-c6bb-460d-9252-f154a77ea35a",
+                "root": {
+                  "annotations": {},
+                  "digest": "sha256:901ba99c1a385f774f726990ed705efba84ec41cf140353be17fe161f5ffcb1b",
+                  "mediaType": "application/vnd.oci.image.index.v1+json",
+                  "size": 491
+                }
+              }
+            ],
+            "execution": {
+              "adapterVersion": "kimage.dev/containerfile-v1",
+              "attemptId": "2670b93fd19888e41956537bccd42a0092a0334a0e50a809f407fce28b0169dc",
+              "builder": "default",
+              "cacheMode": "Local",
+              "cachedExecutionSteps": 1,
+              "engine": "BuildKit",
+              "engineOperationId": "lvlylyia69mvhef1skaraf8j9",
+              "engineVersion": "0.33.0",
+              "engineWorkerId": "w3mqznk748asrhr1535lqtfxs",
+              "executedSteps": 0,
+              "platform": {
+                "architecture": "arm64",
+                "os": "linux"
+              },
+              "strategy": "Direct",
+              "workerUid": "428f3170-c46c-4fd3-b558-023273716e75"
+            }
+          }
+        ],
+        "case": "arm64"
+      },
+      {
+        "image": "oci-input-206171a3af-warm",
+        "imageUid": "2d754893-fa35-4284-912e-e822c7f70326",
+        "platforms": [
+          "amd64"
+        ],
+        "materials": [
+          {
+            "platform": {
+              "architecture": "amd64",
+              "os": "linux"
+            },
+            "inputs": [
+              {
+                "image": "platform://kimage-060-input-check/oci-input-206171a3af-base:1.0.0",
+                "imageUid": "20c339a6-3681-40b7-a200-2832f8fea55c",
+                "manifest": {
+                  "annotations": {},
+                  "digest": "sha256:33900de4c90560df5c7516b865a7f11cc0da43afe4ace4361d4b37d8d27d8a3b",
+                  "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                  "platform": {
+                    "architecture": "amd64",
+                    "os": "linux"
+                  },
+                  "size": 479
+                },
+                "name": "toolchain",
+                "platform": {
+                  "architecture": "amd64",
+                  "os": "linux"
+                },
+                "releaseUid": "f11b18a1-6fe0-4c13-9389-db6234307726",
+                "root": {
+                  "annotations": {},
+                  "digest": "sha256:65685088bf96ce78206c48c7f4adfad94d313e665a4e8812193ce25f1ec60861",
+                  "mediaType": "application/vnd.oci.image.index.v1+json",
+                  "size": 491
+                }
+              },
+              {
+                "image": "platform://kimage-060-input-check/oci-input-206171a3af-base:2.0.0",
+                "imageUid": "20c339a6-3681-40b7-a200-2832f8fea55c",
+                "manifest": {
+                  "annotations": {},
+                  "digest": "sha256:2d74024a60d617c53bf193068fd45cc18615288f925904cbcd981932394a62bc",
+                  "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                  "platform": {
+                    "architecture": "amd64",
+                    "os": "linux"
+                  },
+                  "size": 479
+                },
+                "name": "runtime",
+                "platform": {
+                  "architecture": "amd64",
+                  "os": "linux"
+                },
+                "releaseUid": "67247bc9-c6bb-460d-9252-f154a77ea35a",
+                "root": {
+                  "annotations": {},
+                  "digest": "sha256:901ba99c1a385f774f726990ed705efba84ec41cf140353be17fe161f5ffcb1b",
+                  "mediaType": "application/vnd.oci.image.index.v1+json",
+                  "size": 491
+                }
+              }
+            ],
+            "execution": {
+              "adapterVersion": "kimage.dev/containerfile-v1",
+              "attemptId": "595e206d6663c7b3b32a6760c65f1da06f8b798ec2ea1a651494868a600ceed2",
+              "builder": "default",
+              "cacheMode": "Local",
+              "cachedExecutionSteps": 1,
+              "engine": "BuildKit",
+              "engineOperationId": "8zfyhwd045blm7o3a7cmcjgi9",
+              "engineVersion": "0.33.0",
+              "engineWorkerId": "hlv6ik9ylusk8a8dpytk8d7b3",
+              "executedSteps": 0,
+              "platform": {
+                "architecture": "amd64",
+                "os": "linux"
+              },
+              "strategy": "Direct",
+              "workerUid": "ea968075-08d1-4a5e-ad6c-695b0762b85e"
+            }
+          }
+        ],
+        "case": "warm"
+      },
+      {
+        "image": "oci-input-206171a3af-disabled",
+        "imageUid": "cd0b8d2d-fc7d-438e-b4ce-b5bebe6fd278",
+        "platforms": [
+          "amd64"
+        ],
+        "materials": [
+          {
+            "platform": {
+              "architecture": "amd64",
+              "os": "linux"
+            },
+            "inputs": [
+              {
+                "image": "platform://kimage-060-input-check/oci-input-206171a3af-base:1.0.0",
+                "imageUid": "20c339a6-3681-40b7-a200-2832f8fea55c",
+                "manifest": {
+                  "annotations": {},
+                  "digest": "sha256:33900de4c90560df5c7516b865a7f11cc0da43afe4ace4361d4b37d8d27d8a3b",
+                  "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                  "platform": {
+                    "architecture": "amd64",
+                    "os": "linux"
+                  },
+                  "size": 479
+                },
+                "name": "toolchain",
+                "platform": {
+                  "architecture": "amd64",
+                  "os": "linux"
+                },
+                "releaseUid": "f11b18a1-6fe0-4c13-9389-db6234307726",
+                "root": {
+                  "annotations": {},
+                  "digest": "sha256:65685088bf96ce78206c48c7f4adfad94d313e665a4e8812193ce25f1ec60861",
+                  "mediaType": "application/vnd.oci.image.index.v1+json",
+                  "size": 491
+                }
+              },
+              {
+                "image": "platform://kimage-060-input-check/oci-input-206171a3af-base:2.0.0",
+                "imageUid": "20c339a6-3681-40b7-a200-2832f8fea55c",
+                "manifest": {
+                  "annotations": {},
+                  "digest": "sha256:2d74024a60d617c53bf193068fd45cc18615288f925904cbcd981932394a62bc",
+                  "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                  "platform": {
+                    "architecture": "amd64",
+                    "os": "linux"
+                  },
+                  "size": 479
+                },
+                "name": "runtime",
+                "platform": {
+                  "architecture": "amd64",
+                  "os": "linux"
+                },
+                "releaseUid": "67247bc9-c6bb-460d-9252-f154a77ea35a",
+                "root": {
+                  "annotations": {},
+                  "digest": "sha256:901ba99c1a385f774f726990ed705efba84ec41cf140353be17fe161f5ffcb1b",
+                  "mediaType": "application/vnd.oci.image.index.v1+json",
+                  "size": 491
+                }
+              }
+            ],
+            "execution": {
+              "adapterVersion": "kimage.dev/containerfile-v1",
+              "attemptId": "04f96206bf675cda997c2050e99fe25e8e91c18f3cc989703949a2c42103f4e2",
+              "builder": "default",
+              "cacheMode": "Disabled",
+              "cachedExecutionSteps": 0,
+              "engine": "BuildKit",
+              "engineOperationId": "hahxp5pevu3szgj0nzsobmlko",
+              "engineVersion": "0.33.0",
+              "engineWorkerId": "hlv6ik9ylusk8a8dpytk8d7b3",
+              "executedSteps": 1,
+              "platform": {
+                "architecture": "amd64",
+                "os": "linux"
+              },
+              "strategy": "Direct",
+              "workerUid": "ea968075-08d1-4a5e-ad6c-695b0762b85e"
+            }
+          }
+        ],
+        "case": "disabled"
+      },
+      {
+        "image": "oci-input-206171a3af-accumulation",
+        "imageUid": "ecaf1ca1-aa2b-48e8-a9c9-901d01824e40",
+        "platforms": [
+          "amd64",
+          "arm64"
+        ],
+        "materials": [
+          {
+            "platform": {
+              "architecture": "amd64",
+              "os": "linux"
+            },
+            "inputs": [
+              {
+                "image": "platform://kimage-060-input-check/oci-input-206171a3af-base:1.0.0",
+                "imageUid": "20c339a6-3681-40b7-a200-2832f8fea55c",
+                "manifest": {
+                  "annotations": {},
+                  "digest": "sha256:33900de4c90560df5c7516b865a7f11cc0da43afe4ace4361d4b37d8d27d8a3b",
+                  "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                  "platform": {
+                    "architecture": "amd64",
+                    "os": "linux"
+                  },
+                  "size": 479
+                },
+                "name": "toolchain",
+                "platform": {
+                  "architecture": "amd64",
+                  "os": "linux"
+                },
+                "releaseUid": "f11b18a1-6fe0-4c13-9389-db6234307726",
+                "root": {
+                  "annotations": {},
+                  "digest": "sha256:65685088bf96ce78206c48c7f4adfad94d313e665a4e8812193ce25f1ec60861",
+                  "mediaType": "application/vnd.oci.image.index.v1+json",
+                  "size": 491
+                }
+              },
+              {
+                "image": "platform://kimage-060-input-check/oci-input-206171a3af-base:2.0.0",
+                "imageUid": "20c339a6-3681-40b7-a200-2832f8fea55c",
+                "manifest": {
+                  "annotations": {},
+                  "digest": "sha256:2d74024a60d617c53bf193068fd45cc18615288f925904cbcd981932394a62bc",
+                  "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                  "platform": {
+                    "architecture": "amd64",
+                    "os": "linux"
+                  },
+                  "size": 479
+                },
+                "name": "runtime",
+                "platform": {
+                  "architecture": "amd64",
+                  "os": "linux"
+                },
+                "releaseUid": "67247bc9-c6bb-460d-9252-f154a77ea35a",
+                "root": {
+                  "annotations": {},
+                  "digest": "sha256:901ba99c1a385f774f726990ed705efba84ec41cf140353be17fe161f5ffcb1b",
+                  "mediaType": "application/vnd.oci.image.index.v1+json",
+                  "size": 491
+                }
+              }
+            ],
+            "execution": {
+              "adapterVersion": "kimage.dev/containerfile-v1",
+              "attemptId": "9592926aa470809d3056c305203184f914ed1bed18c609452f2fef57cea9b826",
+              "builder": "default",
+              "cacheMode": "Local",
+              "cachedExecutionSteps": 0,
+              "engine": "BuildKit",
+              "engineOperationId": "leb8gpkbsqzh6ne7vvwab40bo",
+              "engineVersion": "0.33.0",
+              "engineWorkerId": "x37zhdyny2kje3orrqa6o1ue3",
+              "executedSteps": 1,
+              "platform": {
+                "architecture": "amd64",
+                "os": "linux"
+              },
+              "strategy": "Direct",
+              "workerUid": "87ce82a9-f2ce-449d-8536-9171b65571a4"
+            }
+          },
+          {
+            "platform": {
+              "architecture": "arm64",
+              "os": "linux"
+            },
+            "inputs": [
+              {
+                "image": "platform://kimage-060-input-check/oci-input-206171a3af-base:1.0.0",
+                "imageUid": "20c339a6-3681-40b7-a200-2832f8fea55c",
+                "manifest": {
+                  "annotations": {},
+                  "digest": "sha256:fb934e099a0b84d9252a3b8b7d7fc210c17d1e0ffee7378d73c212cc3beeb87b",
+                  "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                  "platform": {
+                    "architecture": "arm64",
+                    "os": "linux"
+                  },
+                  "size": 479
+                },
+                "name": "toolchain",
+                "platform": {
+                  "architecture": "arm64",
+                  "os": "linux"
+                },
+                "releaseUid": "f11b18a1-6fe0-4c13-9389-db6234307726",
+                "root": {
+                  "annotations": {},
+                  "digest": "sha256:65685088bf96ce78206c48c7f4adfad94d313e665a4e8812193ce25f1ec60861",
+                  "mediaType": "application/vnd.oci.image.index.v1+json",
+                  "size": 491
+                }
+              },
+              {
+                "image": "platform://kimage-060-input-check/oci-input-206171a3af-base:2.0.0",
+                "imageUid": "20c339a6-3681-40b7-a200-2832f8fea55c",
+                "manifest": {
+                  "annotations": {},
+                  "digest": "sha256:02d0b37abee928e61e9faf20d185844369230cda23556375aa8317c545c2696d",
+                  "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                  "platform": {
+                    "architecture": "arm64",
+                    "os": "linux"
+                  },
+                  "size": 479
+                },
+                "name": "runtime",
+                "platform": {
+                  "architecture": "arm64",
+                  "os": "linux"
+                },
+                "releaseUid": "67247bc9-c6bb-460d-9252-f154a77ea35a",
+                "root": {
+                  "annotations": {},
+                  "digest": "sha256:901ba99c1a385f774f726990ed705efba84ec41cf140353be17fe161f5ffcb1b",
+                  "mediaType": "application/vnd.oci.image.index.v1+json",
+                  "size": 491
+                }
+              }
+            ],
+            "execution": {
+              "adapterVersion": "kimage.dev/containerfile-v1",
+              "attemptId": "35c766242e3ba66b75abdc652595c9a0794a760b58a59bb7dea288c9ef911e09",
+              "builder": "default",
+              "cacheMode": "Local",
+              "cachedExecutionSteps": 1,
+              "engine": "BuildKit",
+              "engineOperationId": "kof6i0ci3gujokyep5r635tt9",
+              "engineVersion": "0.33.0",
+              "engineWorkerId": "w3mqznk748asrhr1535lqtfxs",
+              "executedSteps": 0,
+              "platform": {
+                "architecture": "arm64",
+                "os": "linux"
+              },
+              "strategy": "Direct",
+              "workerUid": "428f3170-c46c-4fd3-b558-023273716e75"
+            }
+          }
+        ],
+        "case": "later-platform-after-base-recreation"
+      }
+    ],
+    "checks": [
+      "undeclared: ContainerfileSolveFailed without publication",
+      "missing: ImageInputNotPublished without publication",
+      "missing-platform: ImageInputPlatformUnavailable without publication",
+      "Later arm64 demand keeps the original base UID and complete OCI root after same-name base replacement"
+    ],
+    "complete": true,
+    "cleanupComplete": true,
+    "cleanupErrors": []
+  },
+  "complete": true
+}

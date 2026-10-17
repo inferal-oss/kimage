@@ -478,6 +478,17 @@ arm64, including actual native build execution and workload pulls, dry-run,
 on-demand/eager policy, controller templates, RBAC and namespace boundaries.
 The [0.4.0 acceptance record](docs/native-install-results.json) covers all eight cases.
 
+The [0.6.0 native matrix](docs/native-0.6.0-results.json) passes all eight
+CLI/Helm cases and four Argo CD cases. The [real mixed-cluster record](docs/mixed-0.6.0-results.json)
+upgrades a permanent cluster-wide installation from 0.5.2 and runs frozen OCI
+base/toolchain builds on native amd64 and arm64. Fresh unknown placement builds
+both; explicit placement builds only its requested platform. Later arm64 demand
+keeps the original base UID and full OCI root after same-name base recreation.
+Cache controls and refusal cases pass. All 203 prior release contracts, nine
+service credentials, registry storage and administrator policy remain intact;
+18 prior and 35 new release graphs verify completely. These candidate checks
+precede final publication; historical receipts keep their original scope.
+
 The [0.5.2 native acceptance record](docs/native-0.5.2-results.json) covers
 published 0.5.1 → 0.5.2 → 0.5.1 in all eight CLI/Helm cases, plus four Argo CD
 cases using a separate future-version conformance fixture. The

@@ -298,7 +298,7 @@ Native amd64/arm64 manifests, nested indexes and complete multi-platform indexes
 `kimage-install schemas` prints full CRD JSON without changing the cluster.
 
 **Frozen OCI image inputs (0.6.0).** Add source.build.imageInputs as a list of
-{name:toolchain,image:"platform://apps/go-toolchain:1.0.0"}, plus an optional
+{name: toolchain, image: "platform://apps/go-toolchain:1.0.0"}, plus an optional
 runtime alias. FROM toolchain AS build / FROM runtime / COPY --from=build works.
 At most 8 lowercase aliases; scratch/context/dockerfile are reserved. Same
 namespace, exact published versions only. Ranges, channels and ordinary registry
@@ -459,6 +459,19 @@ Eligible node administrators are trusted readers; namespace routing is not
 hostile-tenant image confidentiality. Native clients keep TLS verification on.
 Rust tests run on macOS/arm64 and native Linux/amd64 and Linux/arm64 musl. Separate two-node
 acceptance harnesses cover lifecycle/recovery/binary rollback/export and remain historical evidence; native amd64/arm64 namespace/cluster install E2E is now a release gate; historical live bundles predate the latest selector/CLI metadata.
+
+0.6.0 acceptance: eight native CLI/Helm cases and four Argo CD cases, including
+published 0.5.2 upgrades, interruption/resume, schema downgrade refusal and
+retained-data reinstall:
+https://github.com/inferal-oss/kimage/blob/main/docs/native-0.6.0-results.json
+Real four-node mixed-cluster acceptance upgrades an existing cluster-wide Argo
+installation from 0.5.2. Fresh unknown placement builds/executes amd64 and arm64;
+explicit placement builds only its requested native platform. Frozen OCI inputs,
+warm/disabled cache, source/missing-platform refusal and later arm64 demand after
+base UID recreation all pass. Original frozen roots stay unchanged. Storage,
+203 prior release contracts, nine credentials and policy remain intact; 18 old
+and 35 new complete graphs verify. This is pre-publication candidate evidence:
+https://github.com/inferal-oss/kimage/blob/main/docs/mixed-0.6.0-results.json
 
 0.5.2 native acceptance: eight CLI/Helm × namespace/cluster × amd64/arm64
 cases through published 0.5.1 to 0.5.2 and back, plus four Argo CD cases with

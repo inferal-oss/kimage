@@ -11,6 +11,12 @@ commits and original release attribution. Uncommitted work is marked explicitly.
 
 ## [Unreleased]
 
+### Changed
+
+- Recorded [eight native CLI/Helm and four Argo CD cases](https://github.com/inferal-oss/kimage/blob/main/docs/native-0.6.0-results.json) and [real mixed-cluster frozen-input acceptance](https://github.com/inferal-oss/kimage/blob/main/docs/mixed-0.6.0-results.json). Native placement, cache controls, refusal cases and later platform demand retain the original dependency roots. The permanent upgrade preserves 203 prior release contracts, nine credentials, storage and policy, with complete readback of 18 prior and 35 new graphs. Implementation pending commit.
+
+**Commits:** [393cc74](https://github.com/inferal-oss/kimage/commit/393cc7403c381e73be2749743919d217ba0a93c4).
+
 ## [0.6.0] - 2026-10-17
 
 ### Added

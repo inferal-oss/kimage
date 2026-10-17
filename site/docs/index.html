@@ -1222,6 +1222,18 @@ python3 scripts/check-site.py</code></pre>
               built only the requested platform. Both runs removed their
               consumer Deployments and Pods.
             </p>
+            <p>The <a href="https://github.com/inferal-oss/kimage/blob/main/docs/native-0.6.0-results.json">0.6.0 native matrix</a>
+              passes eight CLI/Helm and four Argo CD cases. The
+              <a href="https://github.com/inferal-oss/kimage/blob/main/docs/mixed-0.6.0-results.json">real mixed-cluster record</a>
+              upgrades a permanent cluster-wide installation from 0.5.2 and runs
+              frozen OCI inputs on native amd64 and arm64. Unknown placement builds
+              both; explicit placement builds only its requested platform. Later
+              arm64 demand retains the original base UID and full root after
+              same-name base recreation. Cache controls and refusal cases pass.
+              All 203 prior release contracts, nine credentials, storage and policy
+              stay intact; 18 prior and 35 new release graphs verify completely.
+              These candidate checks precede final publication.
+            </p>
             <p>The <a href="https://github.com/inferal-oss/kimage/blob/main/docs/native-0.5.2-results.json">0.5.2 native acceptance matrix</a>
               covers published 0.5.1 → 0.5.2 → 0.5.1 in all eight CLI/Helm cases,
               plus four Argo CD cases with a separate future-version conformance fixture.

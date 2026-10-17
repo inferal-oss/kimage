@@ -147,5 +147,12 @@ python3 scripts/e2e-image-inputs.py --build-probes .local/image-input-probes
 Native CI runs the same acceptance on amd64 and arm64, in both installation
 scopes and with CLI and Helm. The live mixed test additionally verifies later
 platform demand after dependency recreation and missing-platform refusal.
+The [native matrix](native-0.6.0-results.json) and
+[real mixed-cluster receipt](mixed-0.6.0-results.json) record the completed 0.6.0
+candidate checks, including complete multi-platform roots and later ARM64 demand
+after same-name dependency recreation. The real upgrade preserves 203 prior
+release contracts, all nine service credentials, storage and policy; 18 prior
+and 35 new release graphs verify completely.
+
 Only test consumer workloads are cleaned up; image releases and registry data
 remain retained. Railpack is outside 0.6.0.
