@@ -1222,6 +1222,14 @@ python3 scripts/check-site.py</code></pre>
               built only the requested platform. Both runs removed their
               consumer Deployments and Pods.
             </p>
+            <p>The <a href="https://github.com/inferal-oss/kimage/blob/main/docs/published-0.6.0-results.json">published 0.6.0 verification</a>
+              checks both crates, every asset, public native GHCR images, Cargo
+              installation and automatic catalog fetching. The public Helm chart
+              runs through Argo CD on the four-node mixed cluster using its built-in
+              pins. Status/doctor are healthy. Storage, 203 previous release
+              contracts, nine credentials and policy remain intact; complete
+              readback verifies 18 prior and 35 new OCI graphs.
+            </p>
             <p>The <a href="https://github.com/inferal-oss/kimage/blob/main/docs/native-0.6.0-results.json">0.6.0 native matrix</a>
               passes eight CLI/Helm and four Argo CD cases. The
               <a href="https://github.com/inferal-oss/kimage/blob/main/docs/mixed-0.6.0-results.json">real mixed-cluster record</a>

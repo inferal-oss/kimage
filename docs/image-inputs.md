@@ -147,6 +147,10 @@ python3 scripts/e2e-image-inputs.py --build-probes .local/image-input-probes
 Native CI runs the same acceptance on amd64 and arm64, in both installation
 scopes and with CLI and Helm. The live mixed test additionally verifies later
 platform demand after dependency recreation and missing-platform refusal.
+The [published-artifact verification](published-0.6.0-results.json) confirms
+that the tested component catalog and chart match the final public release,
+and verifies the official public chart through the permanent Argo installation.
+
 The [native matrix](native-0.6.0-results.json) and
 [real mixed-cluster receipt](mixed-0.6.0-results.json) record the completed 0.6.0
 candidate checks, including complete multi-platform roots and later ARM64 demand

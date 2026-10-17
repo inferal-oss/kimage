@@ -478,6 +478,13 @@ arm64, including actual native build execution and workload pulls, dry-run,
 on-demand/eager policy, controller templates, RBAC and namespace boundaries.
 The [0.4.0 acceptance record](docs/native-install-results.json) covers all eight cases.
 
+The [published 0.6.0 verification](docs/published-0.6.0-results.json) checks
+both crates, every release asset, anonymous native GHCR images, Cargo installation
+and automatic catalog fetching. The public Helm chart runs through Argo CD on
+the four-node mixed cluster with its built-in pins. Status/doctor are healthy;
+retained storage, 203 previous release contracts, nine credentials and policy
+remain intact, with complete readback of 18 prior and 35 new OCI graphs.
+
 The [0.6.0 native matrix](docs/native-0.6.0-results.json) passes all eight
 CLI/Helm cases and four Argo CD cases. The [real mixed-cluster record](docs/mixed-0.6.0-results.json)
 upgrades a permanent cluster-wide installation from 0.5.2 and runs frozen OCI

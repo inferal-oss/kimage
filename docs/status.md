@@ -1,5 +1,14 @@
 # Clean implementation acceptance ledger
 
+2026-10-17, published 0.6.0: [actual publication verification](published-0.6.0-results.json)
+checks the exact-tag assets, both Cargo archives, public native GHCR indexes,
+Cargo installation, automatic catalog fetching and the live website/chart
+repository. The permanent cluster-wide installation runs the official public
+Helm chart through Argo CD with built-in pins. Default discovery, status and
+doctor are healthy. Original installation/volume identities, 203 release
+contracts, nine credentials and policy remain intact; 18 prior and 35 new OCI
+graphs verify completely. Pre-publication execution evidence remains separate.
+
 2026-10-17, 0.6.0 candidate: [eight native CLI/Helm and four Argo CD cases](native-0.6.0-results.json)
 pass upgrades from actual published 0.5.2, interruptions, schema downgrade refusal,
 frozen OCI inputs and retained-data reinstall. [Real mixed-cluster acceptance](mixed-0.6.0-results.json)

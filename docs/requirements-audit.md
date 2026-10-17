@@ -1,5 +1,11 @@
 # Original brief acceptance audit
 
+[Published 0.6.0 verification](published-0.6.0-results.json) confirms the actual
+public crates, release assets, native GHCR graphs, Cargo CLI/catalog fetch and
+live website. The official public chart runs through Argo CD on the permanent
+mixed cluster, preserving retained identities, credentials, policy and verified
+OCI bytes. Default discovery, status and doctor pass.
+
 Current 0.6.0 [native acceptance](native-0.6.0-results.json) and
 [real mixed-cluster acceptance](mixed-0.6.0-results.json) cover frozen OCI
 base/toolchain inputs, both native architectures, placement, cache controls,
