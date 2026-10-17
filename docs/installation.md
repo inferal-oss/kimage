@@ -235,6 +235,10 @@ revision without restoring stale credentials or build-policy bytes. If it report
 `HelmRecoveryCredentialDrift` or `HelmRecoveryPolicyDrift`, reapply the current
 version's chart first to record the live values, then repeat the upgrade check.
 
+Retained-byte checks sample releases in scope that could belong to this registry.
+Historical releases created before its retained PVC are excluded; equal or missing
+timestamps remain eligible. Upgrades never replace the registry claim.
+
 The release's `release-compatibility.json` records supported exact edges and the
 API, installation/build/journal, serving and registry storage formats. Unknown
 edges are refused. Rollback to 0.4.1 requires an empty node selector because that

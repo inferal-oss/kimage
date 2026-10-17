@@ -727,6 +727,23 @@ pub(crate) async fn cleanup_worker_checks(
     Ok(())
 }
 async fn sample_roots(client: Client, options: &Options) -> Result<Vec<RootCheck>> {
+    // A release created before this retained claim cannot have been published
+    // into its new backend. Historical, uninstalled catalogs can remain in a
+    // cluster-wide scope. Do not mistake them for data in this installation.
+    // Missing timestamps remain eligible so incomplete metadata never weakens
+    // retained-byte verification. Supported upgrades never replace a claim.
+    let claim = options
+        .existing_claim
+        .clone()
+        .unwrap_or_else(|| format!("{}-data", options.installation));
+    let registry_created = Api::<k8s_openapi::api::core::v1::PersistentVolumeClaim>::namespaced(
+        client.clone(),
+        &options.namespace,
+    )
+    .get(&claim)
+    .await?
+    .metadata
+    .creation_timestamp;
     let api: Api<crate::api::ImageRelease> = if let Some(ns) = &options.application_namespace {
         Api::namespaced(client.clone(), ns)
     } else {
@@ -745,7 +762,14 @@ async fn sample_roots(client: Client, options: &Options) -> Result<Vec<RootCheck
         ensure!(pages <= 256, "RetainedCatalogScanLimit");
         for item in page.items {
             let ns = item.namespace().context("MissingReleaseNamespace")?;
-            if !options.scope().allows(&ns) {
+            if !options.scope().allows(&ns)
+                || item
+                    .metadata
+                    .creation_timestamp
+                    .as_ref()
+                    .zip(registry_created.as_ref())
+                    .is_some_and(|(release, registry)| release.0 < registry.0)
+            {
                 continue;
             }
             sampled.push((

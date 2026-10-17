@@ -1046,3 +1046,43 @@ fn patch_release_declares_only_the_adjacent_new_compatible_edge() {
     lifecycle::compatible(&catalog("0.5.2"), &catalog("0.5.1")).unwrap();
     assert!(lifecycle::compatible(&catalog("0.5.0"), &catalog("0.5.2")).is_err());
 }
+
+#[tokio::test]
+async fn retained_root_preflight_excludes_only_releases_that_predate_the_registry_claim() {
+    for (created, excluded) in [
+        (Some("1999-01-01T00:00:00Z"), true),
+        (Some("2000-01-01T00:00:00Z"), false),
+        (Some("2001-01-01T00:00:00Z"), false),
+        (None, false),
+    ] {
+        let (client, records, server) = fixture().await;
+        {
+            let mut store = records.lock().unwrap();
+            store
+                .objects
+                .get_mut("/api/v1/namespaces/system/persistentvolumeclaims/dev-data")
+                .unwrap()["metadata"]["creationTimestamp"] = json!("2000-01-01T00:00:00Z");
+            // Intentionally unreadable full spec: metadata discovery must skip
+            // only old foreign catalogs, and still inspect every newer record.
+            let mut release = json!({"apiVersion":"kimage.dev/v1alpha1","kind":"ImageRelease","metadata":{"name":"retained","namespace":"apps","uid":"retained-uid"},"spec":{}});
+            if let Some(created) = created {
+                release["metadata"]["creationTimestamp"] = json!(created);
+            }
+            store.put(release);
+        }
+        let writes = records.lock().unwrap().writes;
+        let result = lifecycle::transition(
+            client,
+            "system",
+            "dev",
+            &catalog("0.5.0"),
+            true,
+            false,
+            None,
+        )
+        .await;
+        assert_eq!(result.is_ok(), excluded);
+        assert_eq!(records.lock().unwrap().writes, writes);
+        server.abort();
+    }
+}

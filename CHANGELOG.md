@@ -17,6 +17,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ### Fixed
 
+- Cluster-wide upgrade checks exclude historical releases created before the retained registry claim, preventing unrelated retired installations from blocking a new registry's transition. Releases with missing timestamps remain checked.
 - Missing installation errors explain which identity was requested and how to find or select an installation. Permission and API failures stay distinct from an absent installation.
 
 
