@@ -322,7 +322,8 @@ workspace 4GiB; existing verifier/output limits still apply.
 Each native ImageRelease.spec.provenance.imageInputs records full roots, selected
 manifests, platforms and dependency identities. Follow status.platformReleases
 on the parent Image for native provenance; an aggregate index has no single
-native execution receipt. Logs stay private and bounded.
+native execution receipt. Capture error context stays in the bounded private
+log; public phase/status and operator output keep stable reason codes.
 Complete example and upgrade boundary:
 https://github.com/inferal-oss/kimage/blob/main/docs/image-inputs.md
 

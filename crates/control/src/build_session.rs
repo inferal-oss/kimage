@@ -165,12 +165,12 @@ pub async fn run() -> Result<()> {
         } else {
             "BuildInputOrEngineFailed"
         };
-        // Persist only the stable reason here. Full BuildKit output is already
-        // bounded in its private log and must never be sent to operator stdout.
+        // Keep phase/status restricted to a stable reason. Capture and engine
+        // error details belong only in the bounded private log, never stdout.
         let mut log = crate::build_logs::snapshot()
             .map(|s| s.log)
             .unwrap_or_default();
-        log.append(&format!("\n{reason}\n"));
+        log.append(&format!("\n{reason}\n{error:#}\n"));
         log.persist()?;
         phase(&format!("Failed:{reason}"))?;
     }

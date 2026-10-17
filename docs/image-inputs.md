@@ -95,7 +95,8 @@ Image version.
 - Each native `ImageRelease.spec.provenance.imageInputs` records the exact full
   root, selected manifest, platform and dependency identities. Follow the parent
   Image's `status.platformReleases` for native provenance; an aggregate index has
-  no single native execution receipt. Private build output remains available through `kimage logs` and `kimage builds`.
+  no single native execution receipt. Private build output, including capture error context, remains available through `kimage logs`
+  and `kimage builds`. Status and operator output contain only stable reasons.
 - `cache.mode: Disabled` still requests a real no-cache solve. Cache eviction
   cannot change retained dependency bytes or published outputs.
 - Undeclared `FROM`/`COPY --from` sources and external frontend directives remain

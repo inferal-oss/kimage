@@ -234,6 +234,7 @@ jobs:
       - name: Exercise published predecessor schema upgrade, interruptions and downgrade refusal
         env:
           KIMAGE_DIAGNOSTIC_STRESS: ${{ (github.event_name != 'pull_request' || inputs.diagnostic_stress) && 'true' || 'false' }}
+          KIMAGE_TEST_DIAGNOSTIC_CERT: ${{ inputs.diagnostic_certificate }}
         run: |
           python3 - <<'PYCONFIG'
           import glob,json,os,subprocess

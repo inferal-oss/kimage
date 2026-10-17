@@ -13,6 +13,8 @@ commits and original release attribution. Uncommitted work is marked explicitly.
 
 ### Fixed
 
+- Input-capture failures retain error context in the bounded private build log while phase, public status and operator output keep stable reason codes. Implementation pending commit.
+
 - Native frozen-input acceptance stops promptly on terminal build failures, retains bounded failure status and can encrypt private build logs for an explicitly enabled diagnostic run. Implementation pending commit.
 
 - Upgrade check output reports the target API schema revision, including revision 6 for frozen OCI inputs. Implementation pending commit.
