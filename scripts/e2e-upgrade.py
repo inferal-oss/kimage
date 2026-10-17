@@ -430,6 +430,10 @@ class Upgrade:
 
     def uninstall_current(self):
         self.run_command([self.installer,'uninstall','--namespace',self.system,'--installation',self.id])
+        if self.config['mode']=='helm':
+            # Runtime cleanup stops supervisors first; Helm also retires its history
+            # so the retained claim can be installed under the same release name.
+            self.run_command(['helm','uninstall',self.id,'--namespace',self.system,'--wait','--timeout','5m'])
 
     def run(self):
         try:
