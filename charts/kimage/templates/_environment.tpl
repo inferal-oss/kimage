@@ -110,7 +110,7 @@
   {{- $_ := set $components $role (dict "version" $version "digest" $digest "platforms" $platforms) -}}
   {{- $_ := set $images $role (printf "%s/%s@%s" $root.Values.images.repository $role $digest) -}}
 {{- end -}}
-{{- $catalog := dict "schema" 1 "release" .Chart.AppVersion "apiSchemaRevision" 5 "repository" .Values.images.repository "components" $components -}}
+{{- $catalog := dict "schema" 1 "release" .Chart.AppVersion "apiSchemaRevision" 6 "repository" .Values.images.repository "components" $components -}}
 {{- $registry := .Values.credentials.registry -}}
 {{- if not $registry -}}{{- $old := lookup "v1" "Secret" $ns (printf "%s-registry-credentials" $install) -}}
   {{- if $old -}}{{- if or (ne (get $old.metadata.labels "kimage.dev/installation") $install) (ne (get $old.metadata.annotations "kimage.dev/manager") "helm") -}}{{- fail "ForeignCredentialSecret" -}}{{- end -}}{{- $registry = $old.data -}}{{- else -}}

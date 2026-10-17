@@ -11,6 +11,12 @@ commits and original release attribution. Uncommitted work is marked explicitly.
 
 ## [Unreleased]
 
+### Fixed
+
+- Helm installation and Argo provisioning catalogs declare the new schema revision consistently. Implementation pending commit.
+
+**Commits:** [83abe62](https://github.com/inferal-oss/kimage/commit/83abe62796e057da7c32665d40141d44c685acbb).
+
 ## [0.6.0] - 2026-10-17
 
 ### Added
@@ -24,8 +30,6 @@ commits and original release attribution. Uncommitted work is marked explicitly.
 - Website footers now credit Inferal as sponsor, with its chevron logo and a link to inferal.com. Commits: [7615d86](https://github.com/inferal-oss/kimage/commit/7615d862a0b0c1aa249d777a9bd32c1b878b0bf7).
 
 - Historical changelog entries now link to implementing commits, with complete release commit lists and support for associated pull request links. Repository instructions require this traceability for future changes. Commits: [9c1636e](https://github.com/inferal-oss/kimage/commit/9c1636e6863bab0a018e1745bab407ecab39dcb6).
-
-
 
 - The guarded 0.5.2 to 0.6.0 upgrade adds shared CRD revision 6 without changing registry storage or serving protocol. Rollback to 0.5.2 is refused because it cannot read the new fields; earlier same-schema edges remain supported. Commits: [83abe62](https://github.com/inferal-oss/kimage/commit/83abe62796e057da7c32665d40141d44c685acbb).
 

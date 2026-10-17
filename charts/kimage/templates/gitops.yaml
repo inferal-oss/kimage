@@ -12,7 +12,7 @@
   {{- $version := $.Chart.AppVersion -}}{{- if has $role (list "gateway" "proxy") -}}{{- $version = "0.3.0" -}}{{- else if eq $role "registry" -}}{{- $version = "3.1.2" -}}{{- else if eq $role "builder" -}}{{- $version = "0.33.0" -}}{{- end -}}
   {{- $_ := set $components $role (dict "version" $version "digest" $digest "platforms" (list (dict "os" "linux" "architecture" "amd64") (dict "os" "linux" "architecture" "arm64"))) -}}
 {{- end -}}
-{{- $catalog := dict "schema" 1 "release" .Chart.AppVersion "apiSchemaRevision" 5 "repository" .Values.images.repository "components" $components -}}
+{{- $catalog := dict "schema" 1 "release" .Chart.AppVersion "apiSchemaRevision" 6 "repository" .Values.images.repository "components" $components -}}
 {{- $target := default $catalog .Values.gitops.targetCatalog -}}
 {{- if not (semverCompare ">=0.5.1-0" $target.release) -}}{{- fail "TargetDoesNotSupportArgoCD" -}}{{- end -}}
 {{- $options := dict "namespace" $ns "installation" $id "scope" .Values.scope "applicationNamespace" (ternary nil $app $cluster) "excludedNamespaces" .Values.excludedNamespaces "runtimeProfile" .Values.runtimeProfile "registryNode" (default nil .Values.registryNode) "storageClass" (default nil .Values.persistence.storageClass) "storageSize" .Values.persistence.size "existingClaim" (default nil .Values.persistence.existingClaim) "port" .Values.port "exportOrigins" .Values.exporter.approvedOrigins "workerNodes" (dict) -}}
