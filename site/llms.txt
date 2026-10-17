@@ -33,7 +33,7 @@ Administrator-managed builder isolation is not a hostile tenant security claim.
 amd64/arm64 nodes, persistent storage and the supported Pod user-namespace runtime:
 
 ```sh
-cargo install kimage-control --version 0.6.0 --locked --bin kimage --bin kimage-install
+cargo install kimage-control --version 0.6.1 --locked --bin kimage --bin kimage-install
 kimage install --application-namespace apps
 ```
 
@@ -56,7 +56,7 @@ Gateway/proxy serving version remains 0.3.0 separately from Cargo 0.6.0.
 helm repo add kimage https://kimage.dev/charts
 helm repo update
 kubectl create namespace apps
-helm install kimage kimage/kimage --version 0.6.0 \
+helm install kimage kimage/kimage --version 0.6.1 \
   --namespace kimage-system --create-namespace \
   --set applicationNamespace=apps --wait --wait-for-jobs
 ```
@@ -469,6 +469,20 @@ Storage, 203 prior release contracts, nine credentials and policy remain intact;
 18 prior and 35 new complete OCI graphs verify:
 https://github.com/inferal-oss/kimage/blob/main/docs/published-0.6.0-results.json
 
+0.6.1 compatibility foundation: API definitions remain exactly schema revision 6.
+Use the 0.6.1 coordinator for declared 0.6.0 -> 0.6.1 -> 0.6.0 transitions.
+Future additive schemas require a verified reader contract, ownership, canonical
+digest and structural proof; binary rollback keeps the newer shared CRDs.
+Unknown Image spec/source features, execution formats or required capabilities
+pause only affected builds with BuildSupported=False. Published roots remain
+resolvable; unrelated builds continue. New semantics declare the bounded JSON
+string array annotation kimage.dev/required-capabilities. Baseline capabilities:
+oci-archive-v1, containerfile-v1, frozen-oci-inputs-v1. Preserve opaque data and
+provenance; never remove requirements merely to force older execution.
+0.6.0 is an unprepared reader: returning requires exact schema 6 and no unsupported
+resource requirements. The existing 0.5.2 schema boundary remains one-way.
+https://github.com/inferal-oss/kimage/blob/main/docs/compatibility.md
+
 0.6.0 acceptance: eight native CLI/Helm cases and four Argo CD cases, including
 published 0.5.2 upgrades, interruption/resume, schema downgrade refusal and
 retained-data reinstall:
@@ -544,7 +558,7 @@ and https://github.com/inferal-oss/kimage/blob/main/docs/mixed-upgrade-results.j
 ## Argo CD (0.5.1+)
 
 Use the published Helm repository `https://kimage.dev/charts`, chart `kimage`,
-exact `targetRevision: 0.6.0`, and `helm.valuesObject.gitops.enabled: true`.
+exact `targetRevision: 0.6.1`, and `helm.valuesObject.gitops.enabled: true`.
 Set `scope: cluster`, or `scope: namespace` with `applicationNamespace: apps`.
 Destination namespace is `kimage-system`; enable `CreateNamespace=true`.
 An administrator must permit the provisioner's installation RBAC in AppProject.

@@ -36,7 +36,7 @@ spec:
   source:
     repoURL: https://kimage.dev/charts
     chart: kimage
-    targetRevision: 0.6.0
+    targetRevision: 0.6.1
     helm:
       releaseName: kimage
       valuesObject:

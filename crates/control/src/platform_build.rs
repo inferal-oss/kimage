@@ -41,6 +41,15 @@ fn child(image: &Image, platform: &Platform) -> Result<Image> {
     spec.exports.clear();
     spec.channels.clear();
     let mut child = Image::new(&child_name(image, platform)?, spec);
+    if let Some(requirements) = image
+        .annotations()
+        .get(crate::api_compatibility::CAPABILITIES)
+    {
+        child.metadata.annotations = Some(BTreeMap::from([(
+            crate::api_compatibility::CAPABILITIES.into(),
+            requirements.clone(),
+        )]));
+    }
     child.metadata.labels = Some(BTreeMap::from([(
         "kimage.dev/platform-parent".into(),
         image.uid().context("MissingImageUid")?,
@@ -158,6 +167,8 @@ async fn publish(
     let name = platform_release_name(&uid, &image.spec.version, &platform);
     let api: Api<ImageRelease> = Api::namespaced(config.client.clone(), &config.namespace);
     let candidate = ImageReleaseSpec {
+        extra: Default::default(),
+        raw_provenance: None,
         image_name: image.name_any(),
         image_uid: uid.clone(),
         version: image.spec.version.clone(),

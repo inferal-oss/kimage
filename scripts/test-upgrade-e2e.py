@@ -28,17 +28,17 @@ class Boundaries(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);previous=root/'previous';previous.mkdir()
             assets=[]
-            for name in ['kimage-v0.5.2-linux-amd64','component-images.json','kimage-0.5.2.tgz']:
+            for name in ['kimage-v0.6.0-linux-amd64','component-images.json','kimage-0.6.0.tgz']:
                 data=(name+'-fixture').encode();(previous/name).write_bytes(data)
                 assets.append(dict(name=name,size=len(data),sha256='sha256:'+hashlib.sha256(data).hexdigest()))
-            (previous/'verified.json').write_text(json.dumps(dict(release='0.5.2',assets=assets)))
-            catalog=root/'catalog.json';catalog.write_text(json.dumps(dict(release='0.6.0')))
+            (previous/'verified.json').write_text(json.dumps(dict(release='0.6.0',assets=assets)))
+            catalog=root/'catalog.json';catalog.write_text(json.dumps(dict(release='0.6.1')))
             installer=root/'installer';installer.write_bytes(b'fixture')
             chart=root/'chart';chart.write_bytes(b'fixture')
             config=dict(kubeconfig='fixture',context='fixture',namespace='app',systemNamespace='system',installation='install',probes=str(root/'probes'),output=str(root/'output'),installer=str(installer),previous=str(previous),catalog=str(catalog),chart=str(chart),mode='cli',scope='namespace',runtimeProfile='k3s',port=17701)
             fixture=upgrade.Upgrade(config)
-            self.assertEqual(fixture.source,'0.5.2');self.assertEqual(fixture.version,'0.6.0')
-            (previous/'verified.json').write_text(json.dumps(dict(release='0.6.0',assets=assets)))
+            self.assertEqual(fixture.source,'0.6.0');self.assertEqual(fixture.version,'0.6.1')
+            (previous/'verified.json').write_text(json.dumps(dict(release='0.6.1',assets=assets)))
             config['output']=str(root/'wrong-output')
             with self.assertRaisesRegex(RuntimeError,'Published predecessor verification'):upgrade.Upgrade(config)
 
@@ -46,8 +46,8 @@ class Boundaries(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);original=dict(scope='namespace',applicationNamespace='apps',runtimeProfile='k3s',registryNode='fixture',port=17702)
             path=root/'helm-values.json';path.write_text(json.dumps(original));before=path.read_bytes()
-            fixture=upgrade.Upgrade.__new__(upgrade.Upgrade);fixture.config=dict(mode='helm',chart='target-chart');fixture.output=root;fixture.id='fixture';fixture.system='system';fixture.version='0.6.0'
-            fixture.target=dict(release='0.6.0',repository='127.0.0.1:14901/kimage',components={r:dict(digest='sha256:'+str(i)*64) for i,r in enumerate(['operator','admission','input','exporter','builder','gateway','proxy','registry'])})
+            fixture=upgrade.Upgrade.__new__(upgrade.Upgrade);fixture.config=dict(mode='helm',chart='target-chart');fixture.output=root;fixture.id='fixture';fixture.system='system';fixture.version='0.6.1'
+            fixture.target=dict(release='0.6.1',repository='127.0.0.1:14901/kimage',components={r:dict(digest='sha256:'+str(i)*64) for i,r in enumerate(['operator','admission','input','exporter','builder','gateway','proxy','registry'])})
             calls=[]
             def command(args):
                 self.assertEqual(args[:4],['helm','install','fixture','target-chart'])
@@ -56,7 +56,7 @@ class Boundaries(unittest.TestCase):
                 self.assertEqual(values['images'],dict(repository=fixture.target['repository'],digests={r:e['digest'] for r,e in fixture.target['components'].items()}))
                 calls.append('install')
             fixture.common=lambda:[];fixture.run_command=command;fixture.assert_images=lambda version,catalog:calls.append((version,catalog));fixture.install_current()
-            self.assertEqual(path.read_bytes(),before);self.assertEqual(calls,['install',('0.6.0',fixture.target)])
+            self.assertEqual(path.read_bytes(),before);self.assertEqual(calls,['install',('0.6.1',fixture.target)])
 
     def test_published_predecessor_is_drained_before_helm_can_delete_workers(self):
         import types
@@ -158,10 +158,10 @@ class Boundaries(unittest.TestCase):
         self.assertNotIn('FileNotFoundError',result.stderr)
 
     def test_published_predecessor_digest_size_and_metadata_only_authentication(self):
-        names=['kimage-v0.5.2-linux-amd64','component-images.json','kimage-0.5.2.tgz']
+        names=['kimage-v0.6.0-linux-amd64','component-images.json','kimage-0.6.0.tgz']
         bodies={name:(name+'-published').encode() for name in names}
         assets=[dict(name=name,state='uploaded',size=len(bodies[name]),digest='sha256:'+hashlib.sha256(bodies[name]).hexdigest(),browser_download_url=fetch.ASSETS+name) for name in names]
-        release=dict(tag_name='v0.5.2',draft=False,prerelease=False,assets=assets)
+        release=dict(tag_name='v0.6.0',draft=False,prerelease=False,assets=assets)
         class Metadata:
             def open(self,request,timeout):
                 assert request.full_url==fetch.API and request.get_header('Authorization')=='Bearer fixture-token'

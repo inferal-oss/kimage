@@ -11,7 +11,7 @@ assert text.startswith('# Changelog\n') and 'keepachangelog.com/en/1.1.0/' in te
 sections = re.findall(r'(?ms)^## \[([^\]]+)\]([^\n]*)\n(.*?)(?=^## |^\[Unreleased\]:|\Z)', text)
 assert sections and sections[0][0] == 'Unreleased' and not sections[0][1].strip()
 assert len({name for name, _, _ in sections}) == len(sections)
-assert any(name == version for name, _, _ in sections), 'current release needs changelog notes'
+assert any(name == version for name, _, _ in sections) or any(name == 'Unreleased' and re.search(r'^- ',body,re.M) for name,_,body in sections), 'current or pending release needs changelog notes'
 for name, suffix, body in sections:
     prose = re.sub(r'(?ms)^```.*?^```[^\n]*', '', body)
     for entry in re.findall(r'(?ms)^- .*?(?=\n(?:\n|- )|\Z)', prose):
@@ -27,5 +27,6 @@ for name, suffix, body in sections:
     assert re.search(r'^### (Added|Changed|Deprecated|Removed|Fixed|Security)$', body, re.M)
     assert re.search(r'^- \S', body, re.M), 'released sections need concrete changes'
     assert re.search(r'^\['+re.escape(name)+r'\]: https://github.com/inferal-oss/kimage/', text, re.M)
-assert re.search(r'^\[Unreleased\]: https://github.com/inferal-oss/kimage/compare/v'+re.escape(version)+r'\.\.\.HEAD$', text, re.M)
+latest=next(name for name,_,_ in sections if name!='Unreleased')
+assert re.search(r'^\[Unreleased\]: https://github.com/inferal-oss/kimage/compare/v'+re.escape(latest)+r'\.\.\.HEAD$', text, re.M)
 print('Keep a Changelog structure and current release notes verified.')

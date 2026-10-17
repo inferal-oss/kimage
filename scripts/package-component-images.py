@@ -33,9 +33,10 @@ def notices(metadata=None):
     return text.encode()
 
 
-def package(linux, registry, buildkit, out, architecture, version, metadata=None):
+def package(linux, registry, buildkit, out, architecture, version, metadata=None, api_schema_revision=6):
     assert re.fullmatch(r'\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?',version)
     assert architecture in ['amd64','arm64']
+    assert isinstance(api_schema_revision,int) and 6<=api_schema_revision<=65535
     out.mkdir(parents=True,exist_ok=False)
     license_files={'LICENSE':(ROOT/'LICENSE').read_bytes(),'THIRD-PARTY-NOTICES.txt':notices(metadata)}
     components={}
@@ -54,7 +55,7 @@ def package(linux, registry, buildkit, out, architecture, version, metadata=None
             root=oci.image(source,archive,'kimage-'+role,architecture=architecture,labels=labels,compress=True,additional=license_files)
         (out/(role+'.root.json')).write_bytes(oci.encode(root))
         components[role]=dict(version=component_version,archive=oci.entry(archive),root=root)
-    native=dict(schema=1,release=version,platform=dict(os='linux',architecture=architecture),components=components)
+    native=dict(schema=1,apiSchemaRevision=api_schema_revision,release=version,platform=dict(os='linux',architecture=architecture),components=components)
     (out/'native-images.json').write_bytes(oci.encode(native))
     print('Packaged native '+architecture+' component images for '+version)
     return native
@@ -68,7 +69,8 @@ if __name__=='__main__':
     p.add_argument('--out',type=Path,required=True)
     p.add_argument('--architecture',choices=['amd64','arm64'],required=True)
     p.add_argument('--version')
+    p.add_argument('--api-schema-revision',type=int,default=6)
     p.add_argument('--cargo-metadata',type=Path)
     a=p.parse_args()
     version=a.version or re.search(r'(?ms)^\[workspace\.package\]\s*\n.*?^version\s*=\s*"([^"]+)"',(ROOT/'Cargo.toml').read_text())[1]
-    package(a.linux_dir,a.registry,a.buildkit_dir,a.out,a.architecture,version,a.cargo_metadata)
+    package(a.linux_dir,a.registry,a.buildkit_dir,a.out,a.architecture,version,a.cargo_metadata,a.api_schema_revision)

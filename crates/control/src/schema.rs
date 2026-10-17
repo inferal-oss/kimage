@@ -1,4 +1,4 @@
-//! Built-in-only schema startup; never deletes CRDs or forces field ownership.
+//! Built-in baseline with verified additive forward readers; never replaces newer CRDs.
 use crate::api::{Image, ImageRelease};
 use anyhow::{Context, Result, bail, ensure};
 use k8s_openapi::{
@@ -182,6 +182,7 @@ pub fn definitions() -> Result<Vec<Crd>> {
         json!(["amd64", "arm64"]);
     demand["metadata"]["annotations"] = json!({"kimage.dev/schema-manager":MANAGER,"kimage.dev/schema-revision":REVISION.to_string(),"kimage.dev/schema-digest":kimage_core::oci::digest(&serde_json::to_vec(&demand["spec"])?)});
     result.push(serde_json::from_value(demand)?);
+    crate::api_compatibility::declare_schema(&mut result)?;
     Ok(result)
 }
 pub fn compatibility(existing: &Crd, desired: &Crd) -> Result<()> {
@@ -192,8 +193,19 @@ pub fn compatibility(existing: &Crd, desired: &Crd) -> Result<()> {
             .and_then(|a| a.get("kimage.dev/schema-revision"))
             .cloned()
     };
-    if matches!(revision(existing).as_deref(), Some("2" | "3" | "4" | "5"))
-        && revision(desired).as_deref() == Some("6")
+    if revision(existing)
+        .and_then(|v| v.parse::<u32>().ok())
+        .is_some_and(|v| v > REVISION)
+    {
+        return crate::api_compatibility::forward(existing, desired);
+    }
+    if matches!(
+        revision(existing).as_deref(),
+        Some("2" | "3" | "4" | "5" | "6")
+    ) && revision(existing) != revision(desired)
+        && revision(desired)
+            .and_then(|v| v.parse::<u32>().ok())
+            .is_some_and(|v| v >= 6)
     {
         // Only this shipped historical definition is eligible, never an arbitrary
         // old-looking schema. Existing objects remain in the same storage version.
@@ -204,8 +216,10 @@ pub fn compatibility(existing: &Crd, desired: &Crd) -> Result<()> {
                 include_str!("../schemas/revision-3.json")
             } else if revision(existing).as_deref() == Some("4") {
                 include_str!("../schemas/revision-4.json")
-            } else {
+            } else if revision(existing).as_deref() == Some("5") {
                 include_str!("../schemas/revision-5.json")
+            } else {
+                include_str!("../schemas/revision-6.json")
             })?;
         let previous = previous
             .iter()
@@ -215,7 +229,7 @@ pub fn compatibility(existing: &Crd, desired: &Crd) -> Result<()> {
     }
     compatibility_exact(existing, desired)
 }
-fn compatibility_exact(existing: &Crd, desired: &Crd) -> Result<()> {
+pub(crate) fn compatibility_exact(existing: &Crd, desired: &Crd) -> Result<()> {
     let a = existing
         .metadata
         .annotations
@@ -350,8 +364,11 @@ impl SchemaManager {
             let name = d.name_any();
             if let Some(current) = api.get_opt(&name).await? {
                 compatibility(&current, &d)?;
-                if current.annotations().get("kimage.dev/schema-revision")
-                    != d.annotations().get("kimage.dev/schema-revision")
+                if current
+                    .annotations()
+                    .get("kimage.dev/schema-revision")
+                    .and_then(|v| v.parse::<u32>().ok())
+                    .is_some_and(|v| v < REVISION)
                 {
                     let patch = json!({"metadata":{"uid":current.uid(),"resourceVersion":current.resource_version(),"annotations":d.metadata.annotations},"spec":d.spec});
                     let mut params = PatchParams {
@@ -416,30 +433,37 @@ impl SchemaManager {
     }
     pub async fn diagnostic(&self, ready: bool, reason: &str) -> Result<()> {
         let api: Api<ConfigMap> = Api::namespaced(self.client.clone(), &self.namespace);
-        if let Some(existing) = api.get_opt("kimage-schema-status").await? {
-            let legacy = ready
-                && existing
-                    .data
-                    .as_ref()
-                    .and_then(|d| d.get("revision"))
-                    .is_some_and(|r| matches!(r.as_str(), "2" | "3" | "4" | "5"));
-            if legacy {
-                let schemas: Api<Crd> = Api::all(self.client.clone());
-                for desired in definitions()? {
-                    let current = schemas.get(&desired.name_any()).await?;
-                    compatibility_exact(&current, &desired)?;
-                }
+        let schemas: Api<Crd> = Api::all(self.client.clone());
+        let mut observed = 0;
+        for desired in definitions()? {
+            if let Some(current) = schemas.get_opt(&desired.name_any()).await? {
+                compatibility(&current, &desired)?;
+                observed = observed.max(
+                    current
+                        .annotations()
+                        .get("kimage.dev/schema-revision")
+                        .and_then(|v| v.parse().ok())
+                        .context("UnsupportedSchemaRevision")?,
+                );
+            } else {
+                ensure!(!ready, "SchemaEstablishmentIncomplete");
             }
+        }
+        if observed == 0 {
+            observed = REVISION;
+        }
+        if let Some(existing) = api.get_opt("kimage-schema-status").await? {
+            let prior = existing
+                .data
+                .as_ref()
+                .and_then(|d| d.get("revision"))
+                .and_then(|v| v.parse::<u32>().ok());
             ensure!(
-                legacy
-                    || existing
-                        .data
-                        .as_ref()
-                        .is_some_and(|d| d.get("revision") == Some(&REVISION.to_string())),
+                prior.is_some_and(|v| (2..=observed).contains(&v)),
                 "SchemaDiagnosticOwnershipConflict"
             );
         }
-        let v = json!({"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"kimage-schema-status"},"data":{"ready":ready.to_string(),"reason":reason,"revision":REVISION.to_string()}});
+        let v = json!({"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"kimage-schema-status"},"data":{"ready":ready.to_string(),"reason":reason,"revision":observed.to_string(),"readerRevision":REVISION.to_string(),"readerVersion":env!("CARGO_PKG_VERSION")}});
         api.patch(
             "kimage-schema-status",
             &PatchParams::apply(MANAGER),

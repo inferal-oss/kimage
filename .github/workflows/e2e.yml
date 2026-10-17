@@ -95,7 +95,10 @@ jobs:
           cp target/${{ matrix.target }}/release/kimage-install .local/e2e/kimage-install
           cp .local/e2e/upstream/registry .local/e2e/registry
           python3 scripts/prepare-argocd-next.py --workspace .local/argocd-next-source
-          cargo build --locked --release --manifest-path .local/argocd-next-source/Cargo.toml --target-dir target --target ${{ matrix.target }} -p kimage-control --bin kimage-operator-argocd-conformance --bin kimage-admission-argocd-conformance --bin kimage-input-argocd-conformance --bin kimage-exporter-argocd-conformance
+          cargo build --locked --release --manifest-path .local/argocd-next-source/Cargo.toml --target-dir target --target ${{ matrix.target }} -p kimage-control --bin kimage-operator-argocd-conformance --bin kimage-admission-argocd-conformance --bin kimage-input-argocd-conformance --bin kimage-exporter-argocd-conformance --bin kimage-install-argocd-conformance
+          cp target/${{ matrix.target }}/release/kimage-install-argocd-conformance .local/e2e/next-installer
+          target/${{ matrix.target }}/release/kimage-install-argocd-conformance schemas > .local/e2e/future-schemas.json
+          python3 -c "import json; assert json.load(open('.local/e2e/future-schemas.json')) == json.load(open('crates/control/tests/fixtures/additive-revision-7.json'))"
           mkdir -p .local/e2e/next-bins
           for role in operator admission input exporter; do
             cp target/${{ matrix.target }}/release/kimage-$role-argocd-conformance .local/e2e/next-bins/kimage-$role
@@ -105,8 +108,8 @@ jobs:
           done
           python3 scripts/package-component-images.py --architecture ${{ matrix.architecture }} \
             --linux-dir .local/e2e/next-bins --registry .local/e2e/upstream/registry \
-            --buildkit-dir .local/e2e/upstream/buildkit --cargo-metadata .local/e2e/cargo-metadata.json --out .local/e2e/next-images --version 0.6.1-argocd-test.0
-          tar -czf .local/e2e-native-${{ matrix.architecture }}.tar.gz -C .local/e2e images next-images probe probes image-input-probes previous kimage-install registry
+            --buildkit-dir .local/e2e/upstream/buildkit --cargo-metadata .local/e2e/cargo-metadata.json --out .local/e2e/next-images --version 0.6.2-argocd-test.0 --api-schema-revision 7
+          tar -czf .local/e2e-native-${{ matrix.architecture }}.tar.gz -C .local/e2e images next-images probe probes image-input-probes previous kimage-install next-installer registry
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: e2e-native-${{ matrix.architecture }}
@@ -211,6 +214,10 @@ jobs:
         with:
           name: argocd-next-layouts
           path: .local
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: argocd-next-chart
+          path: .local/next-chart
       - name: Install registry tooling and Helm
         run: |
           sudo apt-get update
@@ -231,7 +238,7 @@ jobs:
         run: |
           python3 scripts/helm-diagnostics.py --setup .local/e2e/helm-diagnostics --helm /usr/local/bin/helm
           printf '%s\n' "$GITHUB_WORKSPACE/.local/e2e/helm-diagnostics/bin" >> "$GITHUB_PATH"
-      - name: Exercise published predecessor schema upgrade, interruptions and downgrade refusal
+      - name: Exercise published predecessor upgrade, interruptions and compatible rollback
         env:
           KIMAGE_DIAGNOSTIC_STRESS: ${{ (github.event_name != 'pull_request' || inputs.diagnostic_stress) && 'true' || 'false' }}
           KIMAGE_TEST_DIAGNOSTIC_CERT: ${{ inputs.diagnostic_certificate }}
@@ -259,10 +266,20 @@ jobs:
           import json,os,subprocess
           from pathlib import Path
           context=subprocess.check_output(['k3s','kubectl','config','current-context'],text=True).strip()
-          config=dict(kubeconfig=os.environ['KUBECONFIG'],context=context,namespace='kimage-argo-app',systemNamespace='kimage-argo-system',installation='kimageargo',probes=str(Path('.local/e2e/probes').resolve()),output=str(Path('.local/e2e/argocd-results').resolve()),catalog=os.environ['KIMAGE_E2E_IMAGE_CATALOG'],installer=str(Path('.local/e2e/kimage-install').resolve()),scope='${{ matrix.scope }}',port=17703,registryNode='kimage-e2e',runtimeProfile='k3s',sourceRevision='${{ github.sha }}',nextCatalog=os.environ['KIMAGE_E2E_NEXT_CATALOG'],kubectlCommand=['k3s','kubectl'])
+          config=dict(kubeconfig=os.environ['KUBECONFIG'],context=context,namespace='kimage-argo-app',systemNamespace='kimage-argo-system',installation='kimageargo',probes=str(Path('.local/e2e/probes').resolve()),output=str(Path('.local/e2e/argocd-results').resolve()),catalog=os.environ['KIMAGE_E2E_IMAGE_CATALOG'],installer=str(Path('.local/e2e/kimage-install').resolve()),scope='${{ matrix.scope }}',port=17703,registryNode='kimage-e2e',runtimeProfile='k3s',sourceRevision='${{ github.sha }}',nextCatalog=os.environ['KIMAGE_E2E_NEXT_CATALOG'],previousCatalog=str(Path('.local/e2e/previous/component-images.json').resolve()),kubectlCommand=['k3s','kubectl'])
           Path('.local/e2e/argocd-config.json').write_text(json.dumps(config))
           PYCONFIG
           python3 scripts/e2e-argocd.py --run --config .local/e2e/argocd-config.json
+      - name: Roll back populated future schema with unchanged baseline CLI and Helm
+        run: |
+          python3 - <<'PYCONFIG'
+          import glob,json,os,subprocess
+          from pathlib import Path
+          context=subprocess.check_output(['k3s','kubectl','config','current-context'],text=True).strip()
+          config=dict(kubeconfig=os.environ['KUBECONFIG'],context=context,namespace='forward-app',systemNamespace='forward-system',installation='forward',probes=str(Path('.local/e2e/probes').resolve()),output=str(Path('.local/e2e/forward-results').resolve()),installer=str(Path('.local/e2e/kimage-install').resolve()),previous=str(Path('.local/e2e/previous').resolve()),catalog=os.environ['KIMAGE_E2E_IMAGE_CATALOG'],chart=str(Path(glob.glob('.local/chart/kimage-*.tgz')[0]).resolve()),mode='${{ matrix.mode }}',scope='${{ matrix.scope }}',runtimeProfile='k3s',port=17704,registryNode='kimage-e2e',kubectlCommand=['k3s','kubectl'],disposableApi=True,nextInstaller=str(Path('.local/e2e/next-installer').resolve()),nextCatalog=os.environ['KIMAGE_E2E_NEXT_CATALOG'],nextChart=str(Path(glob.glob('.local/next-chart/kimage-*.tgz')[0]).resolve()))
+          Path('.local/e2e/forward-config.json').write_text(json.dumps(config))
+          PYCONFIG
+          python3 scripts/e2e-forward-compatibility.py --run --config .local/e2e/forward-config.json
       - name: Upload non-sensitive acceptance evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -271,6 +288,7 @@ jobs:
           path: |
             .local/e2e/results/*.json
             .local/e2e/results/*.log
+            .local/e2e/forward-results/results.json
             .local/e2e/lifecycle/results.json
             .local/e2e/lifecycle/image-inputs/results.json
             .local/e2e/lifecycle/image-inputs/*.p7m

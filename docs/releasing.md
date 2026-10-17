@@ -36,6 +36,7 @@ python3 scripts/test-install-e2e.py
 python3 scripts/test-upgrade-e2e.py
 python3 scripts/test-argocd-e2e.py
 python3 scripts/test-argocd-next.py
+python3 scripts/test-forward-e2e.py
 python3 scripts/test-helm-diagnostics.py
 python3 scripts/check-docs.py
 python3 scripts/check-site.py
@@ -75,10 +76,10 @@ No QEMU build emulation is used.
 
 Review `release-assets`:
 
-- Four `kimage-v0.6.0-<linux|darwin>-<amd64|arm64>` installer binaries.
+- Four `kimage-v0.6.1-<linux|darwin>-<amd64|arm64>` installer binaries.
 - `component-images.json`, the bounded catalog with all eight immutable index pins.
 - `release-compatibility.json`, matching the compiled transition edges and persisted formats.
-- `kimage-0.6.0.tgz`, containing the same canonical resources and release pins.
+- `kimage-0.6.1.tgz`, containing the same canonical resources and release pins.
 - `LICENSE`, `THIRD-PARTY-NOTICES.txt`, `SHA256SUMS` and release notes.
 
 `component-layouts` is an internal build artifact used by publication and CI,
@@ -88,17 +89,17 @@ filled only after both native graph sets pass verification.
 ## Tag and publish
 
 ```sh
-git tag -a v0.6.0 -m 'kimage 0.6.0'
-git push origin v0.6.0
-gh workflow run publish.yml --ref v0.6.0 -f dry_run=true
+git tag -a v0.6.1 -m 'kimage 0.6.1'
+git push origin v0.6.1
+gh workflow run publish.yml --ref v0.6.1 -f dry_run=true
 # After reviewing the exact tag preview:
-gh workflow run publish.yml --ref v0.6.0 -f dry_run=false
+gh workflow run publish.yml --ref v0.6.1 -f dry_run=false
 ```
 
 The tag must match the workspace version and point at a main commit. Publication
 uses the standard OCI registry protocol with all architectures and preserved
 digests. Images have source/license/version labels and live at
-`ghcr.io/inferal-oss/kimage/<role>:v0.6.0`; installation uses their index digests.
+`ghcr.io/inferal-oss/kimage/<role>:v0.6.1`; installation uses their index digests.
 Existing different release tags are never overwritten.
 
 **First publication:** new GHCR packages can default to private. Set all eight
@@ -145,11 +146,15 @@ The component catalog and protocol versions must agree. Published predecessor
 assets come from GitHub with recorded size/SHA-256 verification, not a recompiled
 old checkout. Keep historical evidence unchanged.
 
-Native CI runs CLI/Helm, both scopes and both architectures through published
-0.5.2, interruption/resume and the additive schema-5 to schema-6 transition.
-Rollback to 0.5.2 must fail before runtime, journal or retained data changes.
-Run reverse transitions only for declared same-schema compatible edges; the
-Argo future-version fixture covers 0.6.0 to 0.6.1-argocd-test.0 and back.
+Native CI runs CLI/Helm, both scopes and both architectures through actual
+published 0.6.0 to 0.6.1, interruptions and compatible rollback. The forward
+reader fixture uses 0.6.2-argocd-test.0 with schema 7, populated optional fields
+and provenance, returning to the unchanged 0.6.1 binaries while retaining the
+newer CRDs. It must prove isolated unsupported builds, continued published pulls,
+unrelated native builds and lossless opaque data. The real mixed cluster tests
+published-predecessor CLI/Helm/Argo round trips and capabilities without installing
+synthetic shared CRDs. See [compatibility](compatibility.md). Historical schema-5
+to schema-6 downgrade refusal evidence remains unchanged.
 Frozen OCI input acceptance exercises real native multi-stage execution, cache
 controls and source denial before current-version uninstall/reinstall. It builds fresh Images,
 consumes outputs produced on each side, checks private failed-attempt diagnostics
@@ -227,7 +232,7 @@ predecessor templates, declare the exact transition edge, and preserve the
 provisioner protocol recorded in the compatibility manifest. Never loosen the
 compatibility check to accept arbitrary future releases.
 
-Native acceptance builds a separate `0.6.1-argocd-test.0` workspace and chart to
+Native acceptance builds a separate `0.6.2-argocd-test.0` workspace and chart to
 exercise a real version round trip from 0.6.0, including interrupted helper and
 provisioner recovery. Conformance image tags are isolated from release tags;
 this fixture is never published to Cargo or as a GitHub release. Real mixed

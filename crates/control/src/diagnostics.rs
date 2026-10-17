@@ -265,7 +265,7 @@ pub async fn inspect(
         .filter_map(|p| p.labels().get("kimage.dev/worker-architecture").cloned())
         .collect();
     Ok(
-        json!({"schema":1,"installation":installation,"namespace":namespace,"uid":state.uid(),"release":release,"manager":manager,"operation":operation.as_ref().map(|j|json!({"source":j.source.release,"target":j.target.release,"phase":j.phase})),"platforms":platforms,"storage":{"claim":claim,"uid":pvc.uid(),"volume":pvc.data["spec"]["volumeName"],"phase":pvc.data["status"]["phase"]},"components":components,"certificates":certificates,"healthy":issues.is_empty(),"issues":issues}),
+        json!({"schema":1,"installation":installation,"namespace":namespace,"uid":state.uid(),"release":release,"manager":manager,"operation":operation.as_ref().map(|j|json!({"source":j.source.release,"target":j.target.release,"phase":j.phase})),"apiReader":{"clientRelease":env!("CARGO_PKG_VERSION"),"runtimeRelease":release,"runtimePrepared":kimage_core::selector::exact(&release)? >= kimage_core::selector::exact("0.6.1")?,"knownBaselineContract":crate::lifecycle::release_metadata()?["apiReader"]},"platforms":platforms,"storage":{"claim":claim,"uid":pvc.uid(),"volume":pvc.data["spec"]["volumeName"],"phase":pvc.data["status"]["phase"]},"components":components,"certificates":certificates,"healthy":issues.is_empty(),"issues":issues}),
     )
 }
 

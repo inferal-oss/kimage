@@ -20,6 +20,9 @@ mixed=importlib.util.module_from_spec(spec);spec.loader.exec_module(mixed)
 spec=importlib.util.spec_from_file_location('image_assertions',ROOT/'scripts/e2e-image-assertions.py')
 image_assertions=importlib.util.module_from_spec(spec);spec.loader.exec_module(image_assertions)
 
+spec=importlib.util.spec_from_file_location('forward_data',ROOT/'scripts/e2e-forward-data.py')
+forward_data=importlib.util.module_from_spec(spec);spec.loader.exec_module(forward_data)
+
 def require(value,message):
     if not value:raise RuntimeError(message)
 
@@ -33,7 +36,7 @@ def unsupported_catalog(catalog):
 class Argo:
     def __init__(self,config):
         required={'kubeconfig','context','namespace','systemNamespace','installation','probes','output','catalog','installer','scope','port','registryNode','runtimeProfile'}
-        require(required<=config.keys() and not config.keys()-required-{'sourceRevision','chartRepository','nextCatalog','nodeChanges','kubectlCommand','timeoutSeconds','retainedFixture'},'Invalid Argo fixture configuration')
+        require(required<=config.keys() and not config.keys()-required-{'sourceRevision','chartRepository','nextCatalog','nodeChanges','kubectlCommand','timeoutSeconds','retainedFixture','previousCatalog','existingEmptyApplicationNamespaceUid'},'Invalid Argo fixture configuration')
         require(config['scope'] in ('namespace','cluster'),'Invalid fixture scope')
         require(bool(config.get('sourceRevision'))!=bool(config.get('chartRepository')),'Select an exact Git source revision or public chart repository')
         self.config=config;self.app=config['namespace'];self.system=config['systemNamespace'];self.id=config['installation']
@@ -43,8 +46,8 @@ class Argo:
         base['output']=str(self.output/'builds');base['timeoutSeconds']=config.get('timeoutSeconds',900)
         self.api=mixed.MixedCluster(base)
         self.api.command=config.get('kubectlCommand',['kubectl'])+self.api.command[1:]
-        self.catalog=json.loads(Path(config['catalog']).read_text());require(self.catalog['release']=='0.6.0','Exact 0.6.0 catalog required')
-        self.nodes={};self.labels={};self.report=dict(schema=1,test='argocd-installation',release='0.6.0',scope=config['scope'],checks=[],complete=False)
+        self.catalog=json.loads(Path(config['catalog']).read_text());require(self.catalog['release']=='0.6.1','Exact 0.6.1 catalog required')
+        self.nodes={};self.labels={};self.report=dict(schema=1,test='argocd-installation',release='0.6.1',scope=config['scope'],checks=[],complete=False)
         self.report['harnessSha256']='sha256:'+hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
         self.report['imageAssertionsSha256']='sha256:'+hashlib.sha256((ROOT/'scripts/e2e-image-assertions.py').read_bytes()).hexdigest()
         self.report['catalogSha256']='sha256:'+hashlib.sha256(Path(config['catalog']).read_bytes()).hexdigest()
@@ -108,7 +111,12 @@ class Argo:
         values=source['helm']['valuesObject']
         values['images']=dict(repository=catalog['repository'],digests={k:v['digest'] for k,v in catalog['components'].items()})
         values['gitops']=dict(enabled=True)
-        source['path']=path
+        installed=json.loads(self.api.get('configmap',self.id+'-component-images',self.system)['data']['images.json'])
+        if path=='published-predecessor':
+            values.pop('images',None)
+            source=dict(repoURL='https://kimage.dev/charts',chart='kimage',targetRevision=catalog['release'],helm=source['helm'])
+        else:
+            source=dict(repoURL='https://github.com/inferal-oss/kimage.git',path=path,targetRevision=self.config['sourceRevision'],helm=source['helm'])
         self.replace_source(current,source)
         def pending():
             operation=self.api.get('configmap',self.id+'-operation',self.system)
@@ -122,8 +130,7 @@ class Argo:
                 return next((p for p in pods if p.get('status',{}).get('phase')=='Running' and not p['metadata'].get('deletionTimestamp')),None)
             self.api.wait(lambda:bool(helper()),'newer pinned downgrade helper is running')
             pod=helper();require(pod is not None,'Missing active downgrade helper')
-            future=json.loads(Path(self.config['nextCatalog']).read_text())
-            require(pod['spec']['containers'][0]['image']==future['repository']+'/operator@'+future['components']['operator']['digest'],'Downgrade helper did not use the installed newer operator digest')
+            require(pod['spec']['containers'][0]['image']==installed['repository']+'/operator@'+installed['components']['operator']['digest'],'Downgrade helper did not use the installed newer operator digest')
             self.raw('delete','/api/v1/namespaces/'+self.system+'/pods/'+pod['metadata']['name'],dict(apiVersion='v1',kind='DeleteOptions',preconditions=dict(uid=pod['metadata']['uid'])))
             require(pending(),'Downgrade completed before interruption; fixture must prove an incomplete journal')
             self.report['interruptedDowngradeHelper']=dict(uid=pod['metadata']['uid'],image=pod['spec']['containers'][0]['image'])
@@ -157,10 +164,27 @@ class Argo:
             return True
         self.api.wait(ready,'fresh Pods resolve and execute retained native releases after chart transition')
 
+    def predecessor_roundtrip(self):
+        previous=json.loads(Path(self.config['previousCatalog']).read_text());require(previous['release']=='0.6.0','Exact published predecessor required')
+        identity=self.fingerprint()
+        self.chart_transition(previous,'published-predecessor','helper')
+        self.assert_native_components(previous);self.verify_graphs('after-published-argo-rollback',previous);self.reconsume_retained()
+        require(self.fingerprint()==identity,'Published predecessor rollback changed retained identities')
+        prefix=self.api.prefix;self.api.prefix=prefix+'-old'
+        try:
+            for arch in [None]+sorted({n['status']['nodeInfo']['architecture'] for n in self.nodes.values()}):self.api.case(arch)
+        finally:self.api.prefix=prefix
+        identity=self.fingerprint()
+        self.chart_transition(self.catalog,'charts/kimage','provisioner')
+        self.assert_native_components(self.catalog);self.verify_graphs('after-published-argo-reupgrade',self.catalog);self.reconsume_retained()
+        require(self.fingerprint()==identity,'Argo reupgrade changed retained identities')
+        self.report['publishedPredecessorRoundTrip']=['0.6.1','0.6.0','0.6.1']
+        self.check('actual published 0.6.0 chart rollback and 0.6.1 reupgrade retain data and execute fresh native builds')
+
     def version_roundtrip(self):
         require(self.config.get('sourceRevision'),'Conformance chart requires an exact Git source revision')
         future=json.loads(Path(self.config['nextCatalog']).read_text())
-        require(future['release']=='0.6.1-argocd-test.0','Exact isolated future conformance fixture required')
+        require(future['release']=='0.6.2-argocd-test.0','Exact isolated future conformance fixture required')
         self.report['conformanceCatalogSha256']='sha256:'+hashlib.sha256(Path(self.config['nextCatalog']).read_bytes()).hexdigest()
         identity=self.fingerprint()
         self.verify_graphs('before-argo-upgrade',self.catalog)
@@ -169,14 +193,17 @@ class Argo:
         self.verify_graphs('after-argo-upgrade',future)
         self.reconsume_retained()
         require(self.fingerprint()==identity,'Argo upgrade changed retained identities')
-        self.check('chart 0.6.0 to future-version conformance fixture resumes after provisioner interruption')
+        self.check('chart 0.6.1 to future-version conformance fixture resumes after provisioner interruption')
+        future_receipt=forward_data.FutureData(self.api,self.system,{n['status']['nodeInfo']['architecture'] for n in self.nodes.values()})
+        future_receipt.write();identity=self.fingerprint();self.report['forwardReader']=future_receipt.report
         self.chart_transition(self.catalog,'charts/kimage','helper')
         self.assert_native_components(self.catalog)
         self.verify_graphs('after-argo-downgrade',self.catalog)
         self.reconsume_retained()
         require(self.fingerprint()==identity,'Argo downgrade changed retained identities')
-        self.check('returning 0.6.0 chart automatically uses newer pinned helper and resumes after helper and provisioner interruption')
-        self.report['chartVersionRoundTrip']=['0.6.0',future['release'],'0.6.0']
+        self.check('returning 0.6.1 chart automatically uses newer pinned helper and resumes after helper and provisioner interruption')
+        self.report['chartVersionRoundTrip']=['0.6.1',future['release'],'0.6.1']
+        future_receipt.after_return();self.verify_graphs('after-populated-future-reader-rollback',self.catalog)
 
     def refused_target(self):
         deployment=self.api.get('deployment',self.id+'-provisioner',self.system)
@@ -232,6 +259,16 @@ class Argo:
         self.api.wait(lambda:not self.api.get('jobs',namespace=self.system,selector='kimage.dev/gitops-transition='+self.id)['items'] and not self.api.get('pods',namespace=self.system,selector='kimage.dev/gitops-transition='+self.id)['items'],'transition Jobs and Pods removed by Argo cascade')
     def prepare_namespaces(self):
         retained=self.config.get('retainedFixture')
+        reuse=self.config.get('existingEmptyApplicationNamespaceUid')
+        if reuse:
+            require(retained is None and self.config['scope']=='namespace','Existing empty namespace must use a fresh namespace-scoped fixture')
+            app=self.api.get('namespace',self.app)
+            require(app and app['metadata']['uid']==reuse and self.api.get('namespace',self.system) is None,'Existing application UID or fresh system namespace mismatch')
+            for kind in ['images.kimage.dev','imagereleases.kimage.dev','pods']:
+                require(not self.api.get(kind,namespace=self.app)['items'],'Existing application namespace contains workload data')
+            self.raw('create','/api/v1/namespaces?fieldValidation=Strict',dict(apiVersion='v1',kind='Namespace',metadata=dict(name=self.system)))
+            self.report['existingEmptyApplicationNamespaceUid']=reuse
+            return
         if retained is None:
             require(self.api.get('namespace',self.app) is None and self.api.get('namespace',self.system) is None,'Fresh fixture namespaces required')
             for ns in [self.app,self.system]:self.raw('create','/api/v1/namespaces?fieldValidation=Strict',dict(apiVersion='v1',kind='Namespace',metadata=dict(name=ns)))
@@ -279,7 +316,7 @@ class Argo:
             if self.config.get('sourceRevision'):
                 values['images']=dict(repository=self.catalog['repository'],digests={k:v['digest'] for k,v in self.catalog['components'].items()})
                 source.update(repoURL='https://github.com/inferal-oss/kimage.git',path='charts/kimage',targetRevision=self.config['sourceRevision'])
-            else:source.update(repoURL=self.config['chartRepository'],chart='kimage',targetRevision='0.6.0')
+            else:source.update(repoURL=self.config['chartRepository'],chart='kimage',targetRevision='0.6.1')
             self.application=dict(apiVersion='argoproj.io/v1alpha1',kind='Application',metadata=dict(name=self.id,namespace='argocd',finalizers=['resources-finalizer.argocd.argoproj.io']),spec=dict(project='default',source=source,destination=dict(server='https://kubernetes.default.svc',namespace=self.system),syncPolicy=dict(automated=dict(prune=True,selfHeal=True),syncOptions=['CreateNamespace=true'])))
             self.report['source']=dict(repoURL=source['repoURL'],targetRevision=source['targetRevision'])
             self.create_application()
@@ -336,13 +373,14 @@ class Argo:
             for arch in [None]+sorted(arches):self.api.case(arch)
             self.api.report['complete']=True;self.api.save()
             self.check('fresh unknown and explicit placement cases build and execute only requested native platforms')
+            if self.config.get('previousCatalog'):self.predecessor_roundtrip()
             if self.config.get('nextCatalog'):self.version_roundtrip()
             identity=self.fingerprint()
             bad=unsupported_catalog(self.catalog)
             self.desired(dict(gitops=dict(enabled=True,targetCatalog=bad)))
             self.api.wait(self.refused_target,'unsupported target was observed, refused and remains unready')
             require(self.fingerprint()==identity,'Unsupported transition changed installation')
-            require(json.loads(self.api.get('configmap',self.id+'-installation',self.system)['data']['installation.json'])['release']=='0.6.0','Unsupported transition changed release')
+            require(json.loads(self.api.get('configmap',self.id+'-installation',self.system)['data']['installation.json'])['release']=='0.6.1','Unsupported transition changed release')
             self.stop_sync()
             self.desired(dict(gitops=dict(enabled=True)));self.wait_ready()
             self.check('unsupported runtime target is refused without changing credentials, data or installed version')

@@ -1,5 +1,6 @@
 pub mod admission;
 pub mod api;
+pub mod api_compatibility;
 pub mod bundle;
 pub mod diagnostics;
 pub mod discovery;

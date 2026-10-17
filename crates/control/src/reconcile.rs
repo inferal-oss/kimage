@@ -96,6 +96,20 @@ pub(crate) async fn checkpoint(
             "StaleOperation"
         );
     }
+    for condition in current
+        .status
+        .as_ref()
+        .into_iter()
+        .flat_map(|s| &s.conditions)
+    {
+        if condition.type_ != "Ready"
+            && condition.type_ != "BuildSupported"
+            && !status.conditions.iter().any(|c| c.type_ == condition.type_)
+        {
+            status.conditions.push(condition.clone());
+        }
+    }
+    status.conditions.retain(|c| c.type_ != "BuildSupported");
     status.observed_generation = original.metadata.generation.unwrap_or(1);
     // Export acknowledgments belong to the independent exporter. Publication
     // must preserve its latest fields even when this reconcile began earlier.
@@ -134,7 +148,7 @@ pub(crate) async fn checkpoint(
         &original.name_any(),
         &PatchParams::default(),
         &Patch::Merge(
-            json!({"metadata":{"resourceVersion":current.resource_version()},"status":status}),
+            json!({"metadata":{"resourceVersion":current.resource_version()},"status":status.owned_patch()}),
         ),
     )
     .await?;
@@ -171,6 +185,18 @@ pub async fn reconcile(
     // A queued watch event may precede our latest failure-status event. Read the
     // authoritative deadline before deciding whether this attempt may execute.
     let image = Arc::new(current);
+    if let Some(reason) =
+        crate::api_compatibility::pause_reason(config.client.clone(), &image).await?
+    {
+        crate::api_compatibility::pause(config.client.clone(), &image, reason).await?;
+        return Ok(kube::runtime::controller::Action::await_change());
+    }
+
+    if crate::api_compatibility::clear_pause(config.client.clone(), &image).await? {
+        return Ok(kube::runtime::controller::Action::requeue(
+            Duration::from_secs(1),
+        ));
+    }
     let owns_build = image
         .finalizers()
         .iter()
@@ -502,6 +528,7 @@ async fn publish(image: &Image, config: &Config) -> Result<()> {
     let source = match &image.spec.source {
         Source::OciArchive(source) => source,
         Source::Build(_) => anyhow::bail!("BuildAdapterNotReady"),
+        Source::Unsupported(_) => anyhow::bail!("UnsupportedImageSource"),
     };
     let release_name = if image.spec.platform.is_automatic() {
         if let Some(reference) = image.status.as_ref().and_then(|s| s.release_ref.as_ref()) {
@@ -851,6 +878,8 @@ pub(crate) async fn publish_artifact(
     crate::metrics::publication_complete();
     checkpoint(config, image, status.clone()).await?;
     let candidate = ImageReleaseSpec {
+        extra: Default::default(),
+        raw_provenance: None,
         image_name: image.name_any(),
         image_uid: uid.clone(),
         version: version.clone(),
@@ -1056,6 +1085,8 @@ mod tests {
     #[test]
     fn idempotent_archive_content_keeps_first_provenance() {
         let first = ImageReleaseSpec {
+            extra: Default::default(),
+            raw_provenance: None,
             image_name: "app".into(),
             image_uid: "uid".into(),
             version: "1.0.0".into(),

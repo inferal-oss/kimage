@@ -25,7 +25,7 @@ class Boundaries(unittest.TestCase):
         self.assertEqual(catalog['release'],contract['release'])
         self.assertNotEqual(target['release'],catalog['release'])
         self.assertTrue(all(target['release'] not in (edge['from'],edge['to']) for edge in contract['transitions']))
-        self.assertNotEqual(target['release'],prepare.VERSION if hasattr(prepare,'VERSION') else '0.6.1-argocd-test.0')
+        self.assertNotEqual(target['release'],prepare.VERSION if hasattr(prepare,'VERSION') else '0.6.2-argocd-test.0')
         self.assertTrue(all(target['components'][r]['version']==target['release'] and target['components'][r]['digest']=='unchanged' for r in roles))
 
     def test_opt_in_precedes_configuration_access(self):

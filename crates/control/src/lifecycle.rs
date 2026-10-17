@@ -65,7 +65,9 @@ pub fn compatible(source: &ImageCatalog, target: &ImageCatalog) -> Result<()> {
     source.validate(&source.release, false)?;
     target.validate(&target.release, false)?;
     ensure!(
-        source.api_schema_revision <= target.api_schema_revision,
+        source.api_schema_revision <= target.api_schema_revision
+            || kimage_core::selector::exact(&target.release)?
+                >= kimage_core::selector::exact("0.6.1")?,
         "SharedSchemaDowngradeUnsupported: 0.5.2 cannot read frozen OCI image input fields; preserve revision 6 and use a compatible 0.6 release"
     );
     let metadata = release_metadata()?;
@@ -82,11 +84,15 @@ pub fn compatible(source: &ImageCatalog, target: &ImageCatalog) -> Result<()> {
     );
     ensure!(
         (source.api_schema_revision == target.api_schema_revision
-            && matches!(source.api_schema_revision, 5 | 6))
+            && source.api_schema_revision >= 5)
             || (source.release == "0.5.2"
                 && target.release == "0.6.0"
                 && source.api_schema_revision == 5
-                && target.api_schema_revision == 6),
+                && target.api_schema_revision == 6)
+            || (source.api_schema_revision >= 6
+                && target.api_schema_revision >= 6
+                && kimage_core::selector::exact(&target.release)?
+                    >= kimage_core::selector::exact("0.6.1")?),
         "ReleaseSchemaMigrationRequired"
     );
     for (role, version) in [
@@ -380,6 +386,8 @@ pub async fn transition(
         );
     }
     compatible(&source, target)?;
+    crate::api_compatibility::legacy_target(client.clone(), &options.scope(), &target.release)
+        .await?;
     if manager(&installed)? == "argocd" {
         ensure!(
             kimage_core::selector::exact(&target.release)?
@@ -659,6 +667,7 @@ pub async fn transition(
         if now.as_ref().is_some_and(|j|j.phase==Phase::Complete && j.identity==record.identity) && latest_release==record.target.release {
             return Ok(json!({"target":record.target.release,"phase":"Complete","alreadyInstalled":true}));
         }
+        crate::api_compatibility::legacy_target(client.clone(),&options.scope(),&target.release).await?;
         save(client.clone(),&record).await?;
         if matches!(record.phase,Phase::Prepared|Phase::Quiescing) {
             record.phase=Phase::Quiescing;save(client.clone(),&record).await?;

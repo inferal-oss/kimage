@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "release": "0.6.0",
+  "release": "0.6.1",
   "transitions": [
     {
       "from": "0.4.1",
@@ -21,6 +21,11 @@
       "from": "0.5.2",
       "to": "0.6.0",
       "rollbackSafe": false
+    },
+    {
+      "from": "0.6.0",
+      "to": "0.6.1",
+      "rollbackSafe": true
     }
   ],
   "formats": {
@@ -40,7 +45,8 @@
   "downgradesSharedSchema": false,
   "rollbackConstraints": [
     "Restore the default node selector before returning to 0.4.1.",
-    "0.6.0 adds schema revision 6. Returning to 0.5.2 is refused because it cannot read the new image input fields; shared schemas and retained data are never downgraded."
+    "0.6.0 adds schema revision 6. Returning to 0.5.2 is refused because it cannot read the new image input fields; shared schemas and retained data are never downgraded.",
+    "Returning to 0.6.0 requires its supported revision-6 schema and no unsupported Image requirements in the selected scope. Later compatible additive schemas remain installed and require a prepared reader from 0.6.1 onward."
   ],
   "privateBuildLogs": {
     "format": 1,
@@ -50,5 +56,18 @@
     "minimumRelease": "0.5.1",
     "adoptsExistingManagers": false,
     "chartVersionTransitions": true
+  },
+  "apiReader": {
+    "baselineSchemaRevision": 6,
+    "additivePolicy": "additive-optional-v1",
+    "minimumPreparedReader": "0.6.1",
+    "requiredCapabilitiesAnnotation": "kimage.dev/required-capabilities",
+    "capabilities": [
+      "oci-archive-v1",
+      "containerfile-v1",
+      "frozen-oci-inputs-v1"
+    ],
+    "unknownFeatureBehavior": "pause-affected-builds-preserve-published-roots",
+    "previousReleaseRollback": "0.6.0 requires exact schema 6 and no unsupported resource capabilities"
   }
 }

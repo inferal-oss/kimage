@@ -224,13 +224,16 @@ class MixedCluster:
         require(len(demands)<=1, 'Duplicate platform demand identity')
         return children, releases, demands
 
-    def case(self, architecture):
+    def case(self, architecture, spec_extensions=None, capabilities=None):
         label = architecture or 'unknown'
         name = self.prefix+'-'+label
         expected = {architecture} if architecture else ARCHITECTURES
         self.create(dict(apiVersion='v1',kind='ConfigMap',metadata=dict(name=name+'-source'),immutable=True,
             binaryData={'probe-'+a:p for a,p in self.probes.items()},data={'case.txt':name}))
-        image = self.create(image_body(name,name+'-source'))
+        body=image_body(name,name+'-source')
+        if spec_extensions:body['spec'].update(spec_extensions)
+        if capabilities:body['metadata']['annotations']={'kimage.dev/required-capabilities':json.dumps(capabilities,separators=(',',':'))}
+        image = self.create(body)
         require(image['metadata']['uid'] not in {c['uid'] for c in self.cases}, 'Fresh Image UID required')
         self.cases.append(dict(name=name,uid=image['metadata']['uid'],expected=expected))
         self.wait(lambda: any(c.get('reason')=='AwaitingDemand' for c in (self.get('images.kimage.dev',name,self.namespace).get('status') or {}).get('conditions',[])), name+' awaits demand')

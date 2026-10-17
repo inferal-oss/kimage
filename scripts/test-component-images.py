@@ -11,6 +11,7 @@ import struct
 import tarfile
 import tempfile
 import unittest
+from unittest.mock import patch
 
 SCRIPTS=Path(__file__).resolve().parent
 VERSION=re.search(r'(?ms)^\[workspace\.package\]\s*\n.*?^version\s*=\s*"([^"]+)"', (SCRIPTS.parent/'Cargo.toml').read_text())[1]
@@ -93,7 +94,11 @@ class ImagesTests(unittest.TestCase):
                     (directory/'kimage-install').write_bytes(data)
             metadata=root/'metadata.json';metadata.write_text(json.dumps(dict(packages=[])))
             args=argparse.Namespace(catalog=root/'images/component-images.json',chart=chart_path,installers=root/'installers',metadata=metadata,out=root/'release')
-            with contextlib.redirect_stdout(io.StringIO()):release.package(args)
+            original_read=Path.read_text
+            def release_notes(path,*args,**kwargs):
+                if path==SCRIPTS.parent/'CHANGELOG.md':return '# Changelog\n\n## ['+VERSION+'] - 2026-10-17\n\n### Added\n\n- Packaging fixture.\n'
+                return original_read(path,*args,**kwargs)
+            with patch.object(Path,'read_text',release_notes),contextlib.redirect_stdout(io.StringIO()):release.package(args)
             names={p.name for p in args.out.iterdir()}
             self.assertEqual(len(names),11) # Ten public assets plus release notes.
             self.assertIn('component-images.json',names);self.assertIn('release-compatibility.json',names);self.assertFalse(any('bundle' in n for n in names))

@@ -35,7 +35,7 @@ def require(value,message):
 class Upgrade:
     def __init__(self,config):
         required={'kubeconfig','context','namespace','systemNamespace','installation','probes','output','installer','previous','catalog','chart','mode','scope','runtimeProfile','port'}
-        require(required<=config.keys() and not config.keys()-required-{'nodeChanges','registryNode','kubectlCommand','timeoutSeconds'},'Invalid lifecycle fixture configuration')
+        require(required<=config.keys() and not config.keys()-required-{'nodeChanges','registryNode','kubectlCommand','timeoutSeconds','existingEmptyApplicationNamespaceUid'},'Invalid lifecycle fixture configuration')
         require(config['mode'] in ('cli','helm') and config['scope'] in ('namespace','cluster'),'Invalid installer manager or scope')
         require(config['runtimeProfile'] in ('inferal','k3s'),'Unsupported fixture runtime')
         self.config=config
@@ -51,10 +51,10 @@ class Upgrade:
         self.installer=Path(config['installer']).resolve()
         self.target=json.loads(Path(config['catalog']).read_bytes())
         self.version=self.target['release']
-        require(self.version=='0.6.0','Test requires an exact 0.6.0 catalog')
+        require(self.version=='0.6.1','Test requires an exact 0.6.1 catalog')
         verified=json.loads((self.previous/'verified.json').read_bytes())
         self.source=verified['release']
-        require(self.source=='0.5.2','Published predecessor verification is required')
+        require(self.source=='0.6.0','Published predecessor verification is required')
         self.previous_binary=next(self.previous.glob('kimage-v'+self.source+'-*'))
         for asset in verified['assets']:
             data=(self.previous/asset['name']).read_bytes()
@@ -88,7 +88,16 @@ class Upgrade:
         return self.api.call(['replace','--raw',paths[kind]+name+'?fieldValidation=Strict','-f','-'],body)
 
     def preflight(self):
-        require(self.api.get('namespace',self.system) is None and self.api.get('namespace',self.app) is None,'Fresh dedicated namespaces required')
+        app=self.api.get('namespace',self.app)
+        reuse=self.config.get('existingEmptyApplicationNamespaceUid')
+        require(self.api.get('namespace',self.system) is None,'Fresh dedicated system namespace required')
+        if reuse:
+            require(self.config['scope']=='namespace' and app and app['metadata']['uid']==reuse,'Existing empty application namespace UID or scope mismatch')
+            for kind in ['images.kimage.dev','imagereleases.kimage.dev','pods']:
+                require(not self.api.get(kind,namespace=self.app)['items'],'Existing application namespace contains workload data')
+            require(self.api.get('configmap','native-probes',self.app) is None,'Existing native probe input must not be replaced')
+            self.report['existingEmptyApplicationNamespaceUid']=reuse
+        else:require(app is None,'Fresh dedicated application namespace required')
         self.nodes={n['metadata']['name']:n for n in self.api.get('nodes')['items']}
         self.architectures={n['status']['nodeInfo']['architecture'] for n in self.nodes.values() if n['status']['nodeInfo']['operatingSystem']=='linux' and any(c['type']=='Ready' and c['status']=='True' for c in n['status']['conditions'])}
         require(self.architectures and self.architectures<={'amd64','arm64'},'Supported native Ready Nodes required')
@@ -103,7 +112,7 @@ class Upgrade:
         os.chmod(self.private_config.name,0o600);self.private_config.write(result.stdout.encode());self.private_config.close()
         self.environment['KUBECONFIG']=self.private_config.name
         self.environment.pop('KIMAGE_API_SERVER',None);self.environment.pop('KIMAGE_TLS_SERVER_NAME',None)
-        for ns in [self.system,self.app]:
+        for ns in ([self.system] if reuse else [self.system,self.app]):
             self.api.call(['create','--raw','/api/v1/namespaces?fieldValidation=Strict','-f','-'],dict(apiVersion='v1',kind='Namespace',metadata=dict(name=ns)))
         self.probes={arch:base64.b64encode(mixed.verify_probe(Path(self.config['probes'])/('probe-'+arch),arch)).decode() for arch in sorted(self.architectures)}
         self.api.create(dict(apiVersion='v1',kind='ConfigMap',metadata=dict(name='native-probes'),immutable=True,binaryData={'probe-'+a:b for a,b in self.probes.items()}))
@@ -167,11 +176,14 @@ class Upgrade:
         require(self.operation()==before,'Diagnostics changed the operation journal')
         self.check('status and doctor report healthy placement, resource pins, retained storage and certificates without changing the journal')
 
-    def build(self,stage,architecture=None,available=None):
+    def build(self,stage,architecture=None,available=None,future=False):
         expected={architecture} if architecture else (available or self.architectures)
         name='lifecycle-'+stage+'-'+uuid.uuid4().hex[:7]
         self.api.create(dict(apiVersion='v1',kind='ConfigMap',metadata=dict(name=name+'-case'),immutable=True,data={'case.txt':name}))
         body=mixed.image_body(name,'native-probes')
+        if future:
+            body['spec']['futureNote']='retained-future-data'
+            body['metadata']['annotations']={'kimage.dev/required-capabilities':'["future-notes-v1"]'}
         build=body['spec']['source']['build']
         build['definition']['inline']='FROM scratch\nARG TARGETARCH\nCOPY probes/probe-${TARGETARCH} /probe\nCOPY case/case.txt /case.txt\nRUN ["/probe", "build"]\nENTRYPOINT ["/probe"]\n'
         build['inputs']['volumes'].append(dict(name='case',configMap=dict(name=name+'-case')))
@@ -414,14 +426,28 @@ class Upgrade:
         self.report.setdefault('registryReadback',[]).append(dict(stage=stage,**receipt))
         self.check(stage+': all retained OCI graphs verified locally with authenticated TLS, sizes, SHA-256 and DiffIDs')
 
-    def refuse_schema_rollback(self):
-        before=self.retained();operation=self.operation()
-        result=self.run_command([self.installer,'rollback','--to',self.source,'--namespace',self.system,'--installation',self.id,'--image-catalog',self.previous/'component-images.json','--chart',self.previous/('kimage-'+self.source+'.tgz')],ok=False)
-        require(result.returncode!=0 and 'SharedSchemaDowngradeUnsupported' in result.stdout+result.stderr,'Schema downgrade was not clearly refused')
-        self.assert_retained(before);require(self.operation()==operation,'Refused rollback changed the lifecycle journal')
-        self.assert_images(self.version,self.target)
-        self.report['schemaTransition']=dict(source=5,target=6,rollbackRefused=True)
-        self.check('schema 6 to published 0.5.2 rollback is refused before runtime, journal or retained data changes')
+    def capability_fence(self):
+        # An unknown requirement must pause this Image while its existing root
+        # still serves; it must not poison the watch or silently reach an old reader.
+        image,expected,architecture=self.images[0]
+        before=self.api.get('images.kimage.dev',image,self.app)
+        previous=before['metadata'].get('annotations',{}).get('kimage.dev/required-capabilities')
+        annotation='["future-test-capability-v1"]'
+        self.api.call(['patch','images.kimage.dev',image,'-n',self.app,'--type=merge','-p',json.dumps(dict(metadata=dict(uid=before['metadata']['uid'],resourceVersion=before['metadata']['resourceVersion'],annotations={'kimage.dev/required-capabilities':annotation})))])
+        def paused():
+            current=self.api.get('images.kimage.dev',image,self.app)
+            return any(c['type']=='BuildSupported' and c['status']=='False' and c['reason']=='UnsupportedCapability' for c in current.get('status',{}).get('conditions',[]))
+        self.api.wait(paused,'per-resource unsupported feature fence')
+        current=self.api.get('images.kimage.dev',image,self.app)
+        require(current['spec']==before['spec'] and current['status']['releaseRef']==before['status']['releaseRef'],'Feature fence changed the published contract')
+        self.consume(image,expected,architecture)
+        retained=self.retained();operation=self.operation()
+        result=self.run_command([self.installer,'rollback','--check','--to',self.source,'--namespace',self.system,'--installation',self.id,'--image-catalog',self.previous/'component-images.json','--chart',self.previous/('kimage-'+self.source+'.tgz')],ok=False)
+        require(result.returncode!=0 and 'LegacyReaderCapabilityUnsupported' in result.stdout+result.stderr,'Unprepared predecessor accepted unsupported feature requirements')
+        self.assert_retained(retained);require(self.operation()==operation,'Refused legacy rollback changed the journal')
+        current=self.api.get('images.kimage.dev',image,self.app)
+        self.api.call(['patch','images.kimage.dev',image,'-n',self.app,'--type=merge','-p',json.dumps(dict(metadata=dict(uid=current['metadata']['uid'],resourceVersion=current['metadata']['resourceVersion'],annotations={'kimage.dev/required-capabilities':previous})))])
+        self.check('unknown requirements pause one Image, retain serving and refuse unprepared legacy rollback before writes')
 
     def install_current(self):
         common=self.common()
@@ -461,15 +487,22 @@ class Upgrade:
             receipt=inputs.ImageInputs(self.api,Path(self.config['probes']).parent/'image-input-probes',self.output/'image-inputs',self.architectures,self.installer).run()
             require(receipt['complete'] and receipt['cleanupComplete'],'Frozen image input acceptance incomplete')
             self.report['imageInputs']=receipt
-            self.refuse_schema_rollback()
+            self.capability_fence()
+            self.transition(self.source,True)
+            self.check_rollback_log_privacy()
+            for image,expected,architecture in list(self.images):self.consume(image,expected,architecture)
+            self.build('rollback')
+            self.verify_graphs('after-published-predecessor-rollback')
+            self.transition(self.version,True)
+            self.report['compatibleRoundTrip']=[self.source,self.version,self.source,self.version]
             for image,expected,architecture in self.images:self.consume(image,expected,architecture)
-            self.verify_graphs('after-schema-upgrade-and-refused-rollback')
+            self.verify_graphs('after-compatible-roundtrip')
             retained=self.retained()
             for name in self.consumers:self.api.call(['delete','deployment',name,'-n',self.app,'--wait=true'])
             self.uninstall_current()
             after=self.retained();require(all(after[k]==retained[k] for k in ['pvcUid','pvUid','images','releases']),'Uninstall changed retained data')
             self.assert_removed()
-            self.check('0.6.0 uninstall preserves registry data, Image identities and release contracts')
+            self.check('0.6.1 uninstall preserves registry data, Image identities and release contracts')
             self.install_current()
             self.verify_graphs('after-uninstall-reinstall')
             self.uninstall_current()

@@ -156,7 +156,7 @@ async fn fixture() -> (kube::Client, Arc<Mutex<Store>>, tokio::task::JoinHandle<
                     store.missing_worker_during_verification=false;return status(404,"NotFound");
                 }
                 if let Some(value)=store.objects.get(&path){return Json(value.clone()).into_response()}
-                let collection=path.ends_with("/nodes")||path.ends_with("/pods")||path.ends_with("/jobs")||path.ends_with("/configmaps")||path.ends_with("/imagereleases")||path.ends_with("/secrets")||path.ends_with("/endpointslices");
+                let collection=path.ends_with("/nodes")||path.ends_with("/pods")||path.ends_with("/jobs")||path.ends_with("/configmaps")||path.ends_with("/imagereleases")||path.ends_with("/images")||path.ends_with("/secrets")||path.ends_with("/endpointslices");
                 if collection {
                     let url=reqwest::Url::parse(&format!("http://fixture{path}?{query}")).unwrap();
                     let selector=url.query_pairs().find(|(k,_)|k=="labelSelector").map(|(_,v)|v.into_owned()).unwrap_or_default();
@@ -202,7 +202,13 @@ async fn fixture() -> (kube::Client, Arc<Mutex<Store>>, tokio::task::JoinHandle<
 async fn recovering_workers_defer_capture_until_pod_and_service_endpoints_are_ready() {
     for ready in [false, true] {
         let (client, records, server) = fixture().await;
-        for version in ["0.5.0", "0.5.1", "0.5.2", env!("CARGO_PKG_VERSION")] {
+        for version in [
+            "0.5.0",
+            "0.5.1",
+            "0.5.2",
+            "0.6.0",
+            env!("CARGO_PKG_VERSION"),
+        ] {
             let summary = lifecycle::transition(
                 client.clone(),
                 "system",
@@ -565,7 +571,13 @@ async fn an_older_operator_can_ignore_a_completed_newer_journal_but_fences_unkno
 #[tokio::test]
 async fn node_replacement_revokes_new_builds_before_waiting_for_an_active_worker_lease() {
     let (client, store, server) = fixture().await;
-    for version in ["0.5.0", "0.5.1", "0.5.2", env!("CARGO_PKG_VERSION")] {
+    for version in [
+        "0.5.0",
+        "0.5.1",
+        "0.5.2",
+        "0.6.0",
+        env!("CARGO_PKG_VERSION"),
+    ] {
         lifecycle::transition(
             client.clone(),
             "system",
@@ -874,8 +886,8 @@ async fn patch_upgrade_interruption_resume_and_rollback_preserve_frozen_predeces
 #[tokio::test]
 async fn returning_argo_chart_uses_newer_pinned_helper_and_resumes_from_journal_source() {
     let (client, records, server) = fixture().await;
-    let future = catalog("0.6.1-argocd-test.0");
-    let target = catalog("0.6.0");
+    let future = catalog("0.6.2-argocd-test.0");
+    let target = catalog("0.6.1");
     let (mut installed, mut options, _) = lifecycle::state(client.clone(), "system", "dev")
         .await
         .unwrap();
@@ -1117,4 +1129,89 @@ fn frozen_image_api_upgrade_is_explicit_and_shared_schema_rollback_is_refused() 
             .contains("SharedSchemaDowngradeUnsupported")
     );
     assert!(lifecycle::compatible(&catalog("0.5.1"), &catalog("0.6.0")).is_err());
+}
+
+#[tokio::test]
+async fn prepared_baseline_refuses_legacy_rollback_with_future_requirements_before_any_write() {
+    let (client, records, server) = fixture().await;
+    for version in ["0.5.0", "0.5.1", "0.5.2", "0.6.0", "0.6.1"] {
+        lifecycle::transition(
+            client.clone(),
+            "system",
+            "dev",
+            &catalog(version),
+            false,
+            false,
+            None,
+        )
+        .await
+        .unwrap();
+    }
+    records.lock().unwrap().put(json!({"apiVersion":"kimage.dev/v1alpha1","kind":"Image","metadata":{"name":"future","namespace":"apps","annotations":{"kimage.dev/required-capabilities":"[\"future-solver-v1\"]"}},"spec":{"version":"1.0.0","source":{"build":{"format":"Containerfile","definition":{"inline":"FROM scratch\n"},"execution":{"strategy":"Direct","builderRef":"default"},"inputs":{"contextPath":"/workspace/context"}}}}}));
+    let before = records.lock().unwrap().objects.clone();
+    let writes = records.lock().unwrap().writes;
+    let error = lifecycle::transition(
+        client.clone(),
+        "system",
+        "dev",
+        &catalog("0.6.0"),
+        true,
+        true,
+        None,
+    )
+    .await
+    .unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .starts_with("LegacyReaderCapabilityUnsupported"),
+        "{error:#}"
+    );
+    assert_eq!(records.lock().unwrap().writes, writes);
+    assert_eq!(records.lock().unwrap().objects, before);
+    server.abort();
+}
+#[tokio::test]
+async fn legacy_target_cannot_start_against_retained_future_crds_even_in_an_empty_namespace() {
+    let (client, records, server) = fixture().await;
+    for version in ["0.5.0", "0.5.1", "0.5.2", "0.6.0", "0.6.1"] {
+        lifecycle::transition(
+            client.clone(),
+            "system",
+            "dev",
+            &catalog(version),
+            false,
+            false,
+            None,
+        )
+        .await
+        .unwrap();
+    }
+    let schemas: Vec<Value> =
+        serde_json::from_str(include_str!("fixtures/additive-revision-7.json")).unwrap();
+    for schema in schemas {
+        records.lock().unwrap().put(schema)
+    }
+    let before = records.lock().unwrap().objects.clone();
+    let writes = records.lock().unwrap().writes;
+    let error = lifecycle::transition(
+        client.clone(),
+        "system",
+        "dev",
+        &catalog("0.6.0"),
+        true,
+        true,
+        None,
+    )
+    .await
+    .unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .starts_with("LegacyReaderSchemaUnsupported"),
+        "{error:#}"
+    );
+    assert_eq!(records.lock().unwrap().writes, writes);
+    assert_eq!(records.lock().unwrap().objects, before);
+    server.abort();
 }

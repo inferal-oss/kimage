@@ -129,13 +129,20 @@ impl ImageCatalog {
         ensure!(self.schema == 1, "ComponentCatalogSchemaMismatch");
         let tag = crate::release_bundle::release_tag(release)?;
         let version = kimage_core::selector::exact(tag.trim_start_matches('v'))?;
-        let expected_revision = if version.major == 0 && version.minor < 6 {
+        if self.release == env!("CARGO_PKG_VERSION") {
+            ensure!(
+                self.api_schema_revision == crate::schema::REVISION,
+                "ComponentCatalogSchemaMismatch"
+            );
+        }
+        let baseline = if version.major == 0 && version.minor < 6 {
             5
         } else {
-            crate::schema::REVISION
+            6
         };
+        let prepared = version >= kimage_core::selector::exact("0.6.1")?;
         ensure!(
-            self.api_schema_revision == expected_revision,
+            self.api_schema_revision == baseline || prepared && self.api_schema_revision >= 6,
             "ComponentCatalogSchemaMismatch"
         );
         ensure!(

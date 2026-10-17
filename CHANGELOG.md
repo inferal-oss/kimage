@@ -11,6 +11,16 @@ commits and original release attribution. Uncommitted work is marked explicitly.
 
 ## [Unreleased]
 
+### Added
+
+- A compatibility foundation for 0.6.1: capability-aware resource readers preserve opaque future fields, pause only unsupported builds and continue resolving published roots. Compatible additive CRDs remain installed during binary rollback, subject to reader contracts, structural checks and ownership validation. Schema revision 6 and existing wire formats remain unchanged; published 0.6.0 remains a tested rollback target before newer features are used. Implementation pending commit.
+
+### Changed
+
+- Release validation accepts pending version work under Unreleased; final release packaging still requires dated version notes. Implementation pending commit.
+
+**Commits:** [52cbc77](https://github.com/inferal-oss/kimage/commit/52cbc778cdba0bfcbaca347342a1feb95e6bc652) (starting point; implementation pending commit).
+
 ## [0.6.0] - 2026-10-17
 
 ### Added

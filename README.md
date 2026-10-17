@@ -46,6 +46,12 @@ Export to another registry is an explicit, optional step.
 > exact runtime versions. Read [compatibility and limits](#compatibility-and-limits)
 > before trying it on a cluster.
 
+From 0.6.1, the [compatibility foundation](docs/compatibility.md) separates
+controller rollback from additive schema evolution. Prepared readers preserve
+newer fields, pause unsupported builds individually and keep published images
+usable. The 0.6.0 to 0.6.1 path keeps schema revision 6; later additive schemas
+must declare and prove compatibility with the 0.6.1 reader baseline.
+
 ## Why kimage?
 
 Image production usually involves a build definition, an execution trigger,
@@ -178,7 +184,7 @@ component boundaries and trust assumptions.
 Install [Rust 1.99.0 or newer](https://www.rust-lang.org/tools/install), then:
 
 ```sh
-cargo install kimage-control --version 0.6.0 --locked --bin kimage --bin kimage-install
+cargo install kimage-control --version 0.6.1 --locked --bin kimage --bin kimage-install
 kimage install --application-namespace apps
 ```
 
@@ -233,7 +239,7 @@ The worker stays offline. See the [complete multi-stage example and limits](docs
 helm repo add kimage https://kimage.dev/charts
 helm repo update
 kubectl create namespace apps
-helm install kimage kimage/kimage --version 0.6.0 \
+helm install kimage kimage/kimage --version 0.6.1 \
   --namespace kimage-system --create-namespace \
   --set applicationNamespace=apps --wait --wait-for-jobs
 ```

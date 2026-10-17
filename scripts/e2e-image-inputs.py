@@ -37,14 +37,14 @@ class ImageInputs:
         self.installer=installer;self.active_image=None
         self.api=api;self.output=Path(output);self.output.mkdir(parents=True,exist_ok=False)
         record=json.loads(api.get('configmap',api.config['installation']+'-installation',api.system)['data']['installation.json'])
-        require(record['release']=='0.6.0','Frozen input acceptance requires 0.6.0')
+        require(record['release']=='0.6.1','Frozen input acceptance requires 0.6.1')
         self.architectures=set(architectures or record['options']['workerNodes'])
         require(self.architectures and self.architectures<={'amd64','arm64'},'Native worker architectures required')
         self.nodes={n['metadata']['name']:n for n in api.get('nodes')['items']}
         self.prefix='oci-input-'+uuid.uuid4().hex[:10]
         self.base=self.prefix+'-base';self.context=self.prefix+'-context'
         self.probes=Path(probes);self.consumers=[]
-        self.report=dict(schema=1,test='frozen-oci-image-inputs',release='0.6.0',architectures=sorted(self.architectures),cases=[],checks=[],complete=False,cleanupComplete=False)
+        self.report=dict(schema=1,test='frozen-oci-image-inputs',release='0.6.1',architectures=sorted(self.architectures),cases=[],checks=[],complete=False,cleanupComplete=False)
 
     def ready(self,name):
         image=self.api.get('images.kimage.dev',name,self.api.namespace)

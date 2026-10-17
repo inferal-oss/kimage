@@ -126,7 +126,7 @@
           <section id="install">
 <h2>Install the CLI</h2>
 <p>Use Rust 1.99.0 or newer. No source checkout is needed:</p>
-<pre><code>cargo install kimage-control --version 0.6.0 --locked --bin kimage --bin kimage-install
+<pre><code>cargo install kimage-control --version 0.6.1 --locked --bin kimage --bin kimage-install
 kimage install --application-namespace apps</code></pre>
 <p><code>kimage-install</code> is a compatible alias. The crate named <code>kimage</code> belongs to another project. Prebuilt Linux and macOS installers for amd64 and arm64 are available in <a href="https://github.com/inferal-oss/kimage/releases">GitHub releases</a>.</p>
 <p>With no flags, <code>kimage install</code> manages the current kubeconfig namespace, uses <code>kimage-system</code> for components, a 1Gi retained PVC and the cluster's default StorageClass. It discovers native workers, generates credentials and waits for authenticated readiness. Use administrator kubeconfig and the <a href="#compatibility">supported runtime</a>. For the tested K3s profile, add <code>--runtime-profile k3s</code>.</p>
@@ -784,7 +784,7 @@ kimage install --scope cluster --exclude-namespace infrastructure</code></pre>
 <pre><code>helm repo add kimage https://kimage.dev/charts
 helm repo update
 kubectl create namespace apps
-helm install kimage kimage/kimage --version 0.6.0 \
+helm install kimage kimage/kimage --version 0.6.1 \
   --namespace kimage-system --create-namespace \
   --set applicationNamespace=apps --wait --wait-for-jobs</code></pre>
 <p>Use Helm 3.14 or newer. Helm queries live Ready Nodes during install/upgrade, and does not create the application namespace. Add <code>--set runtimeProfile=k3s</code> for the tested K3s profile. For cluster scope, omit the application namespace and set <code>--set scope=cluster</code>. Use a values file for exclusions.</p>
@@ -821,7 +821,7 @@ spec:
   source:
     repoURL: https://kimage.dev/charts
     chart: kimage
-    targetRevision: 0.6.0
+    targetRevision: 0.6.1
     helm:
       releaseName: kimage
       valuesObject:
@@ -1221,6 +1221,15 @@ python3 scripts/check-site.py</code></pre>
               and ran both architectures from one index; explicit placement
               built only the requested platform. Both runs removed their
               consumer Deployments and Pods.
+            </p>
+            <p>From 0.6.1, the <a href="https://github.com/inferal-oss/kimage/blob/main/docs/compatibility.md">compatibility foundation</a>
+              keeps schema revision 6 for the 0.6.0 round trip and prepares readers
+              for verified additive schemas. Binary rollback preserves compatible
+              newer CRDs. Unknown features pause affected builds with
+              <code>BuildSupported=False</code>; published roots remain usable and
+              unrelated Images continue. Future execution semantics declare
+              <code>kimage.dev/required-capabilities</code>. Returning to unprepared
+              0.6.0 requires exact schema 6 and no unsupported resource requirements.
             </p>
             <p>The <a href="https://github.com/inferal-oss/kimage/blob/main/docs/published-0.6.0-results.json">published 0.6.0 verification</a>
               checks both crates, every asset, public native GHCR images, Cargo

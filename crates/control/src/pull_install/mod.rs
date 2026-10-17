@@ -189,6 +189,23 @@ fn selected_template(name: &str, bindings: &BTreeMap<String, Value>) -> Result<&
             _ => anyhow::bail!("UnknownPredecessorTemplate"),
         });
     }
+    if bindings.get("release").and_then(Value::as_str) == Some("0.6.0") {
+        return Ok(match name {
+            "base.json" => include_str!("templates/v0.6.0/base.json"),
+            "builder-check.json" => include_str!("templates/v0.6.0/builder-check.json"),
+            "builder-pod.json" => include_str!("templates/v0.6.0/builder-pod.json"),
+            "builder.json" => include_str!("templates/v0.6.0/builder.json"),
+            "control.json" => include_str!("templates/v0.6.0/control.json"),
+            "exporter.json" => include_str!("templates/v0.6.0/exporter.json"),
+            "node-policy.json" => include_str!("templates/v0.6.0/node-policy.json"),
+            "proxy.json" => include_str!("templates/v0.6.0/proxy.json"),
+            "scope-cluster.json" => include_str!("templates/v0.6.0/scope-cluster.json"),
+            "scope-namespace.json" => include_str!("templates/v0.6.0/scope-namespace.json"),
+            "storage.json" => include_str!("templates/v0.6.0/storage.json"),
+            "webhooks.json" => include_str!("templates/v0.6.0/webhooks.json"),
+            _ => anyhow::bail!("UnknownPredecessorTemplate"),
+        });
+    }
     template(name)
 }
 

@@ -1,0 +1,1790 @@
+[
+  {
+    "apiVersion": "apiextensions.k8s.io/v1",
+    "kind": "CustomResourceDefinition",
+    "metadata": {
+      "annotations": {
+        "kimage.dev/schema-digest": "sha256:7f2bec9c71a461d79c7033ad28d77434b05df801b0e25263afb55e716f22d8d6",
+        "kimage.dev/schema-manager": "kimage-schema-manager",
+        "kimage.dev/schema-readers": "{\"format\":1,\"baselineRevision\":6,\"minimumReader\":\"0.6.1\",\"policy\":\"additive-optional-v1\",\"definitionDigest\":\"sha256:d24dd7cc5951e9c502558c2121502482e8dede166b01cd91427806dcd732469f\"}",
+        "kimage.dev/schema-revision": "7"
+      },
+      "name": "images.kimage.dev"
+    },
+    "spec": {
+      "group": "kimage.dev",
+      "names": {
+        "kind": "Image",
+        "plural": "images",
+        "shortNames": [
+          "kimg"
+        ],
+        "singular": "image"
+      },
+      "scope": "Namespaced",
+      "versions": [
+        {
+          "name": "v1alpha1",
+          "schema": {
+            "openAPIV3Schema": {
+              "description": "Auto-generated derived type for ImageSpec via `CustomResource`",
+              "properties": {
+                "spec": {
+                  "properties": {
+                    "channels": {
+                      "additionalProperties": {
+                        "maxLength": 128,
+                        "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(\\.(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*))?$",
+                        "type": "string"
+                      },
+                      "default": {},
+                      "maxProperties": 32,
+                      "type": "object",
+                      "x-kubernetes-validations": [
+                        {
+                          "message": "channels must be non-numeric DNS labels",
+                          "rule": "self.all(k, k.matches('^[a-z][a-z0-9-]{0,61}[a-z0-9]$') || k.matches('^[a-z]$'))"
+                        }
+                      ]
+                    },
+                    "exports": {
+                      "items": {
+                        "properties": {
+                          "name": {
+                            "maxLength": 63,
+                            "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+                            "type": "string"
+                          },
+                          "registry": {
+                            "properties": {
+                              "caSecretRef": {
+                                "properties": {
+                                  "name": {
+                                    "maxLength": 253,
+                                    "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "name"
+                                ],
+                                "type": "object"
+                              },
+                              "credentialsSecretRef": {
+                                "properties": {
+                                  "name": {
+                                    "maxLength": 253,
+                                    "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "name"
+                                ],
+                                "type": "object"
+                              },
+                              "overwritePolicy": {
+                                "default": "Never",
+                                "enum": [
+                                  "Never"
+                                ],
+                                "type": "string"
+                              },
+                              "repository": {
+                                "maxLength": 253,
+                                "pattern": "^([a-z0-9][a-z0-9.-]*(:[0-9]{1,5})?|\\[[0-9a-f:]+\\](:[0-9]{1,5})?)/[a-z0-9]+((\\.|_|__|-+)[a-z0-9]+)*(/[a-z0-9]+((\\.|_|__|-+)[a-z0-9]+)*)*$",
+                                "type": "string"
+                              },
+                              "tags": {
+                                "items": {
+                                  "maxLength": 128,
+                                  "pattern": "^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,127}$",
+                                  "type": "string"
+                                },
+                                "maxItems": 16,
+                                "minItems": 1,
+                                "type": "array",
+                                "x-kubernetes-list-type": "set"
+                              },
+                              "unauthenticated": {
+                                "default": false,
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "repository",
+                              "tags"
+                            ],
+                            "type": "object",
+                            "x-kubernetes-validations": [
+                              {
+                                "message": "Select explicit same-namespace credentials or unauthenticated export",
+                                "rule": "has(self.credentialsSecretRef) != self.unauthenticated"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "registry"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 8,
+                      "type": "array",
+                      "x-kubernetes-list-map-keys": [
+                        "name"
+                      ],
+                      "x-kubernetes-list-type": "map"
+                    },
+                    "futureNote": {
+                      "maxLength": 128,
+                      "type": "string"
+                    },
+                    "platform": {
+                      "default": {
+                        "architecture": "auto",
+                        "os": "linux"
+                      },
+                      "properties": {
+                        "architecture": {
+                          "enum": [
+                            "amd64",
+                            "arm64",
+                            "auto"
+                          ],
+                          "type": "string"
+                        },
+                        "os": {
+                          "enum": [
+                            "linux"
+                          ],
+                          "type": "string"
+                        },
+                        "variant": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "architecture",
+                        "os"
+                      ],
+                      "type": "object"
+                    },
+                    "platforms": {
+                      "items": {
+                        "properties": {
+                          "architecture": {
+                            "enum": [
+                              "amd64",
+                              "arm64"
+                            ],
+                            "type": "string"
+                          },
+                          "os": {
+                            "enum": [
+                              "linux"
+                            ],
+                            "type": "string"
+                          },
+                          "variant": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "architecture",
+                          "os"
+                        ],
+                        "type": "object",
+                        "x-kubernetes-map-type": "atomic"
+                      },
+                      "maxItems": 2,
+                      "type": "array",
+                      "x-kubernetes-list-type": "set"
+                    },
+                    "source": {
+                      "properties": {
+                        "build": {
+                          "properties": {
+                            "buildSecrets": {
+                              "default": [],
+                              "items": {
+                                "properties": {
+                                  "id": {
+                                    "maxLength": 128,
+                                    "type": "string"
+                                  },
+                                  "sourceFile": {
+                                    "maxLength": 4096,
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "sourceFile"
+                                ],
+                                "type": "object"
+                              },
+                              "maxItems": 32,
+                              "type": "array",
+                              "x-kubernetes-list-map-keys": [
+                                "id"
+                              ],
+                              "x-kubernetes-list-type": "map"
+                            },
+                            "cache": {
+                              "default": {
+                                "mode": "Local"
+                              },
+                              "properties": {
+                                "invalidationToken": {
+                                  "description": "Explicit non-sensitive cache key for commands depending on secret values.",
+                                  "maxLength": 128,
+                                  "type": "string"
+                                },
+                                "mode": {
+                                  "default": "Local",
+                                  "enum": [
+                                    "Local",
+                                    "Disabled"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "type": "object"
+                            },
+                            "definition": {
+                              "properties": {
+                                "fromFile": {
+                                  "properties": {
+                                    "path": {
+                                      "maxLength": 4096,
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "path"
+                                  ],
+                                  "type": "object"
+                                },
+                                "inline": {
+                                  "maxLength": 65536,
+                                  "minLength": 1,
+                                  "type": "string"
+                                }
+                              },
+                              "type": "object",
+                              "x-kubernetes-validations": [
+                                {
+                                  "message": "Select exactly one definition source",
+                                  "rule": "has(self.inline) != has(self.fromFile)"
+                                }
+                              ]
+                            },
+                            "execution": {
+                              "properties": {
+                                "builderRef": {
+                                  "enum": [
+                                    "default"
+                                  ],
+                                  "maxLength": 63,
+                                  "type": "string"
+                                },
+                                "strategy": {
+                                  "enum": [
+                                    "Direct"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "builderRef",
+                                "strategy"
+                              ],
+                              "type": "object"
+                            },
+                            "format": {
+                              "enum": [
+                                "Containerfile"
+                              ],
+                              "type": "string"
+                            },
+                            "imageInputs": {
+                              "items": {
+                                "description": "A named, already published dependency. Resolution never starts another build.",
+                                "properties": {
+                                  "image": {
+                                    "maxLength": 512,
+                                    "pattern": "^platform://[a-z0-9.-]+/[a-z0-9.-]+(:=?|\\?version==)[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?$",
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "maxLength": 63,
+                                    "pattern": "^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "image",
+                                  "name"
+                                ],
+                                "type": "object",
+                                "x-kubernetes-validations": [
+                                  {
+                                    "message": "Reserved image input name",
+                                    "rule": "!(self.name in ['scratch', 'context', 'dockerfile'])"
+                                  }
+                                ]
+                              },
+                              "maxItems": 8,
+                              "type": "array",
+                              "x-kubernetes-list-map-keys": [
+                                "name"
+                              ],
+                              "x-kubernetes-list-type": "map"
+                            },
+                            "inputs": {
+                              "properties": {
+                                "contextPath": {
+                                  "maxLength": 4096,
+                                  "type": "string"
+                                },
+                                "producerHandoff": {
+                                  "default": false,
+                                  "description": "Required for any PVC; read-only consumers do not freeze a live writer.",
+                                  "type": "boolean"
+                                },
+                                "volumeMounts": {
+                                  "default": [],
+                                  "items": {
+                                    "properties": {
+                                      "mountPath": {
+                                        "maxLength": 4096,
+                                        "type": "string"
+                                      },
+                                      "mountPropagation": {
+                                        "maxLength": 4096,
+                                        "type": "string",
+                                        "x-kubernetes-validations": [
+                                          {
+                                            "message": "Unsupported mount control",
+                                            "rule": "false"
+                                          }
+                                        ]
+                                      },
+                                      "name": {
+                                        "maxLength": 63,
+                                        "type": "string"
+                                      },
+                                      "readOnly": {
+                                        "enum": [
+                                          true
+                                        ],
+                                        "type": "boolean"
+                                      },
+                                      "subPath": {
+                                        "maxLength": 4096,
+                                        "type": "string"
+                                      },
+                                      "subPathExpr": {
+                                        "maxLength": 4096,
+                                        "type": "string",
+                                        "x-kubernetes-validations": [
+                                          {
+                                            "message": "Unsupported mount control",
+                                            "rule": "false"
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "name",
+                                      "mountPath",
+                                      "readOnly"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "maxItems": 32,
+                                  "type": "array",
+                                  "x-kubernetes-list-map-keys": [
+                                    "mountPath"
+                                  ],
+                                  "x-kubernetes-list-type": "map"
+                                },
+                                "volumes": {
+                                  "default": [],
+                                  "items": {
+                                    "properties": {
+                                      "configMap": {
+                                        "properties": {
+                                          "defaultMode": {
+                                            "maximum": 511.0,
+                                            "minimum": 0.0,
+                                            "type": "integer"
+                                          },
+                                          "items": {
+                                            "items": {
+                                              "properties": {
+                                                "key": {
+                                                  "maxLength": 253,
+                                                  "type": "string"
+                                                },
+                                                "mode": {
+                                                  "maximum": 511.0,
+                                                  "minimum": 0.0,
+                                                  "type": "integer"
+                                                },
+                                                "path": {
+                                                  "maxLength": 4096,
+                                                  "type": "string"
+                                                }
+                                              },
+                                              "required": [
+                                                "key",
+                                                "path"
+                                              ],
+                                              "type": "object"
+                                            },
+                                            "maxItems": 256,
+                                            "minItems": 1,
+                                            "type": "array",
+                                            "x-kubernetes-list-map-keys": [
+                                              "path"
+                                            ],
+                                            "x-kubernetes-list-type": "map"
+                                          },
+                                          "name": {
+                                            "maxLength": 253,
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "name"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "csi": {
+                                        "type": "object",
+                                        "x-kubernetes-preserve-unknown-fields": true,
+                                        "x-kubernetes-validations": [
+                                          {
+                                            "message": "Unsupported input source",
+                                            "rule": "false"
+                                          }
+                                        ]
+                                      },
+                                      "downwardAPI": {
+                                        "type": "object",
+                                        "x-kubernetes-preserve-unknown-fields": true,
+                                        "x-kubernetes-validations": [
+                                          {
+                                            "message": "Unsupported input source",
+                                            "rule": "false"
+                                          }
+                                        ]
+                                      },
+                                      "emptyDir": {
+                                        "type": "object",
+                                        "x-kubernetes-preserve-unknown-fields": true,
+                                        "x-kubernetes-validations": [
+                                          {
+                                            "message": "Unsupported input source",
+                                            "rule": "false"
+                                          }
+                                        ]
+                                      },
+                                      "hostPath": {
+                                        "type": "object",
+                                        "x-kubernetes-preserve-unknown-fields": true,
+                                        "x-kubernetes-validations": [
+                                          {
+                                            "message": "Unsupported input source",
+                                            "rule": "false"
+                                          }
+                                        ]
+                                      },
+                                      "name": {
+                                        "maxLength": 63,
+                                        "type": "string"
+                                      },
+                                      "nfs": {
+                                        "type": "object",
+                                        "x-kubernetes-preserve-unknown-fields": true,
+                                        "x-kubernetes-validations": [
+                                          {
+                                            "message": "Unsupported input source",
+                                            "rule": "false"
+                                          }
+                                        ]
+                                      },
+                                      "persistentVolumeClaim": {
+                                        "properties": {
+                                          "claimName": {
+                                            "maxLength": 253,
+                                            "type": "string"
+                                          },
+                                          "readOnly": {
+                                            "enum": [
+                                              true
+                                            ],
+                                            "type": "boolean"
+                                          }
+                                        },
+                                        "required": [
+                                          "claimName",
+                                          "readOnly"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "projected": {
+                                        "type": "object",
+                                        "x-kubernetes-preserve-unknown-fields": true,
+                                        "x-kubernetes-validations": [
+                                          {
+                                            "message": "Unsupported input source",
+                                            "rule": "false"
+                                          }
+                                        ]
+                                      },
+                                      "secret": {
+                                        "properties": {
+                                          "defaultMode": {
+                                            "maximum": 511.0,
+                                            "minimum": 0.0,
+                                            "type": "integer"
+                                          },
+                                          "items": {
+                                            "items": {
+                                              "properties": {
+                                                "key": {
+                                                  "maxLength": 253,
+                                                  "type": "string"
+                                                },
+                                                "mode": {
+                                                  "maximum": 511.0,
+                                                  "minimum": 0.0,
+                                                  "type": "integer"
+                                                },
+                                                "path": {
+                                                  "maxLength": 4096,
+                                                  "type": "string"
+                                                }
+                                              },
+                                              "required": [
+                                                "key",
+                                                "path"
+                                              ],
+                                              "type": "object"
+                                            },
+                                            "maxItems": 256,
+                                            "minItems": 1,
+                                            "type": "array",
+                                            "x-kubernetes-list-map-keys": [
+                                              "path"
+                                            ],
+                                            "x-kubernetes-list-type": "map"
+                                          },
+                                          "name": {
+                                            "maxLength": 253,
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "name"
+                                        ],
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "name"
+                                    ],
+                                    "type": "object",
+                                    "x-kubernetes-validations": [
+                                      {
+                                        "message": "Select exactly one supported volume source",
+                                        "rule": "(has(self.configMap) ? 1 : 0) + (has(self.secret) ? 1 : 0) + (has(self.persistentVolumeClaim) ? 1 : 0) == 1"
+                                      }
+                                    ]
+                                  },
+                                  "maxItems": 32,
+                                  "type": "array",
+                                  "x-kubernetes-list-map-keys": [
+                                    "name"
+                                  ],
+                                  "x-kubernetes-list-type": "map"
+                                }
+                              },
+                              "required": [
+                                "contextPath"
+                              ],
+                              "type": "object"
+                            },
+                            "networkMode": {
+                              "default": "none",
+                              "enum": [
+                                "none"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "definition",
+                            "execution",
+                            "format",
+                            "inputs"
+                          ],
+                          "type": "object"
+                        },
+                        "externalRegistry": {
+                          "type": "object",
+                          "x-kubernetes-preserve-unknown-fields": true,
+                          "x-kubernetes-validations": [
+                            {
+                              "message": "Unsupported input source",
+                              "rule": "false"
+                            }
+                          ]
+                        },
+                        "ociArchive": {
+                          "properties": {
+                            "claimName": {
+                              "type": "string"
+                            },
+                            "path": {
+                              "maxLength": 4096,
+                              "pattern": "^([^./\\\\\\x00][^/\\\\\\x00]*|\\.[^./\\\\\\x00][^/\\\\\\x00]*|\\.\\.[^/\\\\\\x00]+)(/([^./\\\\\\x00][^/\\\\\\x00]*|\\.[^./\\\\\\x00][^/\\\\\\x00]*|\\.\\.[^/\\\\\\x00]+))*$",
+                              "type": "string"
+                            },
+                            "producerHandoff": {
+                              "description": "Producer promises no writes during capture. A read-only mount is insufficient.",
+                              "enum": [
+                                true
+                              ],
+                              "type": "boolean"
+                            },
+                            "root": {
+                              "properties": {
+                                "annotations": {
+                                  "additionalProperties": {
+                                    "maxLength": 1024,
+                                    "type": "string"
+                                  },
+                                  "default": {},
+                                  "maxProperties": 32,
+                                  "type": "object"
+                                },
+                                "digest": {
+                                  "maxLength": 71,
+                                  "pattern": "^sha256:[0-9a-f]{64}$",
+                                  "type": "string"
+                                },
+                                "mediaType": {
+                                  "enum": [
+                                    "application/vnd.oci.image.manifest.v1+json",
+                                    "application/vnd.oci.image.index.v1+json"
+                                  ],
+                                  "maxLength": 128,
+                                  "type": "string"
+                                },
+                                "platform": {
+                                  "properties": {
+                                    "architecture": {
+                                      "maxLength": 32,
+                                      "type": "string"
+                                    },
+                                    "os": {
+                                      "maxLength": 32,
+                                      "type": "string"
+                                    },
+                                    "variant": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "architecture",
+                                    "os"
+                                  ],
+                                  "type": "object"
+                                },
+                                "size": {
+                                  "maximum": 2097152.0,
+                                  "minimum": 1.0,
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "digest",
+                                "mediaType",
+                                "size"
+                              ],
+                              "type": "object"
+                            }
+                          },
+                          "required": [
+                            "claimName",
+                            "path",
+                            "producerHandoff",
+                            "root"
+                          ],
+                          "type": "object"
+                        }
+                      },
+                      "type": "object",
+                      "x-kubernetes-validations": [
+                        {
+                          "message": "Select exactly one supported source",
+                          "rule": "has(self.ociArchive) != has(self.build)"
+                        }
+                      ]
+                    },
+                    "version": {
+                      "maxLength": 128,
+                      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(\\.(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*))?$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "source",
+                    "version"
+                  ],
+                  "type": "object",
+                  "x-kubernetes-validations": [
+                    {
+                      "message": "use platform or platforms, not both",
+                      "rule": "!has(self.platform) || self.platform.architecture == 'auto' || !has(self.platforms) || size(self.platforms) == 0"
+                    }
+                  ]
+                },
+                "status": {
+                  "nullable": true,
+                  "properties": {
+                    "build": {
+                      "nullable": true,
+                      "properties": {
+                        "execution": {
+                          "nullable": true,
+                          "properties": {
+                            "adapterVersion": {
+                              "type": "string"
+                            },
+                            "attemptId": {
+                              "type": "string"
+                            },
+                            "builder": {
+                              "type": "string"
+                            },
+                            "cacheMode": {
+                              "enum": [
+                                "Local",
+                                "Disabled"
+                              ],
+                              "type": "string"
+                            },
+                            "cachedExecutionSteps": {
+                              "format": "uint64",
+                              "minimum": 0.0,
+                              "type": "integer"
+                            },
+                            "engine": {
+                              "type": "string"
+                            },
+                            "engineOperationId": {
+                              "type": "string"
+                            },
+                            "engineVersion": {
+                              "type": "string"
+                            },
+                            "engineWorkerId": {
+                              "type": "string"
+                            },
+                            "executedSteps": {
+                              "format": "uint64",
+                              "minimum": 0.0,
+                              "type": "integer"
+                            },
+                            "platform": {
+                              "properties": {
+                                "architecture": {
+                                  "type": "string"
+                                },
+                                "os": {
+                                  "type": "string"
+                                },
+                                "variant": {
+                                  "nullable": true,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "architecture",
+                                "os"
+                              ],
+                              "type": "object"
+                            },
+                            "strategy": {
+                              "enum": [
+                                "Direct"
+                              ],
+                              "type": "string"
+                            },
+                            "workerUid": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "adapterVersion",
+                            "attemptId",
+                            "builder",
+                            "cacheMode",
+                            "cachedExecutionSteps",
+                            "engine",
+                            "engineOperationId",
+                            "engineVersion",
+                            "engineWorkerId",
+                            "executedSteps",
+                            "platform",
+                            "strategy",
+                            "workerUid"
+                          ],
+                          "type": "object"
+                        },
+                        "ordinaryDigest": {
+                          "type": "string"
+                        },
+                        "privateStateRef": {
+                          "type": "string"
+                        },
+                        "snapshotId": {
+                          "description": "Opaque random handle, not a fingerprint of sensitive definition bytes.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "ordinaryDigest",
+                        "privateStateRef",
+                        "snapshotId"
+                      ],
+                      "type": "object"
+                    },
+                    "conditions": {
+                      "default": [],
+                      "items": {
+                        "description": "Condition contains details for one aspect of the current state of this API Resource.",
+                        "properties": {
+                          "lastTransitionTime": {
+                            "description": "lastTransitionTime is the last time the condition transitioned from one status to another. This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.",
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "message": {
+                            "description": "message is a human readable message indicating details about the transition. This may be an empty string.",
+                            "type": "string"
+                          },
+                          "observedGeneration": {
+                            "description": "observedGeneration represents the .metadata.generation that the condition was set based upon. For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date with respect to the current state of the instance.",
+                            "format": "int64",
+                            "type": "integer"
+                          },
+                          "reason": {
+                            "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition. Producers of specific condition types may define expected values and meanings for this field, and whether the values are considered a guaranteed API. The value should be a CamelCase string. This field may not be empty.",
+                            "type": "string"
+                          },
+                          "status": {
+                            "description": "status of the condition, one of True, False, Unknown.",
+                            "type": "string"
+                          },
+                          "type": {
+                            "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "lastTransitionTime",
+                          "message",
+                          "reason",
+                          "status",
+                          "type"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "exports": {
+                      "items": {
+                        "properties": {
+                          "attemptTime": {
+                            "maxLength": 64,
+                            "type": "string"
+                          },
+                          "attempts": {
+                            "format": "uint32",
+                            "maximum": 32.0,
+                            "minimum": 0.0,
+                            "type": "integer"
+                          },
+                          "configurationDigest": {
+                            "maxLength": 71,
+                            "type": "string"
+                          },
+                          "configurationGeneration": {
+                            "format": "int64",
+                            "type": "integer"
+                          },
+                          "localDigest": {
+                            "maxLength": 71,
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "name": {
+                            "maxLength": 63,
+                            "type": "string"
+                          },
+                          "phase": {
+                            "maxLength": 32,
+                            "type": "string"
+                          },
+                          "reason": {
+                            "maxLength": 128,
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "releaseUid": {
+                            "maxLength": 128,
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "remoteDigest": {
+                            "maxLength": 71,
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "remoteReference": {
+                            "maxLength": 384,
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "retryAfter": {
+                            "format": "int64",
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "attemptTime",
+                          "attempts",
+                          "configurationDigest",
+                          "configurationGeneration",
+                          "name",
+                          "phase",
+                          "retryAfter"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 8,
+                      "type": "array",
+                      "x-kubernetes-list-map-keys": [
+                        "name"
+                      ],
+                      "x-kubernetes-list-type": "map"
+                    },
+                    "observedGeneration": {
+                      "format": "int64",
+                      "type": "integer"
+                    },
+                    "operation": {
+                      "nullable": true,
+                      "properties": {
+                        "attempt": {
+                          "format": "uint32",
+                          "minimum": 0.0,
+                          "type": "integer"
+                        },
+                        "identity": {
+                          "properties": {
+                            "generation": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "imageUid": {
+                              "type": "string"
+                            },
+                            "snapshot": {
+                              "description": "Ordinary frozen inputs/definition/platform; excludes execution/cache placement.",
+                              "type": "string"
+                            },
+                            "version": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "generation",
+                            "imageUid",
+                            "snapshot",
+                            "version"
+                          ],
+                          "type": "object"
+                        },
+                        "phase": {
+                          "enum": [
+                            "Capturing",
+                            "Executing",
+                            "Verified",
+                            "Publishing",
+                            "Published",
+                            "Cancelled",
+                            "Failed"
+                          ],
+                          "type": "string"
+                        },
+                        "root": {
+                          "nullable": true,
+                          "properties": {
+                            "annotations": {
+                              "additionalProperties": {
+                                "type": "string"
+                              },
+                              "default": {},
+                              "type": "object"
+                            },
+                            "digest": {
+                              "type": "string"
+                            },
+                            "mediaType": {
+                              "type": "string"
+                            },
+                            "platform": {
+                              "nullable": true,
+                              "properties": {
+                                "architecture": {
+                                  "type": "string"
+                                },
+                                "os": {
+                                  "type": "string"
+                                },
+                                "variant": {
+                                  "nullable": true,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "architecture",
+                                "os"
+                              ],
+                              "type": "object"
+                            },
+                            "size": {
+                              "format": "uint64",
+                              "minimum": 0.0,
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "digest",
+                            "mediaType",
+                            "size"
+                          ],
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "attempt",
+                        "identity",
+                        "phase"
+                      ],
+                      "type": "object"
+                    },
+                    "platformReleases": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "releaseRef": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "observedGeneration"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "spec"
+              ],
+              "title": "Image",
+              "type": "object"
+            }
+          },
+          "served": true,
+          "storage": true,
+          "subresources": {
+            "status": {}
+          }
+        }
+      ]
+    }
+  },
+  {
+    "apiVersion": "apiextensions.k8s.io/v1",
+    "kind": "CustomResourceDefinition",
+    "metadata": {
+      "annotations": {
+        "kimage.dev/schema-digest": "sha256:378e7d3cc9378fc2bd6342a4af362439116820e6d6970c5c5c64e9a104db5b08",
+        "kimage.dev/schema-manager": "kimage-schema-manager",
+        "kimage.dev/schema-readers": "{\"format\":1,\"baselineRevision\":6,\"minimumReader\":\"0.6.1\",\"policy\":\"additive-optional-v1\",\"definitionDigest\":\"sha256:1a27533d508d8c26640a96c11afc70c0007d01b83eb49f95baefd5edd953bdad\"}",
+        "kimage.dev/schema-revision": "7"
+      },
+      "name": "imagereleases.kimage.dev"
+    },
+    "spec": {
+      "group": "kimage.dev",
+      "names": {
+        "kind": "ImageRelease",
+        "plural": "imagereleases",
+        "singular": "imagerelease"
+      },
+      "scope": "Namespaced",
+      "versions": [
+        {
+          "name": "v1alpha1",
+          "schema": {
+            "openAPIV3Schema": {
+              "description": "Auto-generated derived type for ImageReleaseSpec via `CustomResource`",
+              "properties": {
+                "spec": {
+                  "properties": {
+                    "imageName": {
+                      "maxLength": 253,
+                      "type": "string"
+                    },
+                    "imageUid": {
+                      "maxLength": 253,
+                      "type": "string"
+                    },
+                    "platform": {
+                      "properties": {
+                        "architecture": {
+                          "enum": [
+                            "amd64",
+                            "arm64",
+                            "auto"
+                          ],
+                          "type": "string"
+                        },
+                        "os": {
+                          "enum": [
+                            "linux"
+                          ],
+                          "type": "string"
+                        },
+                        "variant": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "architecture",
+                        "os"
+                      ],
+                      "type": "object"
+                    },
+                    "provenance": {
+                      "properties": {
+                        "adapterVersion": {
+                          "maxLength": 128,
+                          "type": "string"
+                        },
+                        "execution": {
+                          "properties": {
+                            "adapterVersion": {
+                              "maxLength": 253,
+                              "type": "string"
+                            },
+                            "attemptId": {
+                              "maxLength": 253,
+                              "type": "string"
+                            },
+                            "builder": {
+                              "maxLength": 253,
+                              "type": "string"
+                            },
+                            "cacheMode": {
+                              "enum": [
+                                "Local",
+                                "Disabled"
+                              ],
+                              "type": "string"
+                            },
+                            "cachedExecutionSteps": {
+                              "maximum": 8192.0,
+                              "minimum": 0.0,
+                              "type": "integer"
+                            },
+                            "engine": {
+                              "maxLength": 253,
+                              "type": "string"
+                            },
+                            "engineOperationId": {
+                              "maxLength": 253,
+                              "type": "string"
+                            },
+                            "engineVersion": {
+                              "maxLength": 253,
+                              "type": "string"
+                            },
+                            "engineWorkerId": {
+                              "maxLength": 253,
+                              "type": "string"
+                            },
+                            "executedSteps": {
+                              "maximum": 8192.0,
+                              "minimum": 0.0,
+                              "type": "integer"
+                            },
+                            "platform": {
+                              "properties": {
+                                "architecture": {
+                                  "maxLength": 32,
+                                  "type": "string"
+                                },
+                                "os": {
+                                  "maxLength": 32,
+                                  "type": "string"
+                                },
+                                "variant": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "architecture",
+                                "os"
+                              ],
+                              "type": "object"
+                            },
+                            "strategy": {
+                              "enum": [
+                                "Direct"
+                              ],
+                              "type": "string"
+                            },
+                            "workerUid": {
+                              "maxLength": 253,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "adapterVersion",
+                            "attemptId",
+                            "builder",
+                            "cacheMode",
+                            "cachedExecutionSteps",
+                            "engine",
+                            "engineOperationId",
+                            "engineVersion",
+                            "engineWorkerId",
+                            "executedSteps",
+                            "platform",
+                            "strategy",
+                            "workerUid"
+                          ],
+                          "type": "object"
+                        },
+                        "format": {
+                          "maxLength": 128,
+                          "type": "string"
+                        },
+                        "futureReceipt": {
+                          "maxLength": 128,
+                          "type": "string"
+                        },
+                        "imageInputs": {
+                          "items": {
+                            "properties": {
+                              "image": {
+                                "maxLength": 512,
+                                "type": "string"
+                              },
+                              "imageUid": {
+                                "maxLength": 253,
+                                "type": "string"
+                              },
+                              "manifest": {
+                                "properties": {
+                                  "annotations": {
+                                    "additionalProperties": {
+                                      "maxLength": 1024,
+                                      "type": "string"
+                                    },
+                                    "default": {},
+                                    "maxProperties": 32,
+                                    "type": "object"
+                                  },
+                                  "digest": {
+                                    "maxLength": 71,
+                                    "pattern": "^sha256:[0-9a-f]{64}$",
+                                    "type": "string"
+                                  },
+                                  "mediaType": {
+                                    "maxLength": 128,
+                                    "type": "string"
+                                  },
+                                  "platform": {
+                                    "properties": {
+                                      "architecture": {
+                                        "maxLength": 32,
+                                        "type": "string"
+                                      },
+                                      "os": {
+                                        "maxLength": 32,
+                                        "type": "string"
+                                      },
+                                      "variant": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "architecture",
+                                      "os"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "size": {
+                                    "maximum": 2097152.0,
+                                    "minimum": 1.0,
+                                    "type": "integer"
+                                  }
+                                },
+                                "required": [
+                                  "digest",
+                                  "mediaType",
+                                  "size"
+                                ],
+                                "type": "object"
+                              },
+                              "name": {
+                                "maxLength": 253,
+                                "type": "string"
+                              },
+                              "platform": {
+                                "properties": {
+                                  "architecture": {
+                                    "maxLength": 32,
+                                    "type": "string"
+                                  },
+                                  "os": {
+                                    "maxLength": 32,
+                                    "type": "string"
+                                  },
+                                  "variant": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "architecture",
+                                  "os"
+                                ],
+                                "type": "object"
+                              },
+                              "releaseUid": {
+                                "maxLength": 253,
+                                "type": "string"
+                              },
+                              "root": {
+                                "properties": {
+                                  "annotations": {
+                                    "additionalProperties": {
+                                      "maxLength": 1024,
+                                      "type": "string"
+                                    },
+                                    "default": {},
+                                    "maxProperties": 32,
+                                    "type": "object"
+                                  },
+                                  "digest": {
+                                    "maxLength": 71,
+                                    "pattern": "^sha256:[0-9a-f]{64}$",
+                                    "type": "string"
+                                  },
+                                  "mediaType": {
+                                    "maxLength": 128,
+                                    "type": "string"
+                                  },
+                                  "platform": {
+                                    "properties": {
+                                      "architecture": {
+                                        "maxLength": 32,
+                                        "type": "string"
+                                      },
+                                      "os": {
+                                        "maxLength": 32,
+                                        "type": "string"
+                                      },
+                                      "variant": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "architecture",
+                                      "os"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "size": {
+                                    "maximum": 2097152.0,
+                                    "minimum": 1.0,
+                                    "type": "integer"
+                                  }
+                                },
+                                "required": [
+                                  "digest",
+                                  "mediaType",
+                                  "size"
+                                ],
+                                "type": "object"
+                              }
+                            },
+                            "required": [
+                              "image",
+                              "imageUid",
+                              "manifest",
+                              "name",
+                              "platform",
+                              "releaseUid",
+                              "root"
+                            ],
+                            "type": "object"
+                          },
+                          "maxItems": 8,
+                          "type": "array"
+                        },
+                        "inputs": {
+                          "items": {
+                            "description": "Only selected ordinary bytes/modes belong in the public fingerprint.",
+                            "properties": {
+                              "kind": {
+                                "maxLength": 253,
+                                "type": "string"
+                              },
+                              "name": {
+                                "maxLength": 253,
+                                "type": "string"
+                              },
+                              "resourceVersion": {
+                                "maxLength": 253,
+                                "type": "string"
+                              },
+                              "uid": {
+                                "maxLength": 253,
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "name",
+                              "resourceVersion",
+                              "uid"
+                            ],
+                            "type": "object"
+                          },
+                          "maxItems": 64,
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "adapterVersion",
+                        "execution",
+                        "format",
+                        "inputs"
+                      ],
+                      "type": "object"
+                    },
+                    "publisherVersion": {
+                      "maxLength": 253,
+                      "type": "string"
+                    },
+                    "requestDigest": {
+                      "maxLength": 253,
+                      "type": "string"
+                    },
+                    "root": {
+                      "properties": {
+                        "annotations": {
+                          "additionalProperties": {
+                            "maxLength": 1024,
+                            "type": "string"
+                          },
+                          "default": {},
+                          "maxProperties": 32,
+                          "type": "object"
+                        },
+                        "digest": {
+                          "maxLength": 71,
+                          "pattern": "^sha256:[0-9a-f]{64}$",
+                          "type": "string"
+                        },
+                        "mediaType": {
+                          "enum": [
+                            "application/vnd.oci.image.manifest.v1+json",
+                            "application/vnd.oci.image.index.v1+json"
+                          ],
+                          "maxLength": 128,
+                          "type": "string"
+                        },
+                        "platform": {
+                          "properties": {
+                            "architecture": {
+                              "maxLength": 32,
+                              "type": "string"
+                            },
+                            "os": {
+                              "maxLength": 32,
+                              "type": "string"
+                            },
+                            "variant": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "architecture",
+                            "os"
+                          ],
+                          "type": "object"
+                        },
+                        "size": {
+                          "maximum": 2097152.0,
+                          "minimum": 1.0,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "digest",
+                        "mediaType",
+                        "size"
+                      ],
+                      "type": "object"
+                    },
+                    "snapshot": {
+                      "maxLength": 253,
+                      "pattern": "^sha256:[0-9a-f]{64}$",
+                      "type": "string"
+                    },
+                    "sourceGeneration": {
+                      "format": "int64",
+                      "type": "integer"
+                    },
+                    "version": {
+                      "maxLength": 128,
+                      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(\\.(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*))?$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "imageName",
+                    "imageUid",
+                    "platform",
+                    "publisherVersion",
+                    "requestDigest",
+                    "root",
+                    "snapshot",
+                    "sourceGeneration",
+                    "version"
+                  ],
+                  "type": "object",
+                  "x-kubernetes-validations": [
+                    {
+                      "message": "published identity and content are immutable",
+                      "rule": "self == oldSelf"
+                    },
+                    {
+                      "message": "aggregate releases require an OCI index",
+                      "rule": "self.platform.architecture != 'auto' || self.root.mediaType == 'application/vnd.oci.image.index.v1+json'"
+                    }
+                  ]
+                },
+                "status": {
+                  "nullable": true,
+                  "properties": {
+                    "conditions": {
+                      "default": [],
+                      "items": {
+                        "description": "Condition contains details for one aspect of the current state of this API Resource.",
+                        "properties": {
+                          "lastTransitionTime": {
+                            "description": "lastTransitionTime is the last time the condition transitioned from one status to another. This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.",
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "message": {
+                            "description": "message is a human readable message indicating details about the transition. This may be an empty string.",
+                            "type": "string"
+                          },
+                          "observedGeneration": {
+                            "description": "observedGeneration represents the .metadata.generation that the condition was set based upon. For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date with respect to the current state of the instance.",
+                            "format": "int64",
+                            "type": "integer"
+                          },
+                          "reason": {
+                            "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition. Producers of specific condition types may define expected values and meanings for this field, and whether the values are considered a guaranteed API. The value should be a CamelCase string. This field may not be empty.",
+                            "type": "string"
+                          },
+                          "status": {
+                            "description": "status of the condition, one of True, False, Unknown.",
+                            "type": "string"
+                          },
+                          "type": {
+                            "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "lastTransitionTime",
+                          "message",
+                          "reason",
+                          "status",
+                          "type"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "observedGeneration": {
+                      "format": "int64",
+                      "type": "integer"
+                    },
+                    "verified": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "observedGeneration",
+                    "verified"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "spec"
+              ],
+              "title": "ImageRelease",
+              "type": "object"
+            }
+          },
+          "served": true,
+          "storage": true,
+          "subresources": {
+            "status": {}
+          }
+        }
+      ]
+    }
+  },
+  {
+    "apiVersion": "apiextensions.k8s.io/v1",
+    "kind": "CustomResourceDefinition",
+    "metadata": {
+      "annotations": {
+        "kimage.dev/schema-digest": "sha256:d107bbbea65a7abc0277ce7756cd0658f2d8fefa98544ee47ffaed1eb03f62d1",
+        "kimage.dev/schema-manager": "kimage-schema-manager",
+        "kimage.dev/schema-readers": "{\"format\":1,\"baselineRevision\":6,\"minimumReader\":\"0.6.1\",\"policy\":\"additive-optional-v1\",\"definitionDigest\":\"sha256:d107bbbea65a7abc0277ce7756cd0658f2d8fefa98544ee47ffaed1eb03f62d1\"}",
+        "kimage.dev/schema-revision": "7"
+      },
+      "name": "imagedemands.kimage.dev"
+    },
+    "spec": {
+      "group": "kimage.dev",
+      "names": {
+        "kind": "ImageDemand",
+        "plural": "imagedemands",
+        "singular": "imagedemand"
+      },
+      "scope": "Namespaced",
+      "versions": [
+        {
+          "name": "v1alpha1",
+          "schema": {
+            "openAPIV3Schema": {
+              "description": "Auto-generated derived type for Demand via `CustomResource`",
+              "properties": {
+                "spec": {
+                  "properties": {
+                    "generation": {
+                      "format": "int64",
+                      "type": "integer"
+                    },
+                    "imageName": {
+                      "maxLength": 253,
+                      "type": "string"
+                    },
+                    "imageUid": {
+                      "maxLength": 253,
+                      "type": "string"
+                    },
+                    "namespace": {
+                      "maxLength": 253,
+                      "type": "string"
+                    },
+                    "platforms": {
+                      "items": {
+                        "properties": {
+                          "architecture": {
+                            "enum": [
+                              "amd64",
+                              "arm64"
+                            ],
+                            "type": "string"
+                          },
+                          "os": {
+                            "enum": [
+                              "linux"
+                            ],
+                            "type": "string"
+                          },
+                          "variant": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "architecture",
+                          "os"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 2,
+                      "minItems": 1,
+                      "type": "array"
+                    },
+                    "schema": {
+                      "minimum": 0.0,
+                      "type": "integer"
+                    },
+                    "version": {
+                      "maxLength": 253,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "generation",
+                    "imageName",
+                    "imageUid",
+                    "namespace",
+                    "platforms",
+                    "schema",
+                    "version"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "spec"
+              ],
+              "title": "ImageDemand",
+              "type": "object"
+            }
+          },
+          "served": true,
+          "storage": true
+        }
+      ]
+    }
+  }
+]

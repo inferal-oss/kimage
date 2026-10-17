@@ -23,7 +23,7 @@ A release belongs to an Image UID and exact version. Once published, different c
 Use Rust 1.99.0 or newer. No source checkout is needed:
 
 ```
-cargo install kimage-control --version 0.6.0 --locked --bin kimage --bin kimage-install
+cargo install kimage-control --version 0.6.1 --locked --bin kimage --bin kimage-install
 kimage install --application-namespace apps
 ```
 
@@ -380,7 +380,7 @@ The installer creates missing requested namespaces, generates separate service i
 helm repo add kimage https://kimage.dev/charts
 helm repo update
 kubectl create namespace apps
-helm install kimage kimage/kimage --version 0.6.0 \
+helm install kimage kimage/kimage --version 0.6.1 \
   --namespace kimage-system --create-namespace \
   --set applicationNamespace=apps --wait --wait-for-jobs
 ```
@@ -422,7 +422,7 @@ spec:
   source:
     repoURL: https://kimage.dev/charts
     chart: kimage
-    targetRevision: 0.6.0
+    targetRevision: 0.6.1
     helm:
       releaseName: kimage
       valuesObject:
@@ -677,6 +677,8 @@ python3 scripts/check-site.py
 CI runs Rust tests on macOS/arm64 and native Linux/amd64 and Linux/arm64 musl, plus legacy release-tooling and component/chart tests, formatting, Clippy, documentation/example checks, and package verification. These include parser/admission compatibility for readable colon and literal/encoded query ranges, native graph verification, placement and build policy. Native Kubernetes E2E tests CLI and Helm, both installation scopes, on each architecture before release.
 
 An [explicitly enabled mixed-cluster E2E](https://github.com/inferal-oss/kimage/blob/main/docs/mixed-cluster-e2e.md) uses fresh Images for unknown, amd64, and arm64 workload placement. It checks exact native variants and native consumption of an OCI index or manifest. Standard CI validates the harness and skips the live test; running it requires an approved real mixed cluster. [Two independent runs passed](https://github.com/inferal-oss/kimage/blob/main/docs/mixed-cluster-results.json) with the official 0.3.0 binaries on real RKE2 amd64/arm64 nodes. Each case used a fresh Image. Unknown placement built both variants and ran both architectures from one index; explicit placement built only the requested platform. Both runs removed their consumer Deployments and Pods.
+
+From 0.6.1, the [compatibility foundation](https://github.com/inferal-oss/kimage/blob/main/docs/compatibility.md) keeps schema revision 6 for the 0.6.0 round trip and prepares readers for verified additive schemas. Binary rollback preserves compatible newer CRDs. Unknown features pause affected builds with `BuildSupported=False`; published roots remain usable and unrelated Images continue. Future execution semantics declare `kimage.dev/required-capabilities`. Returning to unprepared 0.6.0 requires exact schema 6 and no unsupported resource requirements.
 
 The [published 0.6.0 verification](https://github.com/inferal-oss/kimage/blob/main/docs/published-0.6.0-results.json) checks both crates, every asset, public native GHCR images, Cargo installation and automatic catalog fetching. The public Helm chart runs through Argo CD on the four-node mixed cluster using its built-in pins. Status/doctor are healthy. Storage, 203 previous release contracts, nine credentials and policy remain intact; complete readback verifies 18 prior and 35 new OCI graphs.
 
