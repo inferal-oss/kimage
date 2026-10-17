@@ -3,7 +3,7 @@
 > kimage declares immutable, versioned container images as Kubernetes resources,
 > manages their production and verified publication to a retained cluster-local
 > registry, and resolves workload image selectors to digest-pinned pulls. Apache
-> 2.0. Alpha. Public Cargo packages: kimage-core and kimage-control, version 0.5.1.
+> 2.0. Alpha. Public Cargo packages: kimage-core and kimage-control, version 0.5.2.
 
 **When to use it.** Use kimage when inputs are already provisioned in Kubernetes,
 when images should remain available independently of source/build cache, or when
@@ -29,11 +29,11 @@ cache, general base provisioning, signing/attestations,
 HA, arbitrary storage/schema migration, or automatic retained-artifact GC.
 Administrator-managed builder isolation is not a hostile tenant security claim.
 
-**Install (0.5.1).** Rust 1.99.0+, administrator kubeconfig, Ready Linux
+**Install (0.5.2).** Rust 1.99.0+, administrator kubeconfig, Ready Linux
 amd64/arm64 nodes, persistent storage and the supported Pod user-namespace runtime:
 
 ```sh
-cargo install kimage-control --version 0.5.1 --locked --bin kimage --bin kimage-install
+cargo install kimage-control --version 0.5.2 --locked --bin kimage --bin kimage-install
 kimage install --application-namespace apps
 ```
 
@@ -48,7 +48,7 @@ credentials are generated in process, with separate CAs and read/publish identit
 CA private keys are not deployed. Reapply identical arguments to resume, preserving
 Secrets and administrator build policy. kimage-install is a compatible alias.
 The Cargo crate named kimage is unrelated. Prebuilt installers: GitHub releases.
-Gateway/proxy serving version remains 0.3.0 separately from Cargo 0.5.1.
+Gateway/proxy serving version remains 0.3.0 separately from Cargo 0.5.2.
 
 **Helm alternative.** Helm 3.14+ with live cluster access:
 
@@ -56,7 +56,7 @@ Gateway/proxy serving version remains 0.3.0 separately from Cargo 0.5.1.
 helm repo add kimage https://kimage.dev/charts
 helm repo update
 kubectl create namespace apps
-helm install kimage kimage/kimage --version 0.5.1 \
+helm install kimage kimage/kimage --version 0.5.2 \
   --namespace kimage-system --create-namespace \
   --set applicationNamespace=apps --wait --wait-for-jobs
 ```
@@ -297,9 +297,34 @@ original OCI bytes, platform, compressed layer digests, and DiffIDs are verified
 Native amd64/arm64 manifests, nested indexes and complete multi-platform indexes are supported; zstd, descriptor URLs/embedded data, and subject/referrer graphs are unsupported.
 `kimage-install schemas` prints full CRD JSON without changing the cluster.
 
-**Upgrade and rollback (0.5.1).** Install the new CLI separately from cluster changes.
-Current edge: published 0.5.0 <-> 0.5.1; the earlier 0.4.1 <-> 0.5.0 edge is retained. Use `kimage upgrade --to 0.5.1 --check`,
-then the same without --check. `kimage rollback --to 0.5.0 --check`, then without
+**Installation discovery (0.5.2).** `kimage installations [--namespace SYSTEM]
+[--installation NAME] [--json]` lists records in the current Kubernetes context:
+identity, namespace, release, manager, scope and validRecord. Damaged records stay
+visible. Removed runtimes without installation records are not live installs.
+Status, doctor, upgrade, rollback and uninstall first try kimage in kimage-system.
+If absent, discover matching installs. Status/doctor inspect ALL matches and
+continue after one fails. Mutations require exactly one match; ambiguity lists
+explicit selection flags before catalog fetching or writes. --namespace constrains
+discovery to that system namespace; --installation constrains the identity. Both
+flags select exactly. --no-discovery disables fallback. Permission/API errors and
+damaged existing records never trigger fallback. Cluster discovery needs ConfigMap
+list across namespaces; namespace-only search needs list there. Exact selection
+needs get plus normal operation permissions. No Secret discovery or RBAC changes.
+Install creates/resumes its requested identity; logs/builds use application Image
+namespace; legacy bootstrap already requires explicit identity. Single diagnostic
+JSON keeps its old object; multi uses {schema:1,healthy:BOOL,installations:[...]}.
+Failed inspections include identity, healthy:false,error; others still run. Doctor
+exits nonzero for any unhealthy result; status for inspection errors. Discovery
+JSON always uses {schema:1,installations:[...]}, including empty matches.
+Argo uninstall requires terminal 'yes' or --allow-argocd. First remove Application
+from Git and wait for provisioner Deployment/Pods and transition Jobs/Pods to go.
+The flag does not bypass active-provisioner, manager, Lease, operation or retained
+data checks, and does not change Argo Applications. Uninstall keeps registry data,
+Images/releases/shared CRDs. No automatic mutation of multiple installations.
+
+**Upgrade and rollback (0.5.2).** Install the new CLI separately from cluster changes.
+Current edge: published 0.5.1 <-> 0.5.2; earlier adjacent edges are retained. Use `kimage upgrade --to 0.5.2 --check`,
+then the same without --check. `kimage rollback --to 0.5.1 --check`, then without
 --check reverses the compatible edge. Add --namespace/--installation as needed.
 Check is read-only. Exact catalogs, an exclusive installation Lease and persisted
 phases make the operation resumable. Stop old clients/workers before component
@@ -360,7 +385,7 @@ No automatic retained-artifact GC or purge. Generated leaves last ten years;
 reapply preserves them and does not perform automatic renewal/CA rotation.
 Version 0.4.1 fixes intermittent CLI uninstall CleanupIdentityConflict during Pod
 status races while retaining UID/spec/ownership guards. For an existing 0.4.0
-installation, update the CLI to 0.5.1 and run the same uninstall command. No
+installation, update the CLI to 0.5.2 and run the same uninstall command. No
 component reinstallation or data migration is needed for this cleanup fix.
 Published CLI and public Helm mixed-cluster checks cover native GHCR pulls, all
 three fresh-Image placement cases, and complete retained OCI graph readback after
@@ -441,7 +466,7 @@ and https://github.com/inferal-oss/kimage/blob/main/docs/mixed-upgrade-results.j
 ## Argo CD (0.5.1+)
 
 Use the published Helm repository `https://kimage.dev/charts`, chart `kimage`,
-exact `targetRevision: 0.5.1`, and `helm.valuesObject.gitops.enabled: true`.
+exact `targetRevision: 0.5.2`, and `helm.valuesObject.gitops.enabled: true`.
 Set `scope: cluster`, or `scope: namespace` with `applicationNamespace: apps`.
 Destination namespace is `kimage-system`; enable `CreateNamespace=true`.
 An administrator must permit the provisioner's installation RBAC in AppProject.

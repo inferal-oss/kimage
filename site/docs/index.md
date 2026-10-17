@@ -23,7 +23,7 @@ A release belongs to an Image UID and exact version. Once published, different c
 Use Rust 1.99.0 or newer. No source checkout is needed:
 
 ```
-cargo install kimage-control --version 0.5.1 --locked --bin kimage --bin kimage-install
+cargo install kimage-control --version 0.5.2 --locked --bin kimage --bin kimage-install
 kimage install --application-namespace apps
 ```
 
@@ -31,7 +31,7 @@ kimage install --application-namespace apps
 
 With no flags, `kimage install` manages the current kubeconfig namespace, uses `kimage-system` for components, a 1Gi retained PVC and the cluster's default StorageClass. It discovers native workers, generates credentials and waits for authenticated readiness. Use administrator kubeconfig and the [supported runtime](https://kimage.dev/docs/#compatibility). For the tested K3s profile, add `--runtime-profile k3s`.
 
-Server binaries are also available from `kimage-control` if needed. Gateway and proxy retain serving protocol version 0.3.0 independently of package version 0.5.1.
+Server binaries are also available from `kimage-control` if needed. Gateway and proxy retain serving protocol version 0.3.0 independently of package version 0.5.2.
 
 ## Release images and mirrors
 
@@ -43,7 +43,7 @@ GHCR supplies kimage's components. The included cluster-local registry still ret
 
 | Option | Purpose |
 | --- | --- |
-| `--release 0.5.1` | Exact official release; defaults to the CLI package version. |
+| `--release 0.5.2` | Exact official release; defaults to the CLI package version. |
 | `--image-catalog <path>` | Explicit administrator-trusted local catalog, including a registry mirror. |
 | `images.repository` | Helm registry mirror override; retain all published digest pins. |
 
@@ -351,7 +351,7 @@ The installer creates missing requested namespaces, generates separate service i
 helm repo add kimage https://kimage.dev/charts
 helm repo update
 kubectl create namespace apps
-helm install kimage kimage/kimage --version 0.5.1 \
+helm install kimage kimage/kimage --version 0.5.2 \
   --namespace kimage-system --create-namespace \
   --set applicationNamespace=apps --wait --wait-for-jobs
 ```
@@ -393,7 +393,7 @@ spec:
   source:
     repoURL: https://kimage.dev/charts
     chart: kimage
-    targetRevision: 0.5.1
+    targetRevision: 0.5.2
     helm:
       releaseName: kimage
       valuesObject:
@@ -430,7 +430,7 @@ kimage status
 kimage doctor
 ```
 
-Interrupted provisioning retries automatically. Compatible version changes use the lifecycle Lease, exact-target journal and retained-identity checks. Keep the desired target unchanged while an operation is pending. Pin an exact chart version; a future release must declare and test the transition. Argo CD ownership starts at 0.5.1, so the 0.5.0 chart and runtime are not Argo CD rollback targets. Existing CLI/Helm installations are not adopted automatically. Their tested 0.5.0 to 0.5.1 transition and rollback remain supported.
+Interrupted provisioning retries automatically. Compatible version changes use the lifecycle Lease, exact-target journal and retained-identity checks. Keep the desired target unchanged while an operation is pending. Pin an exact chart version; a future release must declare and test the transition. Argo CD ownership starts at 0.5.1, so the 0.5.0 chart and runtime are not Argo CD rollback targets. Existing CLI/Helm installations are not adopted automatically. The current adjacent release edge is 0.5.1 to 0.5.2 and back; earlier tested edges remain supported.
 
 From 0.5.1, change the exact `targetRevision` for compatible upgrades or downgrades. The returning older provisioner automatically runs a short-lived Job using the installed newer operator’s recorded digest. That binary checks its exact compatibility edge and uses the same lifecycle Lease and journal. Both helper and provisioner interruptions resume automatically; keep the requested version unchanged until completion. No manual catalog override is needed. Unsupported edges remain refused.
 
@@ -440,21 +440,38 @@ Provisioners and transition Jobs need Kubernetes API, DNS and HTTPS access to th
 
 Application deletion or pruning removes the provisioner and desired-state resources, leaving the runtime, registry PVC, Images, ImageReleases and shared CRDs. Runtime objects do not inherit Argo CD tracking or ownership from the provisioner. Recreating the same Application resumes with the same credentials and data.
 
-For runtime removal, first delete the Application and wait for its provisioner Deployment, provisioner Pods and transition Jobs/Pods to disappear, then run `kimage uninstall --namespace kimage-system --installation kimage`. Uninstall refuses while the provisioner Deployment or transition resources are present and preserves retained data. Deleting the system namespace discards that protection.
+For runtime removal, first delete the Application and wait for its provisioner Deployment, provisioner Pods and transition Jobs/Pods to disappear, then run `kimage uninstall --namespace kimage-system --installation kimage --allow-argocd`. Argo-managed uninstall requires terminal confirmation or `--allow-argocd`. This flag acknowledges ownership and does not bypass lifecycle safeguards. Uninstall refuses while the provisioner Deployment or transition resources are present and preserves retained data. Deleting the system namespace discards that protection.
 
 The [complete Argo CD guide](https://github.com/inferal-oss/kimage/blob/main/docs/argocd.md) lists credential keys, advanced target catalogs, retention and ownership boundaries. No repo-server plugin, broad diff exclusions or manual credential-generation script is required.
 
 ## Reapply, upgrade and rollback
 
-Install the new CLI first; this changes no cluster components. The supported release edge is **0.5.0 to 0.5.1 and back**. Use the same guarded commands for CLI and Helm installations:
+### Find installations and check health
 
 ```
-kimage upgrade --to 0.5.1 --check
-kimage upgrade --to 0.5.1
+kimage installations
+kimage status
+kimage doctor
+kimage installations --namespace kimage-gitops-system --json
+```
+
+Commands use the current Kubernetes context. If `kimage` in `kimage-system` is missing, status and doctor discover and inspect every matching installation, continuing after an individual failure. Upgrade, rollback and uninstall also discover, but require an explicit choice when several installations match. A damaged existing record or a permission/API error does not trigger fallback.
+
+Use `--namespace SYSTEM` or `--installation NAME` to constrain discovery; both flags select an exact identity. Add `--no-discovery` to require the selected/default target without searching. Cluster discovery requires ConfigMap list access across namespaces; namespace-only search needs list access there. Exact selection avoids cluster listing. Install keeps its creation defaults; logs/builds select an Image in an application namespace.
+
+Single status/doctor JSON keeps the existing object. Several results use `{"schema":1,"healthy":false,"installations":[...]}`, with aggregate health and an identity and error for each failed inspection. Doctor exits nonzero if any installation needs attention; status exits nonzero if an inspection fails. `installations --json` always returns an installations array, which can be empty.
+
+### Guarded version transitions
+
+Install the new CLI first; this changes no cluster components. The supported release edge is **0.5.1 to 0.5.2 and back**. Use the same guarded commands for CLI and Helm installations:
+
+```
+kimage upgrade --to 0.5.2 --check
+kimage upgrade --to 0.5.2
 kimage status --json
 kimage doctor --json
-kimage rollback --to 0.5.0 --check
-kimage rollback --to 0.5.0
+kimage rollback --to 0.5.1 --check
+kimage rollback --to 0.5.1
 ```
 
 Add `--namespace` and `--installation` for a non-default system identity. Checks are read-only. The operation records exact catalogs and resumable phases, stops new reconciliation, terminates old clients and workers, and replaces components under an exclusive Lease. Completion verifies readiness and retained storage, CRD and credential identities. New builds, managed Pod admission and uncached pulls may pause; running application containers remain under their workload controller.

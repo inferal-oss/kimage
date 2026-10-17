@@ -36,7 +36,7 @@ spec:
   source:
     repoURL: https://kimage.dev/charts
     chart: kimage
-    targetRevision: 0.5.1
+    targetRevision: 0.5.2
     helm:
       releaseName: kimage
       valuesObject:
@@ -156,9 +156,9 @@ a transition.
 
 The first Argo CD release is 0.5.1. Version 0.5.0 has no Argo CD ownership support
 and cannot be an Argo CD rollback target. CLI/Helm installations retain their
-0.5.0 to 0.5.1 transition and reverse path. Forward compatibility is exercised
-with a separate `0.5.2-argocd-test.0` conformance build, not a published 0.5.2
-release. It tests the 0.5.1 chart returning after a newer runtime is installed.
+earlier adjacent transitions. The current edge is 0.5.1 to 0.5.2 and back. Forward compatibility is exercised
+with a separate `0.5.3-argocd-test.0` conformance build, not a published 0.5.3
+release. It tests the 0.5.2 chart returning after a newer runtime is installed.
 
 An optional administrator-trusted `gitops.targetCatalog` can select a supported
 runtime while retaining the chart's provisioner. It is a complete verified
@@ -184,10 +184,10 @@ Application and wait for its provisioner Deployment, provisioner Pods and
 transition Jobs/Pods to disappear, then:
 
 ```sh
-kimage uninstall --namespace kimage-system --installation kimage
+kimage uninstall --namespace kimage-system --installation kimage --allow-argocd
 ```
 
-Uninstall refuses while the provisioner is active, preventing a reconciliation
+Uninstall warns and requires terminal confirmation or `--allow-argocd`. It refuses while the provisioner is active, preventing a reconciliation
 race. It still preserves the registry PVC, Images, ImageReleases and shared CRDs.
 Do not delete the system namespace or retained resources unless you deliberately
 intend to discard that installation's data.

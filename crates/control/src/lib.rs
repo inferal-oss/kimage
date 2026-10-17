@@ -2,6 +2,7 @@ pub mod admission;
 pub mod api;
 pub mod bundle;
 pub mod diagnostics;
+pub mod discovery;
 pub mod gateway;
 pub mod gitops;
 mod gitops_transition;

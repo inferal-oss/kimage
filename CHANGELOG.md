@@ -7,6 +7,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-10-17
+
+### Added
+
+- `kimage installations` lists installation identities, namespaces, managers, releases and scope, with namespace filtering and JSON output.
+- Status and doctor automatically discover installations when the default is absent and inspect every match, continuing after individual failures. Upgrade, rollback and uninstall discover a single target or list explicit choices when several match. `--no-discovery` disables fallback; explicit selectors constrain it.
+- Argo CD runtime uninstall requires terminal confirmation or `--allow-argocd`, while retaining active-provisioner, lifecycle and data protections.
+
+### Fixed
+
+- Missing installation errors explain which identity was requested and how to find or select an installation. Permission and API failures stay distinct from an absent installation.
+
+
 ## [0.5.1] - 2026-10-16
 
 ### Added
@@ -232,7 +245,8 @@ credentials, and a supported runtime profile. Builds initially support scratch
 images and provisioned local inputs. See the
 [compatibility limits](README.md#compatibility-and-limits).
 
-[Unreleased]: https://github.com/inferal-oss/kimage/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/inferal-oss/kimage/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/inferal-oss/kimage/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/inferal-oss/kimage/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/inferal-oss/kimage/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/inferal-oss/kimage/compare/v0.4.0...v0.4.1

@@ -28,17 +28,17 @@ class Boundaries(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);previous=root/'previous';previous.mkdir()
             assets=[]
-            for name in ['kimage-v0.5.0-linux-amd64','component-images.json','kimage-0.5.0.tgz']:
+            for name in ['kimage-v0.5.1-linux-amd64','component-images.json','kimage-0.5.1.tgz']:
                 data=(name+'-fixture').encode();(previous/name).write_bytes(data)
                 assets.append(dict(name=name,size=len(data),sha256='sha256:'+hashlib.sha256(data).hexdigest()))
-            (previous/'verified.json').write_text(json.dumps(dict(release='0.5.0',assets=assets)))
-            catalog=root/'catalog.json';catalog.write_text(json.dumps(dict(release='0.5.1')))
+            (previous/'verified.json').write_text(json.dumps(dict(release='0.5.1',assets=assets)))
+            catalog=root/'catalog.json';catalog.write_text(json.dumps(dict(release='0.5.2')))
             installer=root/'installer';installer.write_bytes(b'fixture')
             chart=root/'chart';chart.write_bytes(b'fixture')
             config=dict(kubeconfig='fixture',context='fixture',namespace='app',systemNamespace='system',installation='install',probes=str(root/'probes'),output=str(root/'output'),installer=str(installer),previous=str(previous),catalog=str(catalog),chart=str(chart),mode='cli',scope='namespace',runtimeProfile='k3s',port=17701)
             fixture=upgrade.Upgrade(config)
-            self.assertEqual(fixture.source,'0.5.0');self.assertEqual(fixture.version,'0.5.1')
-            (previous/'verified.json').write_text(json.dumps(dict(release='0.5.1',assets=assets)))
+            self.assertEqual(fixture.source,'0.5.1');self.assertEqual(fixture.version,'0.5.2')
+            (previous/'verified.json').write_text(json.dumps(dict(release='0.5.2',assets=assets)))
             config['output']=str(root/'wrong-output')
             with self.assertRaisesRegex(RuntimeError,'Published predecessor verification'):upgrade.Upgrade(config)
 
@@ -142,10 +142,10 @@ class Boundaries(unittest.TestCase):
         self.assertNotIn('FileNotFoundError',result.stderr)
 
     def test_published_predecessor_digest_size_and_metadata_only_authentication(self):
-        names=['kimage-v0.5.0-linux-amd64','component-images.json','kimage-0.5.0.tgz']
+        names=['kimage-v0.5.1-linux-amd64','component-images.json','kimage-0.5.1.tgz']
         bodies={name:(name+'-published').encode() for name in names}
         assets=[dict(name=name,state='uploaded',size=len(bodies[name]),digest='sha256:'+hashlib.sha256(bodies[name]).hexdigest(),browser_download_url=fetch.ASSETS+name) for name in names]
-        release=dict(tag_name='v0.5.0',draft=False,prerelease=False,assets=assets)
+        release=dict(tag_name='v0.5.1',draft=False,prerelease=False,assets=assets)
         class Metadata:
             def open(self,request,timeout):
                 assert request.full_url==fetch.API and request.get_header('Authorization')=='Bearer fixture-token'

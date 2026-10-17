@@ -104,7 +104,7 @@ jobs:
           done
           python3 scripts/package-component-images.py --architecture ${{ matrix.architecture }} \
             --linux-dir .local/e2e/next-bins --registry .local/e2e/upstream/registry \
-            --buildkit-dir .local/e2e/upstream/buildkit --cargo-metadata .local/e2e/cargo-metadata.json --out .local/e2e/next-images --version 0.5.2-argocd-test.0
+            --buildkit-dir .local/e2e/upstream/buildkit --cargo-metadata .local/e2e/cargo-metadata.json --out .local/e2e/next-images --version 0.5.3-argocd-test.0
           tar -czf .local/e2e-native-${{ matrix.architecture }}.tar.gz -C .local/e2e images next-images probe probes previous kimage-install registry
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

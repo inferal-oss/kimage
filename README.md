@@ -176,19 +176,19 @@ component boundaries and trust assumptions.
 Install [Rust 1.99.0 or newer](https://www.rust-lang.org/tools/install), then:
 
 ```sh
-cargo install kimage-control --version 0.5.1 --locked --bin kimage --bin kimage-install
+cargo install kimage-control --version 0.5.2 --locked --bin kimage --bin kimage-install
 kimage install --application-namespace apps
 ```
 
-For an existing 0.5.0 installation, update the CLI, then use the guarded release
+For an existing 0.5.1 installation, update the CLI, then use the guarded release
 transition. Helm installations keep their Helm ownership and history:
 
 ```sh
-kimage upgrade --to 0.5.1 --check
-kimage upgrade --to 0.5.1
+kimage upgrade --to 0.5.2 --check
+kimage upgrade --to 0.5.2
 kimage doctor
 # Compatible reversal, when needed:
-kimage rollback --to 0.5.0
+kimage rollback --to 0.5.1
 ```
 
 An interrupted operation resumes with the same command. Running application
@@ -214,7 +214,7 @@ exact runtime checks; see [prerequisites](docs/installation.md#prerequisites).
 helm repo add kimage https://kimage.dev/charts
 helm repo update
 kubectl create namespace apps
-helm install kimage kimage/kimage --version 0.5.1 \
+helm install kimage kimage/kimage --version 0.5.2 \
   --namespace kimage-system --create-namespace \
   --set applicationNamespace=apps --wait --wait-for-jobs
 ```
@@ -387,6 +387,23 @@ implicit `latest` are not supported. See the
 [selector reference](docs/operations.md#archive-declarations-and-retained-releases)
 for the full grammar and rollout behavior.
 
+## Find and check installations
+
+```sh
+kimage installations
+kimage status
+kimage doctor
+```
+
+Commands use the current Kubernetes context. If the conventional installation is
+missing, status and doctor discover and check every matching installation, even
+when one check fails. Upgrade, rollback and uninstall discover too, but require an
+explicit choice when several installations match. Use `--namespace SYSTEM` and
+`--installation NAME` to select one, or `--no-discovery` to require the selected
+identity without fallback. `install` still creates or resumes the identity you
+request. See [installation discovery](docs/installation-discovery.md) for RBAC,
+JSON output and Argo CD uninstall confirmation.
+
 ## Compatibility and limits
 
 Native Kubernetes E2E covers Linux/amd64 and Linux/arm64. The earlier full acceptance fixture uses Linux/amd64, Kubernetes `v1.36.5+k3s1`,
@@ -402,7 +419,7 @@ access are outside its current scope. External exports support verified HTTPS
 with Basic authentication or explicit anonymous access; Bearer/token-helper
 authentication is not implemented.
 
-Whole-installation upgrades support **0.5.0 ↔ 0.5.1** through the guarded CLI,
+Whole-installation upgrades support **0.5.1 ↔ 0.5.2** through the guarded CLI,
 including Helm installations. Argo CD chart-version transitions start at 0.5.1
 and require an explicitly supported compatibility edge. The earlier serving-only acceptance covered Distribution **3.1.1 ↔ 3.1.2** and
 gateway/proxy **0.1.0 / 0.2.0 / 0.3.0** (cluster scope requires 0.3.0) with the documented filesystem storage profile.

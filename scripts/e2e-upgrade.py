@@ -51,10 +51,10 @@ class Upgrade:
         self.installer=Path(config['installer']).resolve()
         self.target=json.loads(Path(config['catalog']).read_bytes())
         self.version=self.target['release']
-        require(self.version=='0.5.1','Test requires an exact 0.5.1 catalog')
+        require(self.version=='0.5.2','Test requires an exact 0.5.2 catalog')
         verified=json.loads((self.previous/'verified.json').read_bytes())
         self.source=verified['release']
-        require(self.source=='0.5.0','Published predecessor verification is required')
+        require(self.source=='0.5.1','Published predecessor verification is required')
         self.previous_binary=next(self.previous.glob('kimage-v'+self.source+'-*'))
         for asset in verified['assets']:
             data=(self.previous/asset['name']).read_bytes()
@@ -157,6 +157,11 @@ class Upgrade:
             status=json.loads(self.run_command([self.installer,'status','--namespace',self.system,'--installation',self.id,'--json']).stdout)
             return status['healthy'] and status['release']==self.version
         self.api.wait(healthy,'read-only doctor reports healthy installation')
+        found=json.loads(self.run_command([self.installer,'installations','--namespace',self.system,'--json']).stdout)
+        require(any(item['installation']==self.id and item['namespace']==self.system for item in found['installations']),'Discovery did not find installed identity')
+        discovered=json.loads(self.run_command([self.installer,'status','--namespace',self.system,'--json']).stdout)
+        require(discovered['installation']==self.id and discovered['release']==self.version,'Status fallback selected the wrong installation')
+        self.check('namespace-filtered installation discovery and status fallback select the live native installation')
         require(self.operation()==before,'Diagnostics changed the operation journal')
         self.check('status and doctor report healthy placement, resource pins, retained storage and certificates without changing the journal')
 

@@ -36,7 +36,7 @@ preloaded kimage component. A default StorageClass is used unless overridden.
 Install Rust 1.99.0 or newer, then:
 
 ```sh
-cargo install kimage-control --version 0.5.1 --locked --bin kimage --bin kimage-install
+cargo install kimage-control --version 0.5.2 --locked --bin kimage --bin kimage-install
 kimage install --application-namespace apps
 ```
 
@@ -87,7 +87,7 @@ The chart repository is hosted alongside the website:
 helm repo add kimage https://kimage.dev/charts
 helm repo update
 kubectl create namespace apps
-helm install kimage kimage/kimage --version 0.5.1 \
+helm install kimage kimage/kimage --version 0.5.2 \
   --namespace kimage-system --create-namespace \
   --set applicationNamespace=apps --wait --wait-for-jobs
 ```
@@ -182,18 +182,25 @@ and provisioned application inputs. Saving the small catalog alone is insufficie
 Public catalog downloads use no token; optional `KIMAGE_GITHUB_TOKEN` authenticates
 only fixed GitHub metadata requests and is never forwarded to asset downloads.
 
+## Discovery and health
+
+Use `kimage installations` to find installations. Status, doctor, upgrade, rollback
+and uninstall discover matching installations when the default is absent. Status
+and doctor check all matches; changes require one unambiguous selection. Add
+`--no-discovery` to disable fallback. See [selection, permissions and JSON output](installation-discovery.md).
+
 ## Upgrades, rollback and removal
 
 Install the new CLI first. Updating the Cargo package does not change cluster
-components. The current supported release edge is **0.5.0 to 0.5.1 and back**:
+components. The current supported release edge is **0.5.1 to 0.5.2 and back**:
 
 ```sh
-kimage upgrade --to 0.5.1 --check
-kimage upgrade --to 0.5.1
+kimage upgrade --to 0.5.2 --check
+kimage upgrade --to 0.5.2
 kimage status --json
 kimage doctor --json
-kimage rollback --to 0.5.0 --check
-kimage rollback --to 0.5.0
+kimage rollback --to 0.5.1 --check
+kimage rollback --to 0.5.1
 ```
 
 Add `--namespace` and `--installation` for a non-default system identity. Checks

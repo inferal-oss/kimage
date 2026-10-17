@@ -2,8 +2,8 @@ apiVersion: v2
 name: kimage
 description: A Kubernetes-native image catalog, builder, and delivery system
 type: application
-version: 0.5.2-argocd-test.0
-appVersion: "0.5.2-argocd-test.0"
+version: 0.5.3-argocd-test.0
+appVersion: "0.5.3-argocd-test.0"
 home: https://kimage.dev
 sources:
   - https://github.com/inferal-oss/kimage

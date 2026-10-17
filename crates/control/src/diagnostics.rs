@@ -41,6 +41,31 @@ fn tls_check(secret: &Secret, cert_key: &str, dns: &str, now: UnixTime) -> Resul
         .context("CertificateInvalidOrExpired")?;
     Ok(())
 }
+/// Finish every selected check, including when one record is damaged or disappears.
+pub async fn inspect_many(
+    client: Client,
+    targets: &[crate::discovery::Target],
+    doctor: bool,
+) -> Vec<Value> {
+    let mut results = Vec::new();
+    for target in targets {
+        let result = match inspect(
+            client.clone(),
+            &target.namespace,
+            &target.installation,
+            doctor,
+        )
+        .await
+        {
+            Ok(result) => result,
+            Err(error) => {
+                json!({"schema":1,"namespace":target.namespace,"installation":target.installation,"healthy":false,"error":format!("{error:#}")})
+            }
+        };
+        results.push(result);
+    }
+    results
+}
 pub async fn inspect(
     client: Client,
     namespace: &str,

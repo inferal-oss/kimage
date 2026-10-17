@@ -8,7 +8,7 @@ workload delivery.
 ## Install
 
 ```sh
-cargo install kimage-control --version 0.5.1 --locked --bin kimage --bin kimage-install
+cargo install kimage-control --version 0.5.2 --locked --bin kimage --bin kimage-install
 kimage install --application-namespace apps
 ```
 
@@ -34,11 +34,13 @@ The crate includes the operator, admission server, helpers and serving tools.
 Gateway/proxy retain serving protocol version 0.3.0 independently of Cargo's
 package version. The crate named `kimage` is a separate project.
 
-For an existing 0.5.0 installation, update this CLI, then run
-`kimage upgrade --to 0.5.1 --check` and `kimage upgrade --to 0.5.1`.
-`kimage rollback --to 0.5.0` performs the compatible reverse transition. Both
+For an existing 0.5.1 installation, update this CLI, then run
+`kimage upgrade --to 0.5.2 --check` and `kimage upgrade --to 0.5.2`.
+`kimage rollback --to 0.5.1` performs the compatible reverse transition. Both
 managers preserve their ownership, registry storage and release metadata.
 Older installations must pass through their supported adjacent releases.
+`kimage installations` finds installations. Status and doctor discover all matches when the default is absent; upgrade, rollback and uninstall require one unambiguous target. Use `--no-discovery` to disable fallback. Argo uninstall requires terminal confirmation or `--allow-argocd`, after removing its Application.
+
 `kimage status` and `kimage doctor` report installation health. Use
 `kimage builds IMAGE -n apps` and `kimage logs IMAGE -n apps --follow` for private,
 bounded per-attempt diagnostics. Build output can contain printed secrets.

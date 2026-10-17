@@ -64,7 +64,7 @@ enum Command {
     /// Install ordinary components pulled directly from the release image registry.
     Install(ImageInstall),
     /// Remove an installation while retaining images and registry storage.
-    Uninstall(RemoveInstallation),
+    Uninstall(Uninstall),
     /// Read private build output, including retained attempts after Pod cleanup.
     Logs {
         image: String,
@@ -91,6 +91,8 @@ enum Command {
     Rollback(Transition),
     /// Show versions, native workers, components, storage and pending operations.
     Status(Diagnostic),
+    /// Find installations in the current Kubernetes context (read-only).
+    Installations(Discover),
     /// Check resource drift and certificate validity without changing the cluster.
     Doctor(Diagnostic),
     /// Retained bootstrap workflow for independently trusted legacy bundles.
@@ -183,10 +185,46 @@ struct ImageInstall {
 }
 #[derive(Args)]
 struct RemoveInstallation {
-    #[arg(long, default_value = "kimage-system")]
-    namespace: String,
-    #[arg(long, default_value = "kimage")]
-    installation: String,
+    /// System namespace; constrain discovery when the conventional target is absent.
+    #[arg(long)]
+    namespace: Option<String>,
+    #[arg(long)]
+    installation: Option<String>,
+    /// Require the selected/default identity without searching for alternatives.
+    #[arg(long)]
+    no_discovery: bool,
+}
+impl RemoveInstallation {
+    async fn targets(
+        &self,
+        client: kube::Client,
+    ) -> Result<Vec<kimage_control::discovery::Target>> {
+        kimage_control::discovery::select(
+            client,
+            self.namespace.as_deref(),
+            self.installation.as_deref(),
+            self.no_discovery,
+        )
+        .await
+    }
+}
+#[derive(Args)]
+struct Uninstall {
+    #[command(flatten)]
+    installation: RemoveInstallation,
+    /// Permit explicit Argo CD runtime removal after removing its Application.
+    #[arg(long)]
+    allow_argocd: bool,
+}
+#[derive(Args)]
+struct Discover {
+    /// Search only this system namespace (requires namespace ConfigMap list access).
+    #[arg(long)]
+    namespace: Option<String>,
+    #[arg(long)]
+    installation: Option<String>,
+    #[arg(long)]
+    json: bool,
 }
 #[derive(Args)]
 struct Transition {
@@ -409,6 +447,64 @@ fn verified(
         kimage_core::oci::Limits::default(),
     )
 }
+fn print_diagnostic(result: &serde_json::Value) {
+    println!(
+        "{} {} in {} ({})",
+        result["installation"].as_str().unwrap_or("unknown"),
+        result["release"].as_str().unwrap_or("unknown"),
+        result["namespace"].as_str().unwrap_or("unknown"),
+        result["manager"].as_str().unwrap_or("unknown")
+    );
+    if let Some(error) = result.get("error") {
+        println!(
+            "Inspection failed: {}",
+            error.as_str().unwrap_or("Unknown failure")
+        );
+        return;
+    }
+    println!("Platforms: {}", result["platforms"]);
+    println!(
+        "Storage: {} ({})",
+        result["storage"]["claim"].as_str().unwrap_or("unknown"),
+        result["storage"]["phase"].as_str().unwrap_or("unknown")
+    );
+    for issue in result["issues"].as_array().unwrap() {
+        println!(
+            "{}: {}",
+            issue["reason"].as_str().unwrap_or("Issue"),
+            issue["action"]
+                .as_str()
+                .unwrap_or("Inspect installation resources")
+        );
+    }
+    if result["healthy"] == true {
+        println!("Healthy");
+    }
+}
+fn confirm_argocd_uninstall(target: &kimage_control::discovery::Target, allow: bool) -> Result<()> {
+    use std::io::{IsTerminal, Write};
+    let warning = format!(
+        "ArgoCDManagedInstallation: '{}' in '{}' is managed by Argo CD. Remove its Application from Git and wait for its provisioner and transition Jobs/Pods to disappear before uninstalling the retained runtime. Registry data and image resources will be kept.",
+        target.installation, target.namespace
+    );
+    if allow {
+        eprintln!("Warning: {warning}");
+        return Ok(());
+    }
+    anyhow::ensure!(
+        std::io::stdin().is_terminal() && std::io::stderr().is_terminal(),
+        "{warning} Re-run with --allow-argocd to acknowledge this removal, or use an interactive terminal."
+    );
+    eprint!("Warning: {warning}\nUninstall this Argo CD runtime? Type 'yes' to continue: ");
+    std::io::stderr().flush()?;
+    let mut answer = String::new();
+    std::io::stdin().read_line(&mut answer)?;
+    anyhow::ensure!(
+        answer.trim() == "yes",
+        "UninstallCancelled: no resources changed"
+    );
+    Ok(())
+}
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
@@ -430,15 +526,23 @@ async fn main() -> Result<()> {
     let doctor = matches!(command, Command::Doctor(_));
     match command {
         Command::Upgrade(args) | Command::Rollback(args) => {
+            let client = kimage_control::kubernetes::client().await?;
+            let selected = kimage_control::discovery::single(
+                args.installation.targets(client.clone()).await?,
+            )?;
+            eprintln!(
+                "Selected installation {} in {}",
+                selected.installation, selected.namespace
+            );
             let target = kimage_control::component_images::ImageCatalog::resolve(
                 &args.to,
                 args.image_catalog.as_deref(),
             )
             .await?;
             let result = kimage_control::lifecycle::transition(
-                kimage_control::kubernetes::client().await?,
-                &args.installation.namespace,
-                &args.installation.installation,
+                client,
+                &selected.namespace,
+                &selected.installation,
                 &target,
                 args.check,
                 rollback,
@@ -447,46 +551,68 @@ async fn main() -> Result<()> {
             .await?;
             println!("{}", serde_json::to_string_pretty(&result)?);
         }
-        Command::Status(args) | Command::Doctor(args) => {
-            let result = kimage_control::diagnostics::inspect(
+        Command::Installations(args) => {
+            let found = kimage_control::discovery::list(
                 kimage_control::kubernetes::client().await?,
-                &args.installation.namespace,
-                &args.installation.installation,
-                doctor,
+                args.namespace.as_deref(),
+                args.installation.as_deref(),
             )
             .await?;
             if args.json {
-                println!("{}", serde_json::to_string_pretty(&result)?);
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(
+                        &serde_json::json!({"schema":1,"installations":found})
+                    )?
+                );
+            } else if found.is_empty() {
+                println!(
+                    "No kimage installations found in the current Kubernetes context. Check your context or run 'kimage install'."
+                );
             } else {
-                println!(
-                    "{} {} in {} ({})",
-                    args.installation.installation,
-                    result["release"].as_str().unwrap_or("unknown"),
-                    args.installation.namespace,
-                    result["manager"].as_str().unwrap_or("unknown")
-                );
-                println!("Platforms: {}", result["platforms"]);
-                println!(
-                    "Storage: {} ({})",
-                    result["storage"]["claim"].as_str().unwrap_or("unknown"),
-                    result["storage"]["phase"].as_str().unwrap_or("unknown")
-                );
-                for issue in result["issues"].as_array().unwrap() {
+                println!("NAMESPACE\tINSTALLATION\tRELEASE\tMANAGER\tSCOPE\tRECORD");
+                for item in found {
                     println!(
-                        "{}: {}",
-                        issue["reason"].as_str().unwrap_or("Issue"),
-                        issue["action"]
-                            .as_str()
-                            .unwrap_or("Inspect installation resources")
+                        "{}\t{}\t{}\t{}\t{}\t{}",
+                        item.target.namespace,
+                        item.target.installation,
+                        item.release.as_deref().unwrap_or("unknown"),
+                        item.manager.as_deref().unwrap_or("unknown"),
+                        item.scope.as_deref().unwrap_or("unknown"),
+                        if item.valid_record {
+                            "valid"
+                        } else {
+                            "invalid; inspect explicitly"
+                        }
                     );
                 }
-                if result["healthy"] == true {
-                    println!("Healthy");
+            }
+        }
+        Command::Status(args) | Command::Doctor(args) => {
+            let client = kimage_control::kubernetes::client().await?;
+            let targets = args.installation.targets(client.clone()).await?;
+            let results = kimage_control::diagnostics::inspect_many(client, &targets, doctor).await;
+            let failed = results
+                .iter()
+                .any(|r| r.get("error").is_some() || doctor && r["healthy"] != true);
+            if args.json {
+                let output = if results.len() == 1 {
+                    results[0].clone()
+                } else {
+                    serde_json::json!({"schema":1,"healthy":results.iter().all(|r| r["healthy"] == true),"installations":results})
+                };
+                println!("{}", serde_json::to_string_pretty(&output)?);
+            } else {
+                for (index, result) in results.iter().enumerate() {
+                    if index > 0 {
+                        println!();
+                    }
+                    print_diagnostic(result);
                 }
             }
             anyhow::ensure!(
-                !doctor || result["healthy"] == true,
-                "InstallationNeedsAttention"
+                !failed,
+                "InstallationChecksFailed: see the reported results for each installation"
             );
         }
         Command::Verify { archive, root } => {
@@ -594,15 +720,37 @@ async fn main() -> Result<()> {
             );
         }
         Command::Uninstall(args) => {
+            let client = kimage_control::kubernetes::client().await?;
+            let selected = kimage_control::discovery::single(
+                args.installation.targets(client.clone()).await?,
+            )?;
+            let (state, _, _) = kimage_control::lifecycle::state(
+                client.clone(),
+                &selected.namespace,
+                &selected.installation,
+            )
+            .await?;
+            use kube::ResourceExt;
+            if state
+                .annotations()
+                .get("kimage.dev/manager")
+                .is_some_and(|m| m == "argocd")
+            {
+                confirm_argocd_uninstall(&selected, args.allow_argocd)?;
+            }
+            eprintln!(
+                "Selected installation {} in {}",
+                selected.installation, selected.namespace
+            );
             kimage_control::pull_install::apply::uninstall_installed(
-                kimage_control::kubernetes::client().await?,
-                &args.namespace,
-                &args.installation,
+                client,
+                &selected.namespace,
+                &selected.installation,
             )
             .await?;
             println!(
                 "kimage {} removed; image resources and registry storage retained",
-                args.installation
+                selected.installation
             );
         }
         Command::Logs {
@@ -832,6 +980,21 @@ async fn main() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn existing_installation_commands_accept_discovery_opt_out_and_argo_acknowledgment() {
+        for args in [
+            vec!["kimage", "status", "--no-discovery"],
+            vec!["kimage", "doctor", "--no-discovery", "--json"],
+            vec!["kimage", "upgrade", "--to", "0.5.2", "--no-discovery"],
+            vec!["kimage", "rollback", "--to", "0.5.1", "--no-discovery"],
+            vec!["kimage", "uninstall", "--no-discovery", "--allow-argocd"],
+            vec!["kimage", "installations", "--namespace", "system", "--json"],
+        ] {
+            assert!(Cli::try_parse_from(args).is_ok());
+        }
+        assert!(Cli::try_parse_from(["kimage", "install", "--no-discovery"]).is_err());
+    }
 
     #[test]
     fn legacy_install_retains_explicit_bootstrap_inputs() {

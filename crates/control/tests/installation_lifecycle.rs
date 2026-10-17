@@ -198,28 +198,19 @@ async fn fixture() -> (kube::Client, Arc<Mutex<Store>>, tokio::task::JoinHandle<
 async fn recovering_workers_defer_capture_until_pod_and_service_endpoints_are_ready() {
     for ready in [false, true] {
         let (client, records, server) = fixture().await;
-        lifecycle::transition(
-            client.clone(),
-            "system",
-            "dev",
-            &catalog("0.5.0"),
-            false,
-            false,
-            None,
-        )
-        .await
-        .unwrap();
-        lifecycle::transition(
-            client.clone(),
-            "system",
-            "dev",
-            &catalog(env!("CARGO_PKG_VERSION")),
-            false,
-            false,
-            None,
-        )
-        .await
-        .unwrap();
+        for version in ["0.5.0", "0.5.1", env!("CARGO_PKG_VERSION")] {
+            lifecycle::transition(
+                client.clone(),
+                "system",
+                "dev",
+                &catalog(version),
+                false,
+                false,
+                None,
+            )
+            .await
+            .unwrap();
+        }
         let image: kimage_control::api::Image = serde_json::from_value(json!({
             "apiVersion":"kimage.dev/v1alpha1","kind":"Image",
             "metadata":{"name":"fresh","namespace":"apps","uid":"fresh-uid","generation":1},
@@ -554,28 +545,19 @@ async fn an_older_operator_can_ignore_a_completed_newer_journal_but_fences_unkno
 #[tokio::test]
 async fn node_replacement_revokes_new_builds_before_waiting_for_an_active_worker_lease() {
     let (client, store, server) = fixture().await;
-    lifecycle::transition(
-        client.clone(),
-        "system",
-        "dev",
-        &catalog("0.5.0"),
-        false,
-        false,
-        None,
-    )
-    .await
-    .unwrap();
-    lifecycle::transition(
-        client.clone(),
-        "system",
-        "dev",
-        &catalog(env!("CARGO_PKG_VERSION")),
-        false,
-        false,
-        None,
-    )
-    .await
-    .unwrap();
+    for version in ["0.5.0", "0.5.1", env!("CARGO_PKG_VERSION")] {
+        lifecycle::transition(
+            client.clone(),
+            "system",
+            "dev",
+            &catalog(version),
+            false,
+            false,
+            None,
+        )
+        .await
+        .unwrap();
+    }
     let mut second = node();
     second.metadata.name = Some("second".into());
     second.metadata.uid = Some("second-node-uid".into());
@@ -872,8 +854,8 @@ async fn patch_upgrade_interruption_resume_and_rollback_preserve_frozen_predeces
 #[tokio::test]
 async fn returning_argo_chart_uses_newer_pinned_helper_and_resumes_from_journal_source() {
     let (client, records, server) = fixture().await;
-    let future = catalog("0.5.2-argocd-test.0");
-    let target = catalog("0.5.1");
+    let future = catalog("0.5.3-argocd-test.0");
+    let target = catalog("0.5.2");
     let (mut installed, mut options, _) = lifecycle::state(client.clone(), "system", "dev")
         .await
         .unwrap();
@@ -1025,4 +1007,42 @@ async fn argo_runtime_removal_refuses_helpers_after_provisioner_disappears() {
         ));
     }
     server.abort();
+}
+
+#[tokio::test]
+async fn diagnostics_finish_the_healthy_installation_after_a_missing_one() {
+    let (client, store, server) = fixture().await;
+    let targets = [
+        kimage_control::discovery::Target {
+            namespace: "missing".into(),
+            installation: "absent".into(),
+        },
+        kimage_control::discovery::Target {
+            namespace: "system".into(),
+            installation: "dev".into(),
+        },
+    ];
+    let writes = store.lock().unwrap().writes;
+    for doctor in [false, true] {
+        let results =
+            kimage_control::diagnostics::inspect_many(client.clone(), &targets, doctor).await;
+        assert_eq!(results.len(), 2);
+        assert!(
+            results[0]["error"]
+                .as_str()
+                .unwrap()
+                .contains("InstallationNotFound")
+        );
+        assert!(results[1].get("error").is_none(), "{}", results[1]);
+        assert_eq!(results[1]["installation"], "dev");
+        assert_eq!(results[1]["release"], "0.4.1");
+        assert_eq!(store.lock().unwrap().writes, writes);
+    }
+    server.abort();
+}
+#[test]
+fn patch_release_declares_only_the_adjacent_new_compatible_edge() {
+    lifecycle::compatible(&catalog("0.5.1"), &catalog("0.5.2")).unwrap();
+    lifecycle::compatible(&catalog("0.5.2"), &catalog("0.5.1")).unwrap();
+    assert!(lifecycle::compatible(&catalog("0.5.0"), &catalog("0.5.2")).is_err());
 }

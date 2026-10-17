@@ -124,8 +124,20 @@ pub(crate) fn owned(map: &ConfigMap, id: &str) -> Result<()> {
 }
 pub async fn state(client: Client, ns: &str, id: &str) -> Result<(ConfigMap, Options, String)> {
     let maps: Api<ConfigMap> = Api::namespaced(client, ns);
-    let map = maps.get(&format!("{id}-installation")).await?;
-    owned(&map, id)?;
+    let map = maps
+        .get_opt(&format!("{id}-installation"))
+        .await?
+        .ok_or_else(|| {
+            crate::discovery::not_found(&crate::discovery::Target {
+                namespace: ns.into(),
+                installation: id.into(),
+            })
+        })?;
+    let (options, release) = decode_state(&map, ns, id)?;
+    Ok((map, options, release))
+}
+pub(crate) fn decode_state(map: &ConfigMap, ns: &str, id: &str) -> Result<(Options, String)> {
+    owned(map, id)?;
     let value: Value = serde_json::from_str(
         map.data
             .as_ref()
@@ -146,7 +158,7 @@ pub async fn state(client: Client, ns: &str, id: &str) -> Result<(ConfigMap, Opt
         .as_str()
         .context("MissingInstalledRelease")?
         .to_owned();
-    Ok((map, options, release))
+    Ok((options, release))
 }
 pub async fn journal(client: Client, ns: &str, id: &str) -> Result<Option<Journal>> {
     let maps: Api<ConfigMap> = Api::namespaced(client, ns);
