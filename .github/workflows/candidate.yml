@@ -61,6 +61,7 @@ jobs:
           subprocess.run(['git','diff','--exit-code',source,os.environ['EXPECTED_SHA'],'--','Cargo.toml','Cargo.lock','crates','charts','scripts','tests','.cargo','rust-toolchain.toml','LICENSE','.github/workflows/e2e.yml'],check=True)
           assert metadata['head_repository']['full_name']=='inferal-oss/kimage'
           assert metadata['path']=='.github/workflows/e2e.yml' and metadata['status']=='completed' and metadata['conclusion']=='success'
+          assert metadata['event'] in ['push','workflow_dispatch'] and metadata['head_branch']=='main'
           jobs=json.loads(subprocess.check_output(['gh','api',f'repos/inferal-oss/kimage/actions/runs/{run}/jobs?per_page=100']))['jobs']
           cases=[j for j in jobs if j['name'].endswith(' install')]
           assert len(cases)==8 and all(j['conclusion']=='success' for j in cases)

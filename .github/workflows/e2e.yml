@@ -237,7 +237,7 @@ jobs:
           printf '%s\n' "$GITHUB_WORKSPACE/.local/e2e/helm-diagnostics/bin" >> "$GITHUB_PATH"
       - name: Exercise published predecessor upgrades, interruptions and rollback
         env:
-          KIMAGE_DIAGNOSTIC_STRESS: ${{ inputs.diagnostic_stress && 'true' || 'false' }}
+          KIMAGE_DIAGNOSTIC_STRESS: ${{ (github.event_name != 'pull_request' || inputs.diagnostic_stress) && 'true' || 'false' }}
         run: |
           python3 - <<'PYCONFIG'
           import glob,json,os,subprocess
