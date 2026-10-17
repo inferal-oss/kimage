@@ -11,11 +11,13 @@ commits and original release attribution. Uncommitted work is marked explicitly.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-17
+
 ### Added
 
 - A dedicated, rendered website changelog linked from the top navigation, regenerated from these notes on every GitHub Pages build. Commits: [9c1636e](https://github.com/inferal-oss/kimage/commit/9c1636e6863bab0a018e1745bab407ecab39dcb6).
 
-- Frozen OCI base and toolchain image inputs for multi-stage Containerfiles. Named inputs select exact, already published same-namespace Image versions; native builds use their verified retained bytes without registry access from BuildKit. Implementation pending commit.
+- Frozen OCI base and toolchain image inputs for multi-stage Containerfiles. Named inputs select exact, already published same-namespace Image versions; native builds use their verified retained bytes without registry access from BuildKit. Commits: [83abe62](https://github.com/inferal-oss/kimage/commit/83abe62796e057da7c32665d40141d44c685acbb).
 
 ### Changed
 
@@ -23,9 +25,11 @@ commits and original release attribution. Uncommitted work is marked explicitly.
 
 - Historical changelog entries now link to implementing commits, with complete release commit lists and support for associated pull request links. Repository instructions require this traceability for future changes. Commits: [9c1636e](https://github.com/inferal-oss/kimage/commit/9c1636e6863bab0a018e1745bab407ecab39dcb6).
 
-**Commits:** [fc2664a](https://github.com/inferal-oss/kimage/commit/fc2664af53be0822adb7882e1fcea6672df27a49), [7615d86](https://github.com/inferal-oss/kimage/commit/7615d862a0b0c1aa249d777a9bd32c1b878b0bf7), [9c1636e](https://github.com/inferal-oss/kimage/commit/9c1636e6863bab0a018e1745bab407ecab39dcb6).
 
-- The guarded 0.5.2 to 0.6.0 upgrade adds shared CRD revision 6 without changing registry storage or serving protocol. Rollback to 0.5.2 is refused because it cannot read the new fields; earlier same-schema edges remain supported. Implementation pending commit.
+
+- The guarded 0.5.2 to 0.6.0 upgrade adds shared CRD revision 6 without changing registry storage or serving protocol. Rollback to 0.5.2 is refused because it cannot read the new fields; earlier same-schema edges remain supported. Commits: [83abe62](https://github.com/inferal-oss/kimage/commit/83abe62796e057da7c32665d40141d44c685acbb).
+
+**Commits:** [fc2664a](https://github.com/inferal-oss/kimage/commit/fc2664af53be0822adb7882e1fcea6672df27a49), [7615d86](https://github.com/inferal-oss/kimage/commit/7615d862a0b0c1aa249d777a9bd32c1b878b0bf7), [9c1636e](https://github.com/inferal-oss/kimage/commit/9c1636e6863bab0a018e1745bab407ecab39dcb6), [a223345](https://github.com/inferal-oss/kimage/commit/a223345ec8200feb4ebc43b1a60d2830c334a0c9), [83abe62](https://github.com/inferal-oss/kimage/commit/83abe62796e057da7c32665d40141d44c685acbb).
 
 
 ## [0.5.2] - 2026-10-17
@@ -290,7 +294,8 @@ images and provisioned local inputs. See the
 
 **Commits:** [5ca2d3b](https://github.com/inferal-oss/kimage/commit/5ca2d3b557e8d48786dc895ce7f1d8f56b9f9fb8), [d5ad7cb](https://github.com/inferal-oss/kimage/commit/d5ad7cb2e36ea9c030efa3d55bc3a84db40eee9d), [a048539](https://github.com/inferal-oss/kimage/commit/a048539ea52b915110966f9d298314d32dfbdd0b), [6d4121e](https://github.com/inferal-oss/kimage/commit/6d4121eaa78cbc3efe6350dd8f125704ece8b992), [d6dc671](https://github.com/inferal-oss/kimage/commit/d6dc6716ae445c20da9f9d3f2d72af67f3c99253), [a2b618a](https://github.com/inferal-oss/kimage/commit/a2b618a81fd4089faad0a3347b5ecf245c8f0604), [caec4d9](https://github.com/inferal-oss/kimage/commit/caec4d9993a92fc36943b2e94760480c85aa1b95), [6e2f9df](https://github.com/inferal-oss/kimage/commit/6e2f9df6dc262831bffb80f5259d10db3fca16b3), [6d6106e](https://github.com/inferal-oss/kimage/commit/6d6106e50ca1893e2f0cfa91537c8a2a5ad61fac).
 
-[Unreleased]: https://github.com/inferal-oss/kimage/compare/v0.5.2...HEAD
+[Unreleased]: https://github.com/inferal-oss/kimage/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/inferal-oss/kimage/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/inferal-oss/kimage/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/inferal-oss/kimage/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/inferal-oss/kimage/compare/v0.4.1...v0.5.0

@@ -53,6 +53,7 @@
           <nav aria-label="Release history">
             <p class="eyebrow">RELEASE HISTORY</p>
 <a href="#unreleased"><span>Unreleased</span><span>Up next</span></a>
+<a href="#v0.6.0"><span>v0.6.0</span><span>2026-10-17</span></a>
 <a href="#v0.5.2"><span>v0.5.2</span><span>2026-10-17</span></a>
 <a href="#v0.5.1"><span>v0.5.1</span><span>2026-10-16</span></a>
 <a href="#v0.5.0"><span>v0.5.0</span><span>2026-10-16</span></a>
@@ -69,12 +70,17 @@
         <div class="release-feed">
 <article id="unreleased" class="release unreleased">
 <header class="release-heading"><div><h2>Unreleased</h2><span class="release-date">In development</span></div><span class="release-badge pending-badge">UP NEXT</span></header>
-<details class="pending-changes"><summary>5 upcoming changes</summary><div class="release-body"><h3 class="category category-added">Added</h3>
+<details class="pending-changes"><summary>0 upcoming changes</summary><div class="release-body"></div></details>
+<a class="release-compare" href="https://github.com/inferal-oss/kimage/compare/v0.6.0...HEAD">View pending changes <span aria-hidden="true">↗</span></a>
+</article>
+<article id="v0.6.0" class="release">
+<header class="release-heading"><div><h2>v0.6.0</h2><time class="release-date" datetime="2026-10-17">October 17, 2026</time></div><span class="release-badge">LATEST RELEASE</span></header>
+<div class="release-body"><h3 class="category category-added">Added</h3>
 <ul>
 <li>A dedicated, rendered website changelog linked from the top navigation, regenerated from these notes on every GitHub Pages build. Commits: <a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/9c1636e6863bab0a018e1745bab407ecab39dcb6">9c1636e</a>.</li>
 </ul>
 <ul>
-<li>Frozen OCI base and toolchain image inputs for multi-stage Containerfiles. Named inputs select exact, already published same-namespace Image versions; native builds use their verified retained bytes without registry access from BuildKit. Implementation pending commit.</li>
+<li>Frozen OCI base and toolchain image inputs for multi-stage Containerfiles. Named inputs select exact, already published same-namespace Image versions; native builds use their verified retained bytes without registry access from BuildKit. Commits: <a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/83abe62796e057da7c32665d40141d44c685acbb">83abe62</a>.</li>
 </ul>
 <h3 class="category category-changed">Changed</h3>
 <ul>
@@ -83,14 +89,14 @@
 <ul>
 <li>Historical changelog entries now link to implementing commits, with complete release commit lists and support for associated pull request links. Repository instructions require this traceability for future changes. Commits: <a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/9c1636e6863bab0a018e1745bab407ecab39dcb6">9c1636e</a>.</li>
 </ul>
-<details class="release-sources"><summary>Commits</summary><p><a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/fc2664af53be0822adb7882e1fcea6672df27a49">fc2664a</a>, <a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/7615d862a0b0c1aa249d777a9bd32c1b878b0bf7">7615d86</a>, <a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/9c1636e6863bab0a018e1745bab407ecab39dcb6">9c1636e</a>.</p></details>
 <ul>
-<li>The guarded 0.5.2 to 0.6.0 upgrade adds shared CRD revision 6 without changing registry storage or serving protocol. Rollback to 0.5.2 is refused because it cannot read the new fields; earlier same-schema edges remain supported. Implementation pending commit.</li>
-</ul></div></details>
-<a class="release-compare" href="https://github.com/inferal-oss/kimage/compare/v0.5.2...HEAD">View pending changes <span aria-hidden="true">↗</span></a>
+<li>The guarded 0.5.2 to 0.6.0 upgrade adds shared CRD revision 6 without changing registry storage or serving protocol. Rollback to 0.5.2 is refused because it cannot read the new fields; earlier same-schema edges remain supported. Commits: <a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/83abe62796e057da7c32665d40141d44c685acbb">83abe62</a>.</li>
+</ul>
+<details class="release-sources"><summary>Commits</summary><p><a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/fc2664af53be0822adb7882e1fcea6672df27a49">fc2664a</a>, <a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/7615d862a0b0c1aa249d777a9bd32c1b878b0bf7">7615d86</a>, <a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/9c1636e6863bab0a018e1745bab407ecab39dcb6">9c1636e</a>, <a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/a223345ec8200feb4ebc43b1a60d2830c334a0c9">a223345</a>, <a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/83abe62796e057da7c32665d40141d44c685acbb">83abe62</a>.</p></details></div>
+<a class="release-compare" href="https://github.com/inferal-oss/kimage/compare/v0.5.2...v0.6.0">View release changes <span aria-hidden="true">↗</span></a>
 </article>
 <article id="v0.5.2" class="release">
-<header class="release-heading"><div><h2>v0.5.2</h2><time class="release-date" datetime="2026-10-17">October 17, 2026</time></div><span class="release-badge">LATEST RELEASE</span></header>
+<header class="release-heading"><div><h2>v0.5.2</h2><time class="release-date" datetime="2026-10-17">October 17, 2026</time></div></header>
 <div class="release-body"><h3 class="category category-added">Added</h3>
 <ul>
 <li><code>kimage installations</code> lists installation identities, namespaces, managers, releases and scope, with namespace filtering and JSON output. Commits: <a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/648484a503a0e90a685ba9e2a5e4dafd1a82e248">648484a</a>.</li>
