@@ -13,15 +13,15 @@ commits and original release attribution. Uncommitted work is marked explicitly.
 
 ### Added
 
-- A dedicated, rendered website changelog linked from the top navigation, regenerated from these notes on every GitHub Pages build. Implementation pending commit.
+- A dedicated, rendered website changelog linked from the top navigation, regenerated from these notes on every GitHub Pages build. Commits: [9c1636e](https://github.com/inferal-oss/kimage/commit/9c1636e6863bab0a018e1745bab407ecab39dcb6).
 
 ### Changed
 
 - Website footers now credit Inferal as sponsor, with its chevron logo and a link to inferal.com. Commits: [7615d86](https://github.com/inferal-oss/kimage/commit/7615d862a0b0c1aa249d777a9bd32c1b878b0bf7).
 
-- Historical changelog entries now link to implementing commits, with complete release commit lists and support for associated pull request links. Repository instructions require this traceability for future changes. Implementation pending commit.
+- Historical changelog entries now link to implementing commits, with complete release commit lists and support for associated pull request links. Repository instructions require this traceability for future changes. Commits: [9c1636e](https://github.com/inferal-oss/kimage/commit/9c1636e6863bab0a018e1745bab407ecab39dcb6).
 
-**Commits:** [fc2664a](https://github.com/inferal-oss/kimage/commit/fc2664af53be0822adb7882e1fcea6672df27a49), [7615d86](https://github.com/inferal-oss/kimage/commit/7615d862a0b0c1aa249d777a9bd32c1b878b0bf7).
+**Commits:** [fc2664a](https://github.com/inferal-oss/kimage/commit/fc2664af53be0822adb7882e1fcea6672df27a49), [7615d86](https://github.com/inferal-oss/kimage/commit/7615d862a0b0c1aa249d777a9bd32c1b878b0bf7), [9c1636e](https://github.com/inferal-oss/kimage/commit/9c1636e6863bab0a018e1745bab407ecab39dcb6).
 
 ## [0.5.2] - 2026-10-17
 
