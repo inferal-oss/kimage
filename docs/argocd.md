@@ -133,6 +133,13 @@ its chart or runtime. CLI/Helm installations retain their tested 0.5.0 to 0.5.1
 transition and reverse path. A first Argo CD release cannot demonstrate a round
 trip to a previous Argo CD release that does not exist.
 
+For a future rollback, keep the newer chart/provisioner and select the previously
+verified runtime catalog with `gitops.targetCatalog`. An older provisioner cannot
+know a transition edge introduced after it was published, so merely decreasing
+`targetRevision` is not a general rollback procedure. Keep the previous catalog
+with your release configuration and follow the exact release's compatibility
+instructions, just as CLI rollback keeps the newer CLI.
+
 An optional administrator-trusted `gitops.targetCatalog` can select a supported
 runtime while retaining the chart's provisioner. It is a complete verified
 component catalog, not a `latest` tag. Unknown releases, incompatible pins and

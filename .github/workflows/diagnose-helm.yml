@@ -24,7 +24,7 @@ jobs:
   diagnose:
     name: ${{ matrix.architecture }} / ${{ matrix.scope }} / ${{ matrix.mode }} lifecycle
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 50
     strategy:
       fail-fast: false
       matrix:
@@ -112,6 +112,20 @@ jobs:
           Path('.local/e2e/config.json').write_text(json.dumps(config))
           PY
           python3 scripts/e2e-upgrade.py --run --config .local/e2e/config.json
+      - name: Install disposable Argo CD controller
+        if: matrix.mode == 'cli'
+        run: python3 scripts/prepare-argocd-fixture.py
+      - name: Exercise real Argo CD sync, recovery and retention
+        if: matrix.mode == 'cli'
+        run: |
+          python3 - <<'PYCONFIG'
+          import json,os,subprocess
+          from pathlib import Path
+          context=subprocess.check_output(['k3s','kubectl','config','current-context'],text=True).strip()
+          config=dict(kubeconfig=os.environ['KUBECONFIG'],context=context,namespace='kimage-argo-app',systemNamespace='kimage-argo-system',installation='kimageargo',probes=str(Path('.local/e2e/probes').resolve()),output=str(Path('.local/e2e/argocd-results').resolve()),catalog=os.environ['KIMAGE_E2E_IMAGE_CATALOG'],installer=str(Path('.local/e2e/kimage-install').resolve()),scope='${{ matrix.scope }}',port=17703,registryNode='kimage-e2e',runtimeProfile='k3s',sourceRevision='${{ github.sha }}',kubectlCommand=['k3s','kubectl'])
+          Path('.local/e2e/argocd-config.json').write_text(json.dumps(config))
+          PYCONFIG
+          python3 scripts/e2e-argocd.py --run --config .local/e2e/argocd-config.json
       - name: Upload sanitized receipts and encrypted failures
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
@@ -120,6 +134,8 @@ jobs:
           path: |
             .local/e2e/lifecycle/results.json
             .local/e2e/results/results.json
+            .local/e2e/argocd-results/results.json
+            .local/e2e/argocd-results/builds/results.json
             .local/e2e/helm-diagnostics/output/*.p7m
           if-no-files-found: warn
           retention-days: 3

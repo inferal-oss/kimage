@@ -52,7 +52,7 @@ class Upgrade:
         require(self.version=='0.5.1','Test requires an exact 0.5.1 catalog')
         verified=json.loads((self.previous/'verified.json').read_bytes())
         self.source=verified['release']
-        require(self.source==self.version,'Published predecessor verification is required')
+        require(self.source=='0.5.0','Published predecessor verification is required')
         self.previous_binary=next(self.previous.glob('kimage-v'+self.source+'-*'))
         for asset in verified['assets']:
             data=(self.previous/asset['name']).read_bytes()

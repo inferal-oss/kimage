@@ -432,6 +432,8 @@ kimage doctor
 
 Interrupted provisioning retries automatically. Compatible version changes use the lifecycle Lease, exact-target journal and retained-identity checks. Keep the desired target unchanged while an operation is pending. Pin an exact chart version; a future release must declare and test the transition. Argo CD ownership starts at 0.5.1, so the 0.5.0 chart and runtime are not Argo CD rollback targets. Existing CLI/Helm installations are not adopted automatically. Their tested 0.5.0 to 0.5.1 transition and rollback remain supported.
 
+For future rollback, retain the newer chart/provisioner and select a previously verified runtime catalog with `gitops.targetCatalog`. An older provisioner cannot know a later release's transition contract. Decreasing `targetRevision` alone is not a general rollback procedure; follow the exact release's compatibility instructions.
+
 ### Deletion and retained data
 
 Application deletion or pruning removes the provisioner and desired-state resources, leaving the runtime, registry PVC, Images, ImageReleases and shared CRDs. Runtime objects do not inherit Argo CD tracking or ownership from the provisioner. Recreating the same Application resumes with the same credentials and data.

@@ -435,7 +435,11 @@ Secrets in the system namespace. Empty buildPolicy/null nodePolicy preserve admi
 edits; explicit values manage them declaratively. Do not change scope/storage
 identity in place or edit manager annotations to adopt CLI/Helm installations.
 Argo CD ownership starts at 0.5.1; 0.5.0 cannot be an Argo CD rollback target.
-Supported future targets use guarded resumable transitions. Application deletion
+Supported future targets use guarded resumable transitions. For rollback, keep
+the newer chart/provisioner and select the recorded previous runtime through
+`gitops.targetCatalog`; an older provisioner cannot know future compatibility
+edges. Decreasing targetRevision alone is not a general rollback procedure.
+Application deletion
 removes desired-state control but leaves runtime and data. For runtime removal,
 first delete the Application and wait for its provisioner Deployment to disappear,
 then run `kimage uninstall`; retained PVC, Images, releases and CRDs survive.
