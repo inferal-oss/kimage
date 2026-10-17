@@ -23,6 +23,13 @@ image_assertions=importlib.util.module_from_spec(spec);spec.loader.exec_module(i
 def require(value,message):
     if not value:raise RuntimeError(message)
 
+def unsupported_catalog(catalog):
+    target=copy.deepcopy(catalog)
+    target['release']='99.0.0'
+    require(target['release']!=catalog['release'],'Unsupported fixture must differ from the installed release')
+    for role in ['operator','admission','input','exporter']:target['components'][role]['version']=target['release']
+    return target
+
 class Argo:
     def __init__(self,config):
         required={'kubeconfig','context','namespace','systemNamespace','installation','probes','output','catalog','installer','scope','port','registryNode','runtimeProfile'}
@@ -331,8 +338,7 @@ class Argo:
             self.check('fresh unknown and explicit placement cases build and execute only requested native platforms')
             if self.config.get('nextCatalog'):self.version_roundtrip()
             identity=self.fingerprint()
-            bad=copy.deepcopy(self.catalog);bad['release']='0.6.0'
-            for role in ['operator','admission','input','exporter']:bad['components'][role]['version']='0.6.0'
+            bad=unsupported_catalog(self.catalog)
             self.desired(dict(gitops=dict(enabled=True,targetCatalog=bad)))
             self.api.wait(self.refused_target,'unsupported target was observed, refused and remains unready')
             require(self.fingerprint()==identity,'Unsupported transition changed installation')

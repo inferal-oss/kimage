@@ -11,6 +11,10 @@ commits and original release attribution. Uncommitted work is marked explicitly.
 
 ## [Unreleased]
 
+### Fixed
+
+- Argo acceptance uses an undeclared future target for its refusal check, so releasing 0.6.0 cannot turn the negative case into a valid same-version request. Implementation pending commit.
+
 ## [0.6.0] - 2026-10-17
 
 ### Added
