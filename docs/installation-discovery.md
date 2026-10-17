@@ -64,6 +64,10 @@ no matches is an empty list. Diagnostic commands with no matching installation
 exit nonzero with context and installation guidance. JSON stdout contains no
 progress or selection messages.
 
+For Argo-managed upgrades and downgrades, edit the Application's `targetRevision`
+in Git. CLI upgrade/rollback refuse runtime changes under Argo ownership;
+`--check` remains available for read-only compatibility checks.
+
 ## Argo CD removal
 
 An Argo-managed installation requires explicit acknowledgment before CLI uninstall:

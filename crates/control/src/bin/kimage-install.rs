@@ -530,6 +530,24 @@ async fn main() -> Result<()> {
             let selected = kimage_control::discovery::single(
                 args.installation.targets(client.clone()).await?,
             )?;
+            if !args.check {
+                use kube::ResourceExt;
+                let (state, _, _) = kimage_control::lifecycle::state(
+                    client.clone(),
+                    &selected.namespace,
+                    &selected.installation,
+                )
+                .await?;
+                anyhow::ensure!(
+                    state
+                        .annotations()
+                        .get("kimage.dev/manager")
+                        .is_none_or(|m| m != "argocd"),
+                    "ArgoCDManagedInstallation: '{}' in '{}' is managed by Argo CD. Change the Application's targetRevision in Git for upgrades or downgrades. Use --check for a read-only compatibility check.",
+                    selected.installation,
+                    selected.namespace
+                );
+            }
             eprintln!(
                 "Selected installation {} in {}",
                 selected.installation, selected.namespace

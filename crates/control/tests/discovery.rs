@@ -299,6 +299,23 @@ async fn cli_checks_every_discovered_installation_and_guards_mutations() {
         assert!(!output.status.success());
         assert!(String::from_utf8_lossy(&output.stderr).contains("MultipleInstallationsFound"));
     }
+    for command in ["upgrade", "rollback"] {
+        let output = std::process::Command::new(env!("CARGO_BIN_EXE_kimage"))
+            .args([
+                command,
+                "--to",
+                "0.5.2",
+                "--namespace",
+                "b-system",
+                "--installation",
+                "two",
+            ])
+            .env("KUBECONFIG", &config)
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("targetRevision"));
+    }
     let output = std::process::Command::new(env!("CARGO_BIN_EXE_kimage"))
         .args([
             "uninstall",

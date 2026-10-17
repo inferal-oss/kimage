@@ -463,6 +463,8 @@ Single status/doctor JSON keeps the existing object. Several results use `{"sche
 
 ### Guarded version transitions
 
+For Argo-managed upgrades and downgrades, change the Application's `targetRevision` in Git. CLI upgrade/rollback refuse direct runtime changes under Argo ownership; `--check` remains available for read-only compatibility checks.
+
 Install the new CLI first; this changes no cluster components. The supported release edge is **0.5.1 to 0.5.2 and back**. Use the same guarded commands for CLI and Helm installations:
 
 ```

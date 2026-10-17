@@ -13,6 +13,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 - `kimage installations` lists installation identities, namespaces, managers, releases and scope, with namespace filtering and JSON output.
 - Status and doctor automatically discover installations when the default is absent and inspect every match, continuing after individual failures. Upgrade, rollback and uninstall discover a single target or list explicit choices when several match. `--no-discovery` disables fallback; explicit selectors constrain it.
+- CLI upgrade and rollback direct Argo-managed installations to their Application in Git; read-only compatibility checks remain available.
 - Argo CD runtime uninstall requires terminal confirmation or `--allow-argocd`, while retaining active-provisioner, lifecycle and data protections.
 
 ### Fixed

@@ -845,6 +845,7 @@ kimage installations --namespace kimage-gitops-system --json</code></pre>
 <p>Use <code>--namespace SYSTEM</code> or <code>--installation NAME</code> to constrain discovery; both flags select an exact identity. Add <code>--no-discovery</code> to require the selected/default target without searching. Cluster discovery requires ConfigMap list access across namespaces; namespace-only search needs list access there. Exact selection avoids cluster listing. Install keeps its creation defaults; logs/builds select an Image in an application namespace.</p>
 <p>Single status/doctor JSON keeps the existing object. Several results use <code>{"schema":1,"healthy":false,"installations":[...]}</code>, with aggregate health and an identity and error for each failed inspection. Doctor exits nonzero if any installation needs attention; status exits nonzero if an inspection fails. <code>installations --json</code> always returns an installations array, which can be empty.</p>
 <h3>Guarded version transitions</h3>
+<p>For Argo-managed upgrades and downgrades, change the Application's <code>targetRevision</code> in Git. CLI upgrade/rollback refuse direct runtime changes under Argo ownership; <code>--check</code> remains available for read-only compatibility checks.</p>
 <p>Install the new CLI first; this changes no cluster components. The supported release edge is <strong>0.5.1 to 0.5.2 and back</strong>. Use the same guarded commands for CLI and Helm installations:</p>
 <pre><code>kimage upgrade --to 0.5.2 --check
 kimage upgrade --to 0.5.2
