@@ -7,6 +7,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+### Changed
+
+- Website footers now credit Inferal as sponsor, with its chevron logo and a link to inferal.com.
+
 ## [0.5.2] - 2026-10-17
 
 ### Added

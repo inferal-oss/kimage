@@ -748,9 +748,22 @@ h3 {
   font-size: 10px;
   color: #7c8875;
 }
-.footer > span a {
-  text-decoration: underline;
-  text-underline-offset: 3px;
+.footer .sponsor {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.footer .sponsor a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.footer .sponsor img {
+  display: block;
+  flex-shrink: 0;
 }
 .footer > div {
   display: flex;
