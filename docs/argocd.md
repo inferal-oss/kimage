@@ -139,6 +139,16 @@ helper resumes the recorded operation; keep its desired version unchanged until
 completion. Helper Jobs use the provisioner service account, contain no private
 material, and are removed automatically after completion or Application removal.
 Unsupported transitions are refused before changing runtime components.
+If the returning provisioner reports `GitOpsTransitionPending`, inspect the
+helper's bounded reason codes:
+
+```sh
+kubectl -n kimage-system get jobs -l kimage.dev/gitops-transition=kimage
+kubectl -n kimage-system logs job/JOB_NAME
+```
+
+Use the returned Job name. Do not delete the lifecycle Lease or journal to force
+a transition.
 
 The first Argo CD release is 0.5.1. Version 0.5.0 has no Argo CD ownership support
 and cannot be an Argo CD rollback target. CLI/Helm installations retain their
@@ -176,3 +186,6 @@ Uninstall refuses while the provisioner is active, preventing a reconciliation
 race. It still preserves the registry PVC, Images, ImageReleases and shared CRDs.
 Do not delete the system namespace or retained resources unless you deliberately
 intend to discard that installation's data.
+
+For explicit existing-cluster testing and version-transition fixtures, see
+[Argo CD acceptance](argocd-e2e.md).
