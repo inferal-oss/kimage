@@ -34,9 +34,9 @@ The crate includes the operator, admission server, helpers and serving tools.
 Gateway/proxy retain serving protocol version 0.3.0 independently of Cargo's
 package version. The crate named `kimage` is a separate project.
 
-For an existing 0.5.1 installation, update this CLI, then run
-`kimage upgrade --to 0.6.0 --check` and `kimage upgrade --to 0.6.0`.
-`kimage rollback --to 0.5.1` performs the compatible reverse transition. Both
+For an existing 0.6.0 installation, update this CLI, then run
+`kimage upgrade --to 0.6.1 --check` and `kimage upgrade --to 0.6.1`.
+`kimage rollback --to 0.6.0 --check` verifies the compatible reverse transition; repeat without `--check` to apply it. The exact schema-6 definition and supported Image requirements are prerequisites. Both
 managers preserve their ownership, registry storage and release metadata.
 Older installations must pass through their supported adjacent releases.
 `kimage installations` finds installations. Status and doctor discover all matches when the default is absent; upgrade, rollback and uninstall require one unambiguous target. Use `--no-discovery` to disable fallback. Argo uninstall requires terminal confirmation or `--allow-argocd`, after removing its Application.

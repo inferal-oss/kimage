@@ -36,7 +36,7 @@ preloaded kimage component. A default StorageClass is used unless overridden.
 Install Rust 1.99.0 or newer, then:
 
 ```sh
-cargo install kimage-control --version 0.6.0 --locked --bin kimage --bin kimage-install
+cargo install kimage-control --version 0.6.1 --locked --bin kimage --bin kimage-install
 kimage install --application-namespace apps
 ```
 
@@ -87,7 +87,7 @@ The chart repository is hosted alongside the website:
 helm repo add kimage https://kimage.dev/charts
 helm repo update
 kubectl create namespace apps
-helm install kimage kimage/kimage --version 0.6.0 \
+helm install kimage kimage/kimage --version 0.6.1 \
   --namespace kimage-system --create-namespace \
   --set applicationNamespace=apps --wait --wait-for-jobs
 ```
@@ -191,14 +191,16 @@ and doctor check all matches; changes require one unambiguous selection. Add
 
 ## Upgrades, rollback and removal
 
+0.6.1 retains the exact schema revision 6 definitions from 0.6.0. Return to 0.6.0 is supported while no unsupported Image requirements or newer schema are present. Use `kimage rollback --to 0.6.0 --check`, then repeat without `--check`. Future additive schemas can remain after returning to a prepared reader from 0.6.1 onward; unsupported builds pause while published roots remain usable. See [compatibility](compatibility.md).
+
 0.6.0 adds shared schema revision 6 through a guarded additive update. 0.5.2 cannot read its new fields, so returning to it is refused before changing runtime or data. Coordinate all installations in a cluster; older controllers cannot start against revision 6. Registry storage is unchanged. See [frozen OCI inputs](image-inputs.md#upgrade-boundary).
 
 Install the new CLI first. Updating the Cargo package does not change cluster
-components. The current supported release edge is **0.5.2 to 0.6.0**:
+components. The current supported release edge is **0.6.0 to 0.6.1**, with a compatible reverse transition:
 
 ```sh
-kimage upgrade --to 0.6.0 --check
-kimage upgrade --to 0.6.0
+kimage upgrade --to 0.6.1 --check
+kimage upgrade --to 0.6.1
 kimage status --json
 kimage doctor --json
 ```

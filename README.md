@@ -188,16 +188,16 @@ cargo install kimage-control --version 0.6.1 --locked --bin kimage --bin kimage-
 kimage install --application-namespace apps
 ```
 
-For an existing 0.5.2 installation, update the CLI, then use the guarded release
+For an existing 0.6.0 installation, update the CLI, then use the guarded release
 transition. Helm installations keep their Helm ownership and history:
 
 ```sh
-kimage upgrade --to 0.6.0 --check
-kimage upgrade --to 0.6.0
+kimage upgrade --to 0.6.1 --check
+kimage upgrade --to 0.6.1
 kimage doctor
 ```
 
-0.6.0 adds shared schema revision 6. Rollback to 0.5.2 is refused because it cannot read the new fields; retained data and shared CRDs are never downgraded. Coordinate upgrades across installations in the same cluster.
+0.6.1 keeps schema revision 6 and supports returning to 0.6.0 before unsupported features or newer schemas are used. Use `kimage rollback --to 0.6.0 --check` first, then repeat without `--check`. The earlier 0.5.2 to 0.6.0 boundary remains one way. See [compatibility](docs/compatibility.md) for future additive schemas and capability fencing.
 
 An interrupted operation resumes with the same command. Running application
 containers continue; builds, admission and new uncached pulls can pause while
@@ -444,8 +444,8 @@ access are outside its current scope. External exports support verified HTTPS
 with Basic authentication or explicit anonymous access; Bearer/token-helper
 authentication is not implemented.
 
-Whole-installation upgrades support **0.5.2 → 0.6.0** through the guarded CLI,
-including Helm installations. The schema-6 boundary refuses rollback to 0.5.2; earlier same-schema edges remain supported. Argo CD chart-version transitions start at 0.5.1
+Whole-installation upgrades support **0.6.0 ↔ 0.6.1** through the 0.6.1 guarded CLI,
+including Helm installations, with compatibility preflight. Future additive schemas can remain installed when returning to a prepared reader. The earlier schema-6 boundary still refuses rollback to 0.5.2; earlier same-schema edges remain supported. Argo CD chart-version transitions start at 0.5.1
 and require an explicitly supported compatibility edge. The earlier serving-only acceptance covered Distribution **3.1.1 ↔ 3.1.2** and
 gateway/proxy **0.1.0 / 0.2.0 / 0.3.0** (cluster scope requires 0.3.0) with the documented filesystem storage profile.
 High availability, arbitrary storage/schema migrations, hostile-tenant isolation,

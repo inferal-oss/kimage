@@ -31,7 +31,7 @@ kimage install --application-namespace apps
 
 With no flags, `kimage install` manages the current kubeconfig namespace, uses `kimage-system` for components, a 1Gi retained PVC and the cluster's default StorageClass. It discovers native workers, generates credentials and waits for authenticated readiness. Use administrator kubeconfig and the [supported runtime](https://kimage.dev/docs/#compatibility). For the tested K3s profile, add `--runtime-profile k3s`.
 
-Server binaries are also available from `kimage-control` if needed. Gateway and proxy retain serving protocol version 0.3.0 independently of package version 0.6.0.
+Server binaries are also available from `kimage-control` if needed. Gateway and proxy retain serving protocol version 0.3.0 independently of package version 0.6.1.
 
 ## Release images and mirrors
 
@@ -43,7 +43,7 @@ GHCR supplies kimage's components. The included cluster-local registry still ret
 
 | Option | Purpose |
 | --- | --- |
-| `--release 0.6.0` | Exact official release; defaults to the CLI package version. |
+| `--release 0.6.1` | Exact official release; defaults to the CLI package version. |
 | `--image-catalog <path>` | Explicit administrator-trusted local catalog, including a registry mirror. |
 | `images.repository` | Helm registry mirror override; retain all published digest pins. |
 
@@ -459,7 +459,7 @@ kimage status
 kimage doctor
 ```
 
-Interrupted provisioning retries automatically. Compatible version changes use the lifecycle Lease, exact-target journal and retained-identity checks. Keep the desired target unchanged while an operation is pending. Pin an exact chart version; a future release must declare and test the transition. Argo CD ownership starts at 0.5.1, so the 0.5.0 chart and runtime are not Argo CD rollback targets. Existing CLI/Helm installations are not adopted automatically. The current edge is 0.5.2 to 0.6.0, one way across shared schema revision 6. Older controllers cannot start against revision 6; coordinate all installations. Rollback to 0.5.2 is refused before mutation. Earlier tested same-schema edges remain supported.
+Interrupted provisioning retries automatically. Compatible version changes use the lifecycle Lease, exact-target journal and retained-identity checks. Keep the desired target unchanged while an operation is pending. Pin an exact chart version; a future release must declare and test the transition. Argo CD ownership starts at 0.5.1, so the 0.5.0 chart and runtime are not Argo CD rollback targets. Existing CLI/Helm installations are not adopted automatically. The current edge is 0.6.0 to 0.6.1, with a compatible reverse transition while the exact schema-6 definition and supported Image requirements remain in use. Change the pinned chart version in Git. Future additive schemas can remain after returning to a prepared reader. The earlier 0.5.2 to 0.6.0 boundary remains one way.
 
 From 0.5.1, change the exact `targetRevision` for compatible upgrades or downgrades. The returning older provisioner automatically runs a short-lived Job using the installed newer operator’s recorded digest. That binary checks its exact compatibility edge and uses the same lifecycle Lease and journal. Both helper and provisioner interruptions resume automatically; keep the requested version unchanged until completion. No manual catalog override is needed. Unsupported edges remain refused.
 
@@ -494,11 +494,11 @@ Single status/doctor JSON keeps the existing object. Several results use `{"sche
 
 For Argo-managed upgrades and downgrades, change the Application's `targetRevision` in Git. CLI upgrade/rollback refuse direct runtime changes under Argo ownership; `--check` remains available for read-only compatibility checks.
 
-Install the new CLI first; this changes no cluster components. The supported release edge is **0.5.2 to 0.6.0**. This adds shared schema revision 6; returning to 0.5.2 is refused because it cannot read the new fields. Coordinate all installations in a cluster. Use the same guarded commands for CLI and Helm installations:
+Install the new CLI first; this changes no cluster components. The current release edge is **0.6.0 to 0.6.1**, retaining exact schema revision 6. Return to 0.6.0 requires no unsupported resource requirements or newer schemas. The earlier 0.5.2 to 0.6.0 schema boundary remains one way. Coordinate all installations in a cluster. Use the same guarded commands for CLI and Helm installations:
 
 ```
-kimage upgrade --to 0.6.0 --check
-kimage upgrade --to 0.6.0
+kimage upgrade --to 0.6.1 --check
+kimage upgrade --to 0.6.1
 kimage status --json
 kimage doctor --json
 ```

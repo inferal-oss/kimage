@@ -130,7 +130,7 @@
 kimage install --application-namespace apps</code></pre>
 <p><code>kimage-install</code> is a compatible alias. The crate named <code>kimage</code> belongs to another project. Prebuilt Linux and macOS installers for amd64 and arm64 are available in <a href="https://github.com/inferal-oss/kimage/releases">GitHub releases</a>.</p>
 <p>With no flags, <code>kimage install</code> manages the current kubeconfig namespace, uses <code>kimage-system</code> for components, a 1Gi retained PVC and the cluster's default StorageClass. It discovers native workers, generates credentials and waits for authenticated readiness. Use administrator kubeconfig and the <a href="#compatibility">supported runtime</a>. For the tested K3s profile, add <code>--runtime-profile k3s</code>.</p>
-<p>Server binaries are also available from <code>kimage-control</code> if needed. Gateway and proxy retain serving protocol version 0.3.0 independently of package version 0.6.0.</p>
+<p>Server binaries are also available from <code>kimage-control</code> if needed. Gateway and proxy retain serving protocol version 0.3.0 independently of package version 0.6.1.</p>
           </section>
 
           <section id="bundle-delivery">
@@ -139,7 +139,7 @@ kimage install --application-namespace apps</code></pre>
 <p>The CLI fetches only a small <code>component-images.json</code> asset from its exact GitHub release, never <code>latest</code>. GitHub asset SHA-256 and size are verified, and the catalog must contain the expected roles, versions, schema and both native platforms. The Helm release chart contains the same image pins. No component executable or image layer is uploaded through Kubernetes ConfigMaps, installer Pods or port-forwarding.</p>
 <p>GHCR supplies kimage's components. The included cluster-local registry still retains the application images that kimage builds. Workloads keep using <code>platform://</code> selectors.</p>
 <table><thead><tr><th>Option</th><th>Purpose</th></tr></thead><tbody>
-<tr><td><code>--release 0.6.0</code></td><td>Exact official release; defaults to the CLI package version.</td></tr>
+<tr><td><code>--release 0.6.1</code></td><td>Exact official release; defaults to the CLI package version.</td></tr>
 <tr><td><code>--image-catalog &lt;path&gt;</code></td><td>Explicit administrator-trusted local catalog, including a registry mirror.</td></tr>
 <tr><td><code>images.repository</code></td><td>Helm registry mirror override; retain all published digest pins.</td></tr></tbody></table>
 <p>For disconnected installation, mirror all eight complete indexes with both architectures and preserve their digests. Change only the repository in an independently verified catalog, or set Helm's repository override. Nodes must already trust and reach that mirror using their normal runtime configuration. kimage does not edit node trust stores or transfer images through the API. A saved catalog alone is insufficient.</p>
@@ -847,7 +847,7 @@ spec:
 kubectl -n kimage-system logs deployment/kimage-provisioner
 kimage status
 kimage doctor</code></pre>
-<p>Interrupted provisioning retries automatically. Compatible version changes use the lifecycle Lease, exact-target journal and retained-identity checks. Keep the desired target unchanged while an operation is pending. Pin an exact chart version; a future release must declare and test the transition. Argo CD ownership starts at 0.5.1, so the 0.5.0 chart and runtime are not Argo CD rollback targets. Existing CLI/Helm installations are not adopted automatically. The current edge is 0.5.2 to 0.6.0, one way across shared schema revision 6. Older controllers cannot start against revision 6; coordinate all installations. Rollback to 0.5.2 is refused before mutation. Earlier tested same-schema edges remain supported.</p>
+<p>Interrupted provisioning retries automatically. Compatible version changes use the lifecycle Lease, exact-target journal and retained-identity checks. Keep the desired target unchanged while an operation is pending. Pin an exact chart version; a future release must declare and test the transition. Argo CD ownership starts at 0.5.1, so the 0.5.0 chart and runtime are not Argo CD rollback targets. Existing CLI/Helm installations are not adopted automatically. The current edge is 0.6.0 to 0.6.1, with a compatible reverse transition while the exact schema-6 definition and supported Image requirements remain in use. Change the pinned chart version in Git. Future additive schemas can remain after returning to a prepared reader. The earlier 0.5.2 to 0.6.0 boundary remains one way.</p>
 <p>From 0.5.1, change the exact <code>targetRevision</code> for compatible upgrades or downgrades. The returning older provisioner automatically runs a short-lived Job using the installed newer operator’s recorded digest. That binary checks its exact compatibility edge and uses the same lifecycle Lease and journal. Both helper and provisioner interruptions resume automatically; keep the requested version unchanged until completion. No manual catalog override is needed. Unsupported edges remain refused.</p>
 <p>Provisioners and transition Jobs need Kubernetes API, DNS and HTTPS access to the included registry Service on port 5443. Retained-byte checks use its CA and reader credentials; no API port-forward permission is required. For <code>GitOpsTransitionPending</code>, inspect Jobs with label <code>kimage.dev/gitops-transition=&lt;installation&gt;</code> and their bounded reason codes.</p>
 <h3>Deletion and retained data</h3>
@@ -867,9 +867,9 @@ kimage installations --namespace kimage-gitops-system --json</code></pre>
 <p>Single status/doctor JSON keeps the existing object. Several results use <code>{"schema":1,"healthy":false,"installations":[...]}</code>, with aggregate health and an identity and error for each failed inspection. Doctor exits nonzero if any installation needs attention; status exits nonzero if an inspection fails. <code>installations --json</code> always returns an installations array, which can be empty.</p>
 <h3>Guarded version transitions</h3>
 <p>For Argo-managed upgrades and downgrades, change the Application's <code>targetRevision</code> in Git. CLI upgrade/rollback refuse direct runtime changes under Argo ownership; <code>--check</code> remains available for read-only compatibility checks.</p>
-<p>Install the new CLI first; this changes no cluster components. The supported release edge is <strong>0.5.2 to 0.6.0</strong>. This adds shared schema revision 6; returning to 0.5.2 is refused because it cannot read the new fields. Coordinate all installations in a cluster. Use the same guarded commands for CLI and Helm installations:</p>
-<pre><code>kimage upgrade --to 0.6.0 --check
-kimage upgrade --to 0.6.0
+<p>Install the new CLI first; this changes no cluster components. The current release edge is <strong>0.6.0 to 0.6.1</strong>, retaining exact schema revision 6. Return to 0.6.0 requires no unsupported resource requirements or newer schemas. The earlier 0.5.2 to 0.6.0 schema boundary remains one way. Coordinate all installations in a cluster. Use the same guarded commands for CLI and Helm installations:</p>
+<pre><code>kimage upgrade --to 0.6.1 --check
+kimage upgrade --to 0.6.1
 kimage status --json
 kimage doctor --json</code></pre>
 <p>Add <code>--namespace</code> and <code>--installation</code> for a non-default system identity. Checks are read-only. The operation records exact catalogs and resumable phases, stops new reconciliation, terminates old clients and workers, and replaces components under an exclusive Lease. Completion verifies readiness and retained storage, CRD and credential identities. New builds, managed Pod admission and uncached pulls may pause; running application containers remain under their workload controller.</p>
@@ -1324,7 +1324,7 @@ python3 scripts/check-site.py</code></pre>
           </section>
         </article>
         <div class="docs-end">
-          <span>kimage 0.6.0 handbook</span><a href="#main">Back to top ↑</a>
+          <span>kimage 0.6.1 handbook</span><a href="#main">Back to top ↑</a>
         </div>
       </main>
     </div>

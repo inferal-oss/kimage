@@ -3,7 +3,7 @@
 > kimage declares immutable, versioned container images as Kubernetes resources,
 > manages their production and verified publication to a retained cluster-local
 > registry, and resolves workload image selectors to digest-pinned pulls. Apache
-> 2.0. Alpha. Public Cargo packages: kimage-core and kimage-control, version 0.6.0.
+> 2.0. Alpha. Public Cargo packages: kimage-core and kimage-control, version 0.6.1.
 
 **When to use it.** Use kimage when inputs are already provisioned in Kubernetes,
 when images should remain available independently of source/build cache, or when
@@ -29,7 +29,7 @@ cache, general base provisioning, signing/attestations,
 HA, arbitrary storage/schema migration, or automatic retained-artifact GC.
 Administrator-managed builder isolation is not a hostile tenant security claim.
 
-**Install (0.6.0).** Rust 1.99.0+, administrator kubeconfig, Ready Linux
+**Install (0.6.1).** Rust 1.99.0+, administrator kubeconfig, Ready Linux
 amd64/arm64 nodes, persistent storage and the supported Pod user-namespace runtime:
 
 ```sh
@@ -48,7 +48,7 @@ credentials are generated in process, with separate CAs and read/publish identit
 CA private keys are not deployed. Reapply identical arguments to resume, preserving
 Secrets and administrator build policy. kimage-install is a compatible alias.
 The Cargo crate named kimage is unrelated. Prebuilt installers: GitHub releases.
-Gateway/proxy serving version remains 0.3.0 separately from Cargo 0.6.0.
+Gateway/proxy serving version remains 0.3.0 separately from Cargo 0.6.1.
 
 **Helm alternative.** Helm 3.14+ with live cluster access:
 
@@ -362,19 +362,22 @@ The flag does not bypass active-provisioner, manager, Lease, operation or retain
 data checks, and does not change Argo Applications. Uninstall keeps registry data,
 Images/releases/shared CRDs. No automatic mutation of multiple installations.
 
-**Upgrade and rollback (0.6.0).** Install the new CLI separately from cluster changes.
-Current edge: published 0.5.2 -> 0.6.0, one way across shared schema revision 5 -> 6.
-0.5.2 cannot read imageInputs. Rollback across that boundary is explicitly refused
-before mutation; shared CRDs and retained data are never downgraded. Coordinate
-all installations in a cluster; older controllers cannot start on revision 6.
-Earlier same-schema edges remain supported. Use `kimage upgrade --to 0.6.0 --check`,
-then without --check. Add --namespace/--installation as needed.
+**Upgrade and rollback (0.6.1).** Install the new CLI separately from cluster changes.
+Current edge: published 0.6.0 -> 0.6.1 -> 0.6.0, retaining exact schema 6.
+Return to unprepared 0.6.0 requires no unsupported Image requirements and no newer
+schema. Use `kimage upgrade --to 0.6.1 --check`, then without --check.
+For return use `kimage rollback --to 0.6.0 --check`, then without --check.
+Add --namespace/--installation as needed. Argo changes its pinned chart in Git.
+Future additive schemas can remain after returning to a prepared reader from
+0.6.1 onward. Unknown features pause affected builds while published roots remain
+usable. The earlier 0.5.2 -> 0.6.0 boundary remains one way because 0.5.2 cannot
+read imageInputs. Coordinate every installation sharing the API.
 Check is read-only. Exact catalogs, an exclusive installation Lease and persisted
 phases make the operation resumable. Stop old clients/workers before component
 policy replacement. Preserve PVC/PV, credentials, admin policy, scope and CRDs.
 Retained-byte checks exclude releases older than the retained PVC; equal/missing
 timestamps remain checked. Upgrades never replace the registry claim.
-No storage migration or implicit latest; only the exact shipped additive schema update is allowed. After interruption, repeat the
+No storage migration or implicit latest; additive schemas require the bounded reader contract and structural proof. After interruption, repeat the
 same target/catalog; a crashed Lease expires in 30s. Never delete the journal or
 switch targets while pending. Completion requires readiness and retained identity
 verification; failure does not silently roll back. New managed admission/builds
@@ -430,7 +433,7 @@ No automatic retained-artifact GC or purge. Generated leaves last ten years;
 reapply preserves them and does not perform automatic renewal/CA rotation.
 Version 0.4.1 fixes intermittent CLI uninstall CleanupIdentityConflict during Pod
 status races while retaining UID/spec/ownership guards. For an existing 0.4.0
-installation, update the CLI to 0.6.0 and run the same uninstall command. No
+installation, update the CLI to 0.6.1 and run the same uninstall command. No
 component reinstallation or data migration is needed for this cleanup fix.
 Published CLI and public Helm mixed-cluster checks cover native GHCR pulls, all
 three fresh-Image placement cases, and complete retained OCI graph readback after
