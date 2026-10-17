@@ -43,6 +43,19 @@ class FutureData:
             new=schemas[name];require(new['metadata']['uid']==old['metadata']['uid'] and new['spec']==old['spec'] and new['metadata']['annotations']['kimage.dev/schema-revision']=='7','Binary rollback replaced the newer shared CRD')
         diagnostic=self.api.get('configmap','kimage-schema-status',self.system)['data']
         require(diagnostic['revision']=='7' and diagnostic['readerRevision']=='6' and diagnostic['readerVersion']=='0.6.1','Schema diagnostics conflate shared revision with baseline reader')
+        # A newly declared unsupported Image has no existing status. Its first
+        # fence must satisfy the unchanged required observedGeneration field.
+        fresh=copy.deepcopy(self.image)
+        fresh['metadata']=dict(name=self.case['name']+'-paused',annotations={'kimage.dev/required-capabilities':'["future-notes-v1"]'})
+        fresh.pop('status',None)
+        fresh=self.api.create(fresh)
+        def fresh_paused():
+            value=self.api.get('images.kimage.dev',fresh['metadata']['name'],self.api.namespace)
+            return value if any(c['type']=='BuildSupported' and c['status']=='False' for c in value.get('status',{}).get('conditions',[])) else None
+        paused=self.api.wait(fresh_paused,'fresh unsupported Image receives a valid paused status')
+        require(paused['status']['observedGeneration']==paused['metadata']['generation'] and not paused['status'].get('releaseRef'),'Fresh unsupported Image was executed or lost its status')
+        require(not self.api.get('images.kimage.dev',namespace=self.api.namespace,selector='kimage.dev/platform-parent='+fresh['metadata']['uid'])['items'],'Unsupported Image started native builds')
+        self.report['freshUnsupportedImagePausedBeforeBuild']=True
         old=self.api.prefix;self.api.prefix=old+'-after-future'
         try:self.api.case(None)
         finally:self.api.prefix=old

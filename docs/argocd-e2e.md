@@ -33,7 +33,7 @@ component catalog and matching installer. Keep configuration outside Git:
   "registryNode": "amd64-registry-node",
   "runtimeProfile": "inferal",
   "sourceRevision": "EXACT_TESTED_GIT_COMMIT",
-  "nextCatalog": "/private/path/to/conformance-component-images.json",
+  "previousCatalog": "/private/path/to/verified-0.6.0-component-images.json",
   "nodeChanges": true,
   "timeoutSeconds": 900
 }
@@ -56,31 +56,37 @@ its prior values, and never deletes or cordons Nodes. It temporarily removes
 eligibility from the arm64 node and an ordinary amd64 node, checks worker fencing
 and proxy revocation, then restores both.
 
-## Version transitions from 0.6.0
+## Version transitions from 0.6.1
 
-`nextCatalog` enables a real chart-version round trip through the separate
-`0.6.1-argocd-test.0` conformance build. Native workflows build its actual
-versioned binaries, frozen 0.6.0 templates and exact compatibility contract in
-an isolated workspace. Candidate publication uses separate conformance image
-tags. This is not a Cargo or GitHub release of 0.6.1.
+`previousCatalog` enables a 0.6.1 to actual published 0.6.0 chart rollback and
+return. It checks the installed newer helper digest, interrupted helper and
+provisioner recovery, native pulls, fresh unknown/explicit platform builds on
+the predecessor and retained identities. The shared schema stays revision 6.
+This path is suitable for an approved mixed cluster with other 0.6.0 installs.
 
-The Application selects the conformance chart at
-`tests/fixtures/argocd-next-chart`, then returns to `charts/kimage` at the same
-exact Git commit. Their chart/app versions differ. The test interrupts the
-provisioner during upgrade; during downgrade it checks the installed newer
-operator digest, interrupts its helper with a persisted incomplete journal,
-and restarts the returning older provisioner. Fresh application Pods resolve
-and execute retained native releases after both transitions. Storage,
-credentials, installation and release UIDs must remain unchanged.
+On a **disposable API only**, additionally set `nextCatalog` to the verified
+`0.6.2-argocd-test.0` catalog. Native workflows build independently named future
+binaries, frozen 0.6.1 templates and their exact compatibility contract in an
+isolated workspace. The future writer adds schema revision 7, a typed optional
+Image field and native provenance. This is not a public release. Newer shared
+CRDs remain after the test; never enable it on a shared production API.
 
-For acceptance of the final published chart repository, omit `nextCatalog`
+The Application selects `tests/fixtures/argocd-next-chart`, then returns to
+`charts/kimage` at the same exact Git commit. The test interrupts the provisioner
+during upgrade, verifies the newer operator digest and interrupts its downgrade
+helper with an incomplete journal. Returning unchanged 0.6.1 readers must preserve
+opaque data and published readiness, serve native images, pause both existing
+and fresh unsupported Images, and build unrelated Images. Schema definitions,
+UIDs, credentials, storage and release contracts must remain unchanged on return.
+
+For acceptance of the final published chart repository, omit `nextCatalog` and `previousCatalog`
 and replace `sourceRevision` with:
 
 ```json
 {"chartRepository": "https://kimage.dev/charts"}
 ```
 
-That path selects the exact public 0.6.0 chart. It repeats installation,
+That path selects the exact public 0.6.1 chart. It repeats installation,
 reconciliation, native demand/build/pull, refusal and retention checks. It uses
 the published chart's own image pins without image overrides, then compares
 actual native component identities against the independently verified catalog.

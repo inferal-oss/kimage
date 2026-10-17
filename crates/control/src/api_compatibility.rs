@@ -99,7 +99,13 @@ pub async fn pause(client: Client, image: &Image, reason: &str) -> Result<()> {
     conditions.push(condition);
     let api: Api<Image> =
         Api::namespaced(client, &image.namespace().context("MissingImageNamespace")?);
-    api.patch_status(&image.name_any(),&PatchParams::default(),&Patch::Merge(json!({"metadata":{"uid":image.uid(),"resourceVersion":image.resource_version()},"status":{"conditions":conditions}}))).await?;
+    let mut status = json!({"conditions":conditions});
+    // The unchanged revision-6 schema requires observedGeneration whenever a
+    // status is first created. Preserve an existing reader's readiness marker.
+    if image.status.is_none() {
+        status["observedGeneration"] = json!(generation);
+    }
+    api.patch_status(&image.name_any(),&PatchParams::default(),&Patch::Merge(json!({"metadata":{"uid":image.uid(),"resourceVersion":image.resource_version()},"status":status}))).await?;
     Ok(())
 }
 /// Remove only our stale build fence once this reader supports the resource.
@@ -385,6 +391,57 @@ mod tests {
     }
     fn image() -> Value {
         json!({"apiVersion":"kimage.dev/v1alpha1","kind":"Image","metadata":{"name":"service","namespace":"apps","uid":"image-uid","generation":1},"spec":{"version":"1.0.0","source":{"build":{"format":"Containerfile","definition":{"inline":"FROM scratch\n"},"execution":{"strategy":"Direct","builderRef":"default"},"inputs":{"contextPath":"/workspace/context"}}}}})
+    }
+    #[tokio::test]
+    async fn fresh_unsupported_images_get_valid_status_without_replacing_existing_state() {
+        use axum::{Json, Router, routing::patch};
+        use std::sync::{Arc, Mutex};
+        let captured = Arc::new(Mutex::new(Vec::<Value>::new()));
+        let writes = captured.clone();
+        let server = Router::new().route(
+            "/apis/kimage.dev/v1alpha1/namespaces/apps/images/service/status",
+            patch(move |Json(body): Json<Value>| {
+                let writes = writes.clone();
+                async move {
+                    writes.lock().unwrap().push(body.clone());
+                    let mut result = image();
+                    result["status"] = body["status"].clone();
+                    // Kubernetes merge-patches an existing status in the second case.
+                    if result["status"].get("observedGeneration").is_none() {
+                        result["status"]["observedGeneration"] = json!(1);
+                    }
+                    Json(result)
+                }
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let handle = tokio::spawn(async move { axum::serve(listener, server).await.unwrap() });
+        let client = Client::try_from(kube::Config::new(
+            format!("http://{address}").parse().unwrap(),
+        ))
+        .unwrap();
+        let fresh: Image = serde_json::from_value(image()).unwrap();
+        pause(client.clone(), &fresh, "UnsupportedCapability")
+            .await
+            .unwrap();
+        let mut published = image();
+        published["status"] = json!({"observedGeneration":1,"releaseRef":"retained","conditions":[],"futureState":{"preserve":true}});
+        let published: Image = serde_json::from_value(published).unwrap();
+        pause(client, &published, "UnsupportedCapability")
+            .await
+            .unwrap();
+        let patches = captured.lock().unwrap();
+        assert_eq!(patches.len(), 2);
+        let first: crate::api::ImageStatus =
+            serde_json::from_value(patches[0]["status"].clone()).unwrap();
+        assert_eq!(first.observed_generation, 1);
+        assert_eq!(first.conditions[0].type_, "BuildSupported");
+        assert_eq!(first.conditions[0].status, "False");
+        assert!(patches[1]["status"].get("observedGeneration").is_none());
+        assert!(patches[1]["status"].get("releaseRef").is_none());
+        assert!(patches[1]["status"].get("futureState").is_none());
+        handle.abort();
     }
     #[test]
     fn future_objects_cannot_poison_lists_or_lose_opaque_source_data() {

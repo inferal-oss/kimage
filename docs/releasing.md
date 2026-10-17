@@ -233,7 +233,7 @@ provisioner protocol recorded in the compatibility manifest. Never loosen the
 compatibility check to accept arbitrary future releases.
 
 Native acceptance builds a separate `0.6.2-argocd-test.0` workspace and chart to
-exercise a real version round trip from 0.6.0, including interrupted helper and
+exercise a real version round trip from 0.6.1, including interrupted helper and
 provisioner recovery. Conformance image tags are isolated from release tags;
 this fixture is never published to Cargo or as a GitHub release. Real mixed
 acceptance repeats this against the existing Argo CD controller.

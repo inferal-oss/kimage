@@ -19,6 +19,10 @@ commits and original release attribution. Uncommitted work is marked explicitly.
 
 - Release validation accepts pending version work under Unreleased; final release packaging still requires dated version notes. Commits: [b0c8464](https://github.com/inferal-oss/kimage/commit/b0c8464f5d3432414f4ef9369404980f5f4c3c1a).
 
+### Fixed
+
+- Fresh Images with unsupported requirements receive a valid paused status before any build starts, while existing readiness and opaque state remain untouched. Implementation pending commit.
+
 **Commits:** [b0c8464](https://github.com/inferal-oss/kimage/commit/b0c8464f5d3432414f4ef9369404980f5f4c3c1a).
 
 ## [0.6.0] - 2026-10-17
