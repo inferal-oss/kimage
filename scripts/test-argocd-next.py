@@ -21,6 +21,9 @@ class Fixture(unittest.TestCase):
             root=Path(directory)/'source';fixture.prepare(root)
             self.assertIn('version = "'+fixture.VERSION+'"',(root/'Cargo.toml').read_text())
             self.assertIn('version = "='+fixture.VERSION+'"',(root/'crates/control/Cargo.toml').read_text())
+            for role in ['operator','admission','input','exporter']:
+                self.assertTrue((root/'crates/control/src/bin'/('kimage-'+role+'-argocd-conformance.rs')).is_file())
+                self.assertFalse((root/'crates/control/src/bin'/('kimage-'+role+'.rs')).exists())
             contract=json.loads((root/'crates/control/src/release-compatibility.json').read_text())
             self.assertEqual(contract['release'],fixture.VERSION)
             self.assertIn(dict(**{'from':'0.5.1','to':fixture.VERSION},rollbackSafe=True),contract['transitions'])

@@ -30,6 +30,11 @@ def prepare(destination):
     manifest.write_text(text.replace('version = "0.5.1"','version = "'+VERSION+'"').replace('version = "=0.5.1"','version = "='+VERSION+'"'))
     for manifest in (destination/'crates').glob('*/Cargo.toml'):
         manifest.write_text(manifest.read_text().replace('version = "=0.5.1"','version = "='+VERSION+'"'))
+    # Share compiled dependencies without overwriting the real release's
+    # binary paths or poisoning Cargo's cached output/fingerprint pairing.
+    for role in ['operator','admission','input','exporter']:
+        binary=destination/'crates/control/src/bin'/('kimage-'+role+'.rs')
+        binary.rename(binary.with_name('kimage-'+role+'-argocd-conformance.rs'))
     lock=destination/'Cargo.lock';text=lock.read_text()
     for package in ['kimage-core','kimage-control','kimage-bootstrap']:
         old='name = "'+package+'"\nversion = "0.5.1"';assert old in text

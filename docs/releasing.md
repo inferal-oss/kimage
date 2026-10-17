@@ -145,6 +145,9 @@ public receipts. The real mixed-node test is explicitly enabled separately with
 
 Before the final tag, run the `Release candidate images` workflow on main. It first
 passes native acceptance, then publishes immutable `candidate-COMMIT` GHCR tags.
+An optional `source_run` reuses a successful Native Kubernetes E2E run only for
+the exact current commit, after checking all eight matrix cases. It does not
+allow a different source or failed/partial acceptance run to publish images.
 Installation still selects digests from the candidate catalog. Candidate acceptance
 repeats failed-attempt output checks with fresh Images on each native platform to
 catch batching and recovery races. This permits real
