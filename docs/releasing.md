@@ -153,7 +153,7 @@ Frozen OCI input acceptance exercises real native multi-stage execution, cache
 controls and source denial before current-version uninstall/reinstall. It builds fresh Images,
 consumes outputs produced on each side, checks private failed-attempt diagnostics
 and predecessor input protection, and verifies every fixture OCI graph inside the
-cluster after rollback and after uninstall/reinstall. Secret material never enters
+cluster after the refused downgrade and after uninstall/reinstall. Secret material never enters
 public receipts. The real mixed-node test is explicitly enabled separately with
 `scripts/e2e-upgrade.py --run --config PRIVATE_CONFIG.json`. See the
 [lifecycle acceptance guide](lifecycle-e2e.md) for configuration and retained data.

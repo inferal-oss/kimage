@@ -50,8 +50,7 @@ pub struct RootCheck {
     pub image_uid: String,
     pub root: kimage_core::oci::Descriptor,
 }
-/// The only initially supported edge. Both releases read/write the same API,
-/// registry filesystem, native build journal, and serving protocol.
+/// Exact tested edges and persisted formats, including explicit schema boundaries.
 pub fn release_metadata() -> Result<Value> {
     let metadata: Value = serde_json::from_str(include_str!("release-compatibility.json"))?;
     ensure!(
@@ -632,7 +631,7 @@ pub async fn transition(
     } else {
         None
     };
-    let summary = json!({"source":record.source.release,"target":record.target.release,"manager":record.manager,"resuming":resumed,"phase":record.phase,"compatibility":{"apiSchema":5,"installationState":1,"buildJournal":1,"serving":"0.3.0","registry":"3.1.2","storageMigration":false},"checks":"passed"});
+    let summary = json!({"source":record.source.release,"target":record.target.release,"manager":record.manager,"resuming":resumed,"phase":record.phase,"compatibility":{"apiSchema":record.target.api_schema_revision,"installationState":1,"buildJournal":1,"serving":"0.3.0","registry":"3.1.2","storageMigration":false},"checks":"passed"});
     if check {
         return Ok(summary);
     }

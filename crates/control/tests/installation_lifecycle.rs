@@ -203,6 +203,21 @@ async fn recovering_workers_defer_capture_until_pod_and_service_endpoints_are_re
     for ready in [false, true] {
         let (client, records, server) = fixture().await;
         for version in ["0.5.0", "0.5.1", "0.5.2", env!("CARGO_PKG_VERSION")] {
+            let summary = lifecycle::transition(
+                client.clone(),
+                "system",
+                "dev",
+                &catalog(version),
+                true,
+                false,
+                None,
+            )
+            .await
+            .unwrap();
+            assert_eq!(
+                summary["compatibility"]["apiSchema"],
+                catalog(version).api_schema_revision
+            );
             lifecycle::transition(
                 client.clone(),
                 "system",
@@ -341,6 +356,7 @@ async fn read_only_preflight_interrupted_resume_and_reverse_preserve_retained_id
     .await
     .unwrap();
     assert_eq!(check["checks"], "passed");
+    assert_eq!(check["compatibility"]["apiSchema"], 5);
     assert_eq!(store.lock().unwrap().writes, 0);
     store.lock().unwrap().fail_after = Some(16);
     assert!(

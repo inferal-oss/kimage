@@ -13,7 +13,7 @@ commits and original release attribution. Uncommitted work is marked explicitly.
 
 ### Fixed
 
-- Native Helm upgrade acceptance retires release history after supervised runtime cleanup before reinstalling the retained registry claim. Implementation pending commit.
+- Upgrade check output reports the target API schema revision, including revision 6 for frozen OCI inputs. Implementation pending commit.
 
 **Commits:** [83abe62](https://github.com/inferal-oss/kimage/commit/83abe62796e057da7c32665d40141d44c685acbb).
 
@@ -33,9 +33,11 @@ commits and original release attribution. Uncommitted work is marked explicitly.
 
 - Helm installation and Argo provisioning catalogs declare schema revision 6 consistently. Commits: [69bea45](https://github.com/inferal-oss/kimage/commit/69bea45323e5a4bce18bfb1ff4c3bc6120f958c6).
 
+- Native acceptance covers published 0.5.2 upgrades, interruption recovery, schema downgrade refusal, frozen OCI input execution and retained-data reinstall. Commits: [83abe62](https://github.com/inferal-oss/kimage/commit/83abe62796e057da7c32665d40141d44c685acbb), [ab89aa8](https://github.com/inferal-oss/kimage/commit/ab89aa8d1d6c5a7b7118bff4a333c6047d7e38d6).
+
 - The guarded 0.5.2 to 0.6.0 upgrade adds shared CRD revision 6 without changing registry storage or serving protocol. Rollback to 0.5.2 is refused because it cannot read the new fields; earlier same-schema edges remain supported. Commits: [83abe62](https://github.com/inferal-oss/kimage/commit/83abe62796e057da7c32665d40141d44c685acbb).
 
-**Commits:** [2531858](https://github.com/inferal-oss/kimage/commit/2531858e00f8a800cc37df6d29b2e4d9d6f377fd), [69bea45](https://github.com/inferal-oss/kimage/commit/69bea45323e5a4bce18bfb1ff4c3bc6120f958c6), [fc2664a](https://github.com/inferal-oss/kimage/commit/fc2664af53be0822adb7882e1fcea6672df27a49), [7615d86](https://github.com/inferal-oss/kimage/commit/7615d862a0b0c1aa249d777a9bd32c1b878b0bf7), [9c1636e](https://github.com/inferal-oss/kimage/commit/9c1636e6863bab0a018e1745bab407ecab39dcb6), [a223345](https://github.com/inferal-oss/kimage/commit/a223345ec8200feb4ebc43b1a60d2830c334a0c9), [83abe62](https://github.com/inferal-oss/kimage/commit/83abe62796e057da7c32665d40141d44c685acbb).
+**Commits:** [fc2664a](https://github.com/inferal-oss/kimage/commit/fc2664af53be0822adb7882e1fcea6672df27a49), [7615d86](https://github.com/inferal-oss/kimage/commit/7615d862a0b0c1aa249d777a9bd32c1b878b0bf7), [9c1636e](https://github.com/inferal-oss/kimage/commit/9c1636e6863bab0a018e1745bab407ecab39dcb6), [a223345](https://github.com/inferal-oss/kimage/commit/a223345ec8200feb4ebc43b1a60d2830c334a0c9), [83abe62](https://github.com/inferal-oss/kimage/commit/83abe62796e057da7c32665d40141d44c685acbb), [2531858](https://github.com/inferal-oss/kimage/commit/2531858e00f8a800cc37df6d29b2e4d9d6f377fd), [69bea45](https://github.com/inferal-oss/kimage/commit/69bea45323e5a4bce18bfb1ff4c3bc6120f958c6), [ab89aa8](https://github.com/inferal-oss/kimage/commit/ab89aa8d1d6c5a7b7118bff4a333c6047d7e38d6).
 
 
 ## [0.5.2] - 2026-10-17

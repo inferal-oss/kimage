@@ -92,9 +92,10 @@ Image version.
 - `ImageInputVersionConflict` means a version's dependency declaration changed.
   Use a new version. `ImageInputSnapshotAuthenticationFailed` refuses forged or
   damaged snapshot metadata.
-- `ImageRelease.spec.provenance.imageInputs` records the exact full root and
-  selected native manifest, platform and dependency identities. Private build
-  output remains available through `kimage logs` and `kimage builds`.
+- Each native `ImageRelease.spec.provenance.imageInputs` records the exact full
+  root, selected manifest, platform and dependency identities. Follow the parent
+  Image's `status.platformReleases` for native provenance; an aggregate index has
+  no single native execution receipt. Private build output remains available through `kimage logs` and `kimage builds`.
 - `cache.mode: Disabled` still requests a real no-cache solve. Cache eviction
   cannot change retained dependency bytes or published outputs.
 - Undeclared `FROM`/`COPY --from` sources and external frontend directives remain

@@ -1,18 +1,23 @@
 # Installation lifecycle acceptance
 
-Native CI tests the published 0.5.1 predecessor against the 0.5.2 candidate on
+Native CI tests the published 0.5.2 predecessor against the 0.6.0 candidate on
 native amd64 and arm64 runners, with CLI/Helm and namespace/cluster scope. Each
 case uses a disposable, single-node K3s cluster. It does not emulate a mixed
 cluster with QEMU or nested multi-platform Docker.
 
-Fresh 0.5.2 Helm removal is tested directly. After rollback, the test drains the
-published 0.5.1 operator and retires its exact template-matching native workers
-with UID/resource-version delete guards before Helm removal, following the
-[documented predecessor shutdown procedure](installation.md). This prevents
-predecessor reconciliation from racing chart removal. Foreign owners and
-specification changes are refused. Cleanup
-still requires every disposable system resource to disappear; retained PVC/PV,
-Image and release identities and complete OCI readback remain required.
+The guarded upgrade adds shared schema revision 6. The test interrupts and
+resumes that upgrade, then confirms rollback to 0.5.2 fails before changing the
+runtime, operation journal or retained data. The predecessor cannot read the new
+fields. Coordinate every installation sharing the CRDs before upgrading a real
+cluster; do not run the predecessor fixture after revision 6 has been established.
+The separate Argo CD future-version fixture exercises a same-schema round trip.
+
+Acceptance also builds from frozen OCI base/toolchain inputs, checks native
+execution, local cache reuse, disabled cache and undeclared-source refusal, then
+uninstalls and reinstalls 0.6.0 with retained storage. CLI cleanup stops supervisors
+before removal; Helm cases also retire release history before installing again.
+Fresh-install Helm removal is tested separately. Retained PVC/PV, Image and
+release identities and complete OCI readback remain required.
 
 The separate mixed-cluster test is explicitly enabled against an existing cluster.
 It needs a [supported runtime](installation.md#prerequisites), administrator access,
@@ -26,6 +31,7 @@ installer platform of the machine running the test; this example uses macOS/arm6
 ```sh
 rustup target add x86_64-unknown-linux-musl aarch64-unknown-linux-musl
 python3 scripts/e2e-mixed-cluster.py --build-probes .local/upgrade-probes
+python3 scripts/e2e-image-inputs.py --build-probes .local/image-input-probes
 python3 scripts/fetch-predecessor.py --architecture arm64 --system darwin \
   --output .local/upgrade-previous
 cargo build --locked --release -p kimage-control --bin kimage-install
@@ -33,7 +39,7 @@ cargo build --locked --release -p kimage-control --bin kimage-install
 
 The predecessor fetch checks GitHub's recorded asset size and SHA-256. Do not
 substitute an old checkout compiled with a newer toolchain. Obtain independently
-verified target `component-images.json` and `kimage-0.5.2.tgz` from the release, or
+verified target `component-images.json` and `kimage-0.6.0.tgz` from the release, or
 from the candidate workflow's `component-catalog-chart` artifact. Candidate images
 must pass native acceptance and anonymous GHCR verification before live testing.
 See [the release procedure](releasing.md#upgrade-acceptance-for-every-release).
@@ -52,7 +58,7 @@ Create a private JSON configuration, replacing paths and names for your cluster:
   "installer": "/absolute/path/kimage/target/release/kimage-install",
   "previous": "/absolute/path/kimage/.local/upgrade-previous",
   "catalog": "/absolute/path/kimage/.local/upgrade-target/component-images.json",
-  "chart": "/absolute/path/kimage/.local/upgrade-target/kimage-0.5.2.tgz",
+  "chart": "/absolute/path/kimage/.local/upgrade-target/kimage-0.6.0.tgz",
   "mode": "cli",
   "scope": "namespace",
   "runtimeProfile": "inferal",
@@ -72,11 +78,12 @@ python3 scripts/e2e-upgrade.py --run --config .local/upgrade-config.json
 ```
 
 The test installs the published predecessor, builds and runs a fresh Image,
-interrupts each transition during application, and resumes with the exact catalog.
+interrupts the upgrade during application, and resumes with the exact catalog.
 It checks retained identities, native image pins, status/doctor, fresh unknown and
-explicit placement cases, private failed-attempt output and reserved-input denial
-after rollback. It also builds a fresh Image after returning to 0.5.1. Complete
-OCI graphs are read back inside the cluster over authenticated TLS, including
+explicit placement cases, private failed-attempt output and schema downgrade
+refusal. Frozen-input tests use fresh consumer Images and, on a mixed cluster,
+confirm later ARM64 demand keeps the original base after same-name recreation.
+Complete OCI graphs are read back inside the cluster over authenticated TLS, including
 after uninstall/reinstall; application layers do not cross the desktop API link.
 
 Node-change acceptance uses a unique fixture label to remove/re-add eligibility,

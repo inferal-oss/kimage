@@ -256,7 +256,7 @@ The first attempt freezes dependency Image/release UIDs and complete OCI roots i
 
 The session reads and verifies complete graphs through authenticated TLS, then supplies local OCI contexts to BuildKit. Only reader credentials reach the session; no registry credentials reach the worker. Exact source policy, denied worker egress and network-none RUN remain enforced. `cache.mode: Disabled` still requests a real no-cache solve.
 
-At most eight lowercase aliases are allowed; `scratch`, `context` and `dockerfile` are reserved. Ranges, channels and cross-namespace inputs are refused. The input graph budget is 1 GiB with a 4 GiB session workspace. `ImageRelease.spec.provenance.imageInputs` records the frozen full roots and selected native manifests. See the [complete example, failure reasons and upgrade boundary](https://github.com/inferal-oss/kimage/blob/main/docs/image-inputs.md).
+At most eight lowercase aliases are allowed; `scratch`, `context` and `dockerfile` are reserved. Ranges, channels and cross-namespace inputs are refused. The input graph budget is 1 GiB with a 4 GiB session workspace. Each native `ImageRelease.spec.provenance.imageInputs` records the frozen full root and selected manifest. Follow the parent Image's `status.platformReleases` for native provenance. See the [complete example, failure reasons and upgrade boundary](https://github.com/inferal-oss/kimage/blob/main/docs/image-inputs.md).
 
 **Offline adapter:** provision all inputs in advance. The supported build uses `FROM scratch` or frozen named OCI bases, local input files, and network-none RUN. Undeclared remote bases, remote ADD/context URLs, external syntax frontends, remote caches, and general upstream base-image fetching are unavailable.
 

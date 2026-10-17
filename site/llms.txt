@@ -319,8 +319,10 @@ BuildKit receives no registry credentials; worker egress and RUN networking stay
 denied. Undeclared image sources and external frontends remain denied. Disabled
 cache still performs a real no-cache solve. Sum of input graphs <=1GiB, session
 workspace 4GiB; existing verifier/output limits still apply.
-ImageRelease.spec.provenance.imageInputs records full roots, selected native
-manifests, platforms and dependency identities. Logs stay private and bounded.
+Each native ImageRelease.spec.provenance.imageInputs records full roots, selected
+manifests, platforms and dependency identities. Follow status.platformReleases
+on the parent Image for native provenance; an aggregate index has no single
+native execution receipt. Logs stay private and bounded.
 Complete example and upgrade boundary:
 https://github.com/inferal-oss/kimage/blob/main/docs/image-inputs.md
 
@@ -419,7 +421,7 @@ No automatic retained-artifact GC or purge. Generated leaves last ten years;
 reapply preserves them and does not perform automatic renewal/CA rotation.
 Version 0.4.1 fixes intermittent CLI uninstall CleanupIdentityConflict during Pod
 status races while retaining UID/spec/ownership guards. For an existing 0.4.0
-installation, update the CLI to 0.5.2 and run the same uninstall command. No
+installation, update the CLI to 0.6.0 and run the same uninstall command. No
 component reinstallation or data migration is needed for this cleanup fix.
 Published CLI and public Helm mixed-cluster checks cover native GHCR pulls, all
 three fresh-Image placement cases, and complete retained OCI graph readback after
