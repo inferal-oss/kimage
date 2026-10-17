@@ -11,6 +11,14 @@ commits and original release attribution. Uncommitted work is marked explicitly.
 
 ## [Unreleased]
 
+### Fixed
+
+- Native lifecycle acceptance uses Helm to remove Helm-owned installations before retained-data reinstall, respecting the CLI manager guard. Implementation pending commit.
+
+- After reinstalling, published consumers authenticate their frozen dependency bindings from retained verified release provenance when regenerated service credentials no longer match the original snapshot signature. Names are never resolved again. Implementation pending commit.
+
+**Commits:** [83abe62](https://github.com/inferal-oss/kimage/commit/83abe62796e057da7c32665d40141d44c685acbb).
+
 ## [0.6.0] - 2026-10-17
 
 ### Added

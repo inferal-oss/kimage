@@ -155,6 +155,48 @@ async fn resolve(config: &Config, name: &str, reference: &str) -> Result<FrozenI
         root: release.spec.root,
     })
 }
+fn publication_matches(owner: &Image, inputs: &[FrozenImage], release: &ImageRelease) -> bool {
+    release.spec.image_uid == owner.uid().unwrap_or_default()
+        && release.spec.image_name == owner.name_any()
+        && release.spec.version == owner.spec.version
+        && release.spec.platform.supported()
+        && release.metadata.deletion_timestamp.is_none()
+        && release.status.as_ref().is_some_and(|s| {
+            s.verified && s.observed_generation == release.metadata.generation.unwrap_or(1)
+        })
+        && release.spec.provenance.as_ref().is_some_and(|p| {
+            p.image_inputs.len() == inputs.len()
+                && p.image_inputs.iter().zip(inputs).all(|(m, i)| {
+                    m.name == i.name
+                        && m.image == i.image
+                        && m.image_uid == i.image_uid
+                        && m.release_uid == i.release_uid
+                        && m.root == i.root
+                })
+        })
+}
+async fn published_bindings(
+    owner: &Image,
+    inputs: &[FrozenImage],
+    config: &Config,
+) -> Result<bool> {
+    // Uninstall removes service credentials, while verified release provenance
+    // survives. Authenticate exact old bindings from that sealed publication;
+    // never resolve a dependency name again or trust application ConfigMaps alone.
+    let releases: Api<ImageRelease> = Api::namespaced(config.client.clone(), &config.namespace);
+    let uid = owner.uid().context("MissingImageUid")?;
+    for platform in [Platform::linux_amd64(), Platform::linux_arm64()] {
+        let name =
+            kimage_core::catalog::platform_release_name(&uid, &owner.spec.version, &platform);
+        if let Some(release) = releases.get_opt(&name).await?
+            && release.spec.platform == platform
+            && publication_matches(owner, inputs, &release)
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
 pub async fn freeze(image: &Image, config: &Config, build: &Build) -> Result<Vec<FrozenImage>> {
     if build.image_inputs.is_empty() {
         return Ok(Vec::new());
@@ -243,21 +285,21 @@ pub async fn freeze(image: &Image, config: &Config, build: &Build) -> Result<Vec
         .context("ImageInputSnapshotMissing")?;
     ensure!(bytes.len() <= 32768, "ImageInputSnapshotTooLarge");
     let snapshot: Snapshot = serde_json::from_str(bytes)?;
-    use hmac::Mac;
-    snapshot_mac(
-        &snapshot,
-        &owner,
-        &std::fs::read(&config.publisher_password)?,
-    )?
-    .verify_slice(
-        &hex::decode(&snapshot.signature).context("ImageInputSnapshotAuthenticationFailed")?,
-    )
-    .map_err(|_| anyhow::anyhow!("ImageInputSnapshotAuthenticationFailed"))?;
     ensure!(
         snapshot.schema == 1 && snapshot.declaration == declaration,
         "ImageInputVersionConflict"
     );
     validate(&snapshot.inputs, build, &config.namespace)?;
+    use hmac::Mac;
+    let key = std::fs::read(&config.publisher_password)?;
+    let mac = snapshot_mac(&snapshot, &owner, &key)?;
+    let authenticated = hex::decode(&snapshot.signature)
+        .ok()
+        .is_some_and(|signature| mac.verify_slice(&signature).is_ok());
+    ensure!(
+        authenticated || published_bindings(&owner, &snapshot.inputs, config).await?,
+        "ImageInputSnapshotAuthenticationFailed"
+    );
     Ok(snapshot.inputs)
 }
 pub fn native_root(graph: &oci::VerifiedImage, platform: &Platform) -> Result<Descriptor> {
@@ -529,7 +571,12 @@ mod tests {
     #[tokio::test]
     async fn dependency_snapshot_is_shared_and_does_not_reresolve_a_recreated_base() {
         let original:Image=serde_json::from_value(json!({"apiVersion":"kimage.dev/v1alpha1","kind":"Image","metadata":{"name":"service","namespace":"apps","uid":"service-uid","generation":1},"spec":{"version":"1.0.0","source":{"build":build()}}})).unwrap();
-        let shared = Arc::new(Mutex::new((None::<serde_json::Value>, 0_usize, false)));
+        let shared = Arc::new(Mutex::new((
+            None::<serde_json::Value>,
+            0_usize,
+            false,
+            None::<serde_json::Value>,
+        )));
         let state = shared.clone();
         let parent = original.clone();
         let router=Router::new().fallback(move |request:axum::extract::Request| {
@@ -550,6 +597,7 @@ mod tests {
                         let release=json!({"apiVersion":"kimage.dev/v1alpha1","kind":"ImageRelease","metadata":{"name":"base-release","uid":"base-release-uid","generation":1},"spec":{"imageName":"base","imageUid":"base-uid","version":"1.0.0","snapshot":oci::digest(b"snapshot"),"root":root,"platform":Platform::automatic(),"requestDigest":oci::digest(b"request"),"sourceGeneration":1,"publisherVersion":"0.6.0"},"status":{"verified":true,"observedGeneration":1,"conditions":[]}});
                         json!({"apiVersion":"kimage.dev/v1alpha1","kind":"ImageReleaseList","metadata":{},"items":[release]})
                     },
+                    ("GET",p) if p.contains("/imagereleases/release-") => match &state.3 { Some(value) => value.clone(), None => return missing() },
                     ("GET",p) if p.contains("/configmaps/imageinputs-")=>match &state.0 {Some(value)=>value.clone(),None=>return missing()},
                     ("POST","/api/v1/namespaces/apps/configmaps")=>{
                         assert!(state.0.is_none());let mut value:serde_json::Value=serde_json::from_slice(&bytes).unwrap();
@@ -623,6 +671,40 @@ mod tests {
         let mut foreign = build();
         foreign.image_inputs[0].image = "platform://other/base:1.0.0".into();
         assert!(validate(&first, &foreign, "apps").is_err());
+        std::fs::write(key.path(), b"regenerated-publisher-key-after-reinstall").unwrap();
+        assert!(
+            freeze(&child, &config, &build())
+                .await
+                .unwrap_err()
+                .to_string()
+                .contains("ImageInputSnapshotAuthenticationFailed"),
+            "Unpublished snapshots cannot authenticate after key loss"
+        );
+        let input = &first[0];
+        let proof = json!({"apiVersion":"kimage.dev/v1alpha1","kind":"ImageRelease","metadata":{"name":"consumer-native","uid":"consumer-release-uid","generation":1},"spec":{"imageName":"service","imageUid":"service-uid","version":"1.0.0","snapshot":oci::digest(b"context"),"root":oci::descriptor(b"output",oci::MANIFEST),"platform":Platform::linux_amd64(),"requestDigest":oci::digest(b"request"),"sourceGeneration":1,"publisherVersion":"0.6.0","provenance":{"format":"Containerfile","adapterVersion":"kimage.dev/containerfile-v1","inputs":[],"imageInputs":[{"name":input.name,"image":input.image,"imageUid":input.image_uid,"releaseUid":input.release_uid,"root":input.root,"manifest":oci::descriptor(b"native",oci::MANIFEST),"platform":Platform::linux_amd64()}],"execution":{"strategy":"Direct","builder":"default","engine":"BuildKit","engineVersion":"0.33.0","adapterVersion":"kimage.dev/containerfile-v1","workerUid":"worker","engineWorkerId":"engine","engineOperationId":"operation","attemptId":"a".repeat(64),"platform":Platform::linux_amd64(),"cacheMode":"Local","cachedExecutionSteps":0,"executedSteps":1}}},"status":{"verified":true,"observedGeneration":1,"conditions":[]}});
+        shared.lock().unwrap().3 = Some(proof.clone());
+        assert_eq!(freeze(&child, &config, &build()).await.unwrap(), first);
+        assert_eq!(
+            shared.lock().unwrap().1,
+            2,
+            "Reinstall recovery must not resolve recreated dependency names"
+        );
+        for mutation in ["unverified", "stale", "owner", "version", "material"] {
+            let mut altered = proof.clone();
+            match mutation {
+                "unverified" => altered["status"]["verified"] = json!(false),
+                "stale" => altered["status"]["observedGeneration"] = json!(2),
+                "owner" => altered["spec"]["imageUid"] = json!("foreign-owner"),
+                "version" => altered["spec"]["version"] = json!("2.0.0"),
+                _ => {
+                    altered["spec"]["provenance"]["imageInputs"][0]["releaseUid"] =
+                        json!("foreign-dependency-release")
+                }
+            }
+            shared.lock().unwrap().3 = Some(altered);
+            assert!(freeze(&child, &config, &build()).await.is_err());
+        }
+        shared.lock().unwrap().3 = Some(proof);
         {
             let mut state = shared.lock().unwrap();
             let map = state.0.as_mut().unwrap();

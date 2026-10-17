@@ -15,7 +15,8 @@ The separate Argo CD future-version fixture exercises a same-schema round trip.
 Acceptance also builds from frozen OCI base/toolchain inputs, checks native
 execution, local cache reuse, disabled cache and undeclared-source refusal, then
 uninstalls and reinstalls 0.6.0 with retained storage. CLI cleanup stops supervisors
-before removal; Helm cases also retire release history before installing again.
+before removal; Helm cases use Helm removal and retire its release history before
+installing again.
 Fresh-install Helm removal is tested separately. Retained PVC/PV, Image and
 release identities and complete OCI readback remain required.
 

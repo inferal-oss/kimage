@@ -90,6 +90,13 @@ reader password stays in the system namespace; the gateway refuses other
 namespaces and all writes with the session credential. System proxy credentials
 and serving compatibility remain unchanged.
 
+After uninstall/reinstall, retained verified native release provenance can
+authenticate the exact frozen bindings if service credentials changed. Dependencies
+are never resolved again. Keep the Image, its frozen snapshot ConfigMap, release
+metadata and registry backend together. If no consuming release was published
+before the original signing credential was lost, use a new consuming version;
+unverified metadata cannot authorize recovery.
+
 ## Boundaries and diagnostics
 
 - `ImageInputNotPublished` waits for an already published dependency. kimage does
