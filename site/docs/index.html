@@ -1203,6 +1203,16 @@ python3 scripts/check-site.py</code></pre>
               built only the requested platform. Both runs removed their
               consumer Deployments and Pods.
             </p>
+            <p>The <a href="https://github.com/inferal-oss/kimage/blob/main/docs/native-0.5.2-results.json">0.5.2 native acceptance matrix</a>
+              covers published 0.5.1 → 0.5.2 → 0.5.1 in all eight CLI/Helm cases,
+              plus four Argo CD cases with a separate future-version conformance fixture.
+              The <a href="https://github.com/inferal-oss/kimage/blob/main/docs/published-0.5.2-results.json">published 0.5.2 receipt</a>
+              checks exact public assets, Cargo installation and the live chart, then
+              upgrades a permanent cluster-wide Argo installation on four real mixed nodes.
+              Fresh unknown/amd64/arm64 placement cases pass before and after upgrading.
+              Retained identities and complete image bytes remain intact; default CLI
+              discovery finds the installation and doctor reports it healthy.
+            </p>
             <p>The <a href="https://github.com/inferal-oss/kimage/blob/main/docs/native-0.5.1-results.json">0.5.1 native acceptance matrix</a>
               covers published 0.5.0 → 0.5.1 → 0.5.0 with CLI and Helm in all eight cases,
               plus four actual Argo CD cases. Argo changes chart versions from 0.5.1 to a

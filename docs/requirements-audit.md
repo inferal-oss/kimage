@@ -1,6 +1,11 @@
 # Original brief acceptance audit
 
-Current 0.5.1 evidence is recorded separately in the
+Current 0.5.2 [native acceptance](native-0.5.2-results.json) and
+[publication/real-upgrade evidence](published-0.5.2-results.json) cover the exact
+public artifacts and the permanent mixed-cluster Argo installation. Historical
+receipts retain their original release and scope.
+
+Earlier 0.5.1 evidence is recorded separately in the
 [native acceptance](native-0.5.1-results.json) and
 [real mixed-cluster acceptance](mixed-0.5.1-results.json) receipts. These cover
 CLI/Helm 0.5.0 → 0.5.1 → 0.5.0 and actual Argo CD in both scopes, including

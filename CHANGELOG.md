@@ -16,6 +16,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 - CLI upgrade and rollback direct Argo-managed installations to their Application in Git; read-only compatibility checks remain available.
 - Argo CD runtime uninstall requires terminal confirmation or `--allow-argocd`, while retaining active-provisioner, lifecycle and data protections.
 
+### Changed
+
+- Recorded [eight native CLI/Helm cases and four Argo CD cases](https://github.com/inferal-oss/kimage/blob/main/docs/native-0.5.2-results.json), including published 0.5.1 upgrades, interruptions, rollback and retained-image recovery.
+- Verified [published artifacts and a permanent mixed-cluster Argo upgrade](https://github.com/inferal-oss/kimage/blob/main/docs/published-0.5.2-results.json): Cargo installation, public Helm pins, native placement before/after upgrading, retained identities and complete OCI graph readback. Default discovery finds the healthy cluster-wide installation.
+
 ### Fixed
 
 - Cluster-wide upgrade checks exclude historical releases created before the retained registry claim, preventing unrelated retired installations from blocking a new registry's transition. Releases with missing timestamps remain checked.

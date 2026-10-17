@@ -1,5 +1,15 @@
 # Clean implementation acceptance ledger
 
+2026-10-17, 0.5.2: [eight native CLI/Helm cases and four Argo CD cases](native-0.5.2-results.json)
+pass predecessor transitions, interruptions and retained-image recovery.
+The [published-artifact and real-upgrade receipt](published-0.5.2-results.json)
+checks exact public bytes, Cargo installation and the live chart, then upgrades
+a permanent cluster-wide Argo installation from 0.5.1 on four real mixed nodes.
+Fresh placement cases pass before and after the upgrade. Registry, installation,
+credential and release identities remain unchanged; complete retained graphs
+remain readable. Default discovery and doctor succeed. This permanent runtime
+is left installed; native fixtures cover interruption, rollback and uninstall.
+
 2026-10-16, 0.5.1: [native acceptance](native-0.5.1-results.json) and
 [real mixed-cluster acceptance](mixed-0.5.1-results.json) cover CLI/Helm
 published 0.5.0 → 0.5.1 → 0.5.0, plus actual Argo CD in both scopes.

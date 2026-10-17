@@ -458,6 +458,17 @@ Native Kubernetes E2E runs CLI and Helm in both namespace and cluster scope on a
 arm64, including actual native build execution and workload pulls, dry-run,
 on-demand/eager policy, controller templates, RBAC and namespace boundaries.
 The [0.4.0 acceptance record](docs/native-install-results.json) covers all eight cases.
+
+The [0.5.2 native acceptance record](docs/native-0.5.2-results.json) covers
+published 0.5.1 → 0.5.2 → 0.5.1 in all eight CLI/Helm cases, plus four Argo CD
+cases using a separate future-version conformance fixture. The
+[published 0.5.2 receipt](docs/published-0.5.2-results.json) checks exact public
+assets, Cargo installation and the live chart, then upgrades a permanent
+cluster-wide Argo installation on four real mixed-architecture nodes. Fresh
+unknown/amd64/arm64 placement cases pass before and after the upgrade; retained
+identities and complete OCI image bytes remain intact. Default CLI discovery
+finds the installation and doctor reports it healthy.
+
 The [0.5.1 native acceptance record](docs/native-0.5.1-results.json) covers
 published 0.5.0 → 0.5.1 → 0.5.0 with CLI and Helm in all eight cases,
 plus four actual Argo CD cases. Argo changes chart versions from 0.5.1 to a

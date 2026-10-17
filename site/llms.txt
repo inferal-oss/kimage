@@ -419,6 +419,17 @@ hostile-tenant image confidentiality. Native clients keep TLS verification on.
 Rust tests run on macOS/arm64 and native Linux/amd64 and Linux/arm64 musl. Separate two-node
 acceptance harnesses cover lifecycle/recovery/binary rollback/export and remain historical evidence; native amd64/arm64 namespace/cluster install E2E is now a release gate; historical live bundles predate the latest selector/CLI metadata.
 
+0.5.2 native acceptance: eight CLI/Helm × namespace/cluster × amd64/arm64
+cases through published 0.5.1 to 0.5.2 and back, plus four Argo CD cases with
+a separate unpublished future-version conformance fixture:
+https://github.com/inferal-oss/kimage/blob/main/docs/native-0.5.2-results.json
+Published 0.5.2 acceptance verifies exact public assets, Cargo installation,
+the live chart and a permanent cluster-wide Argo upgrade on four real mixed
+nodes. Fresh unknown/amd64/arm64 placement cases pass before and after upgrading;
+retained identities and complete OCI bytes remain intact. Default discovery
+finds the installation and doctor reports it healthy:
+https://github.com/inferal-oss/kimage/blob/main/docs/published-0.5.2-results.json
+
 0.5.1 native acceptance: eight CLI/Helm × namespace/cluster × amd64/arm64 cases
 through published 0.5.0 to 0.5.1 and back, plus four actual Argo CD cases.
 Argo chart-version round trips use a separate future-version conformance fixture,
