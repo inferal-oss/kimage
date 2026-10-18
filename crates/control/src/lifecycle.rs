@@ -386,7 +386,7 @@ pub async fn transition(
         );
     }
     compatible(&source, target)?;
-    crate::api_compatibility::legacy_target(client.clone(), &options.scope(), &target.release)
+    crate::api_compatibility::target_reader(client.clone(), &options.scope(), &target.release)
         .await?;
     if manager(&installed)? == "argocd" {
         ensure!(
@@ -667,7 +667,7 @@ pub async fn transition(
         if now.as_ref().is_some_and(|j|j.phase==Phase::Complete && j.identity==record.identity) && latest_release==record.target.release {
             return Ok(json!({"target":record.target.release,"phase":"Complete","alreadyInstalled":true}));
         }
-        crate::api_compatibility::legacy_target(client.clone(),&options.scope(),&target.release).await?;
+        crate::api_compatibility::target_reader(client.clone(),&options.scope(),&target.release).await?;
         save(client.clone(),&record).await?;
         if matches!(record.phase,Phase::Prepared|Phase::Quiescing) {
             record.phase=Phase::Quiescing;save(client.clone(),&record).await?;

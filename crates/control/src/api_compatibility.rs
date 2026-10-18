@@ -131,13 +131,28 @@ pub async fn clear_pause(client: Client, image: &Image) -> Result<bool> {
     api.patch_status(&image.name_any(),&PatchParams::default(),&Patch::Merge(json!({"metadata":{"uid":image.uid(),"resourceVersion":image.resource_version()},"status":{"conditions":conditions}}))).await?;
     Ok(true)
 }
-/// Older binaries require their shipped schema and supported resource semantics.
-pub async fn legacy_target(
+/// Verify the requested reader before changing runtime or operation journals.
+pub async fn target_reader(
     client: Client,
     scope: &kimage_core::scope::NamespaceScope,
     target: &str,
 ) -> Result<()> {
     if kimage_core::selector::exact(target)? >= kimage_core::selector::exact("0.6.1")? {
+        let baseline: Vec<Crd> = serde_json::from_str(include_str!("../schemas/revision-6.json"))?;
+        let crds: Api<Crd> = Api::all(client);
+        for desired in baseline {
+            let current = crds.get(&desired.name_any()).await?;
+            if current
+                .annotations()
+                .get("kimage.dev/schema-revision")
+                .and_then(|v| v.parse::<u32>().ok())
+                .is_some_and(|v| v > BASELINE)
+            {
+                forward_for_reader(&current, &desired, target)?;
+            } else {
+                crate::schema::compatibility(&current, &desired)?;
+            }
+        }
         return Ok(());
     }
     let expected = if kimage_core::selector::exact(target)? < kimage_core::selector::exact("0.6.0")?
@@ -307,6 +322,9 @@ pub fn declare_schema(crds: &mut [Crd]) -> Result<()> {
     Ok(())
 }
 pub fn forward(existing: &Crd, desired: &Crd) -> Result<()> {
+    forward_for_reader(existing, desired, env!("CARGO_PKG_VERSION"))
+}
+fn forward_for_reader(existing: &Crd, desired: &Crd, reader: &str) -> Result<()> {
     let readers: Readers = serde_json::from_str(
         existing
             .annotations()
@@ -321,7 +339,7 @@ pub fn forward(existing: &Crd, desired: &Crd) -> Result<()> {
             && kimage_core::selector::exact(&readers.minimum_reader)?
                 >= kimage_core::selector::exact("0.6.1")?
             && kimage_core::selector::exact(&readers.minimum_reader)?
-                <= kimage_core::selector::exact(env!("CARGO_PKG_VERSION"))?,
+                <= kimage_core::selector::exact(reader)?,
         "UnsupportedSchemaReaderContract"
     );
     let actual = canonical(existing);

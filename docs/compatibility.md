@@ -19,7 +19,7 @@ running reader's revision and version.
 
 The `kimage.dev/schema-readers` annotation declares format 1, baseline revision 6,
 minimum reader 0.6.1, policy `additive-optional-v1`, and a canonical definition
-digest. Matching annotation values alone are insufficient: the reader checks
+digest. Lifecycle preflight checks this minimum against the requested target reader before changing runtime or journals. Matching annotation values alone are insufficient: the reader checks
 schema ownership, field ownership, definition integrity and the actual changes.
 Known fields, defaults, required lists, validation rules, storage versions and
 conversion settings cannot change. Optional new fields cannot introduce defaults

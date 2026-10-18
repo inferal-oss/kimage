@@ -1215,3 +1215,66 @@ async fn legacy_target_cannot_start_against_retained_future_crds_even_in_an_empt
     assert_eq!(records.lock().unwrap().objects, before);
     server.abort();
 }
+
+#[tokio::test]
+async fn prepared_target_checks_the_requested_reader_before_any_operation_write() {
+    for minimum in ["0.6.1", "0.6.2"] {
+        let (client, records, server) = fixture().await;
+        for version in ["0.5.0", "0.5.1", "0.5.2", "0.6.0"] {
+            lifecycle::transition(
+                client.clone(),
+                "system",
+                "dev",
+                &catalog(version),
+                false,
+                false,
+                None,
+            )
+            .await
+            .unwrap();
+        }
+        let mut definitions: Vec<Value> =
+            serde_json::from_str(include_str!("fixtures/additive-revision-7.json")).unwrap();
+        for crd in &mut definitions {
+            let mut contract: Value = serde_json::from_str(
+                crd["metadata"]["annotations"]["kimage.dev/schema-readers"]
+                    .as_str()
+                    .unwrap(),
+            )
+            .unwrap();
+            contract["minimumReader"] = json!(minimum);
+            crd["metadata"]["annotations"]["kimage.dev/schema-readers"] =
+                json!(contract.to_string());
+            records.lock().unwrap().put(crd.clone());
+        }
+        let before = records.lock().unwrap().objects.clone();
+        let writes = records.lock().unwrap().writes;
+        for check in if minimum == "0.6.1" {
+            vec![true]
+        } else {
+            vec![true, false]
+        } {
+            let result = lifecycle::transition(
+                client.clone(),
+                "system",
+                "dev",
+                &catalog("0.6.1"),
+                check,
+                false,
+                None,
+            )
+            .await;
+            if minimum == "0.6.1" {
+                assert!(result.is_ok(), "{result:?}");
+            } else {
+                assert!(
+                    format!("{:#}", result.unwrap_err())
+                        .contains("UnsupportedSchemaReaderContract")
+                );
+            }
+            assert_eq!(records.lock().unwrap().writes, writes);
+            assert_eq!(records.lock().unwrap().objects, before);
+        }
+        server.abort();
+    }
+}
