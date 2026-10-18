@@ -329,6 +329,15 @@ class Upgrade:
         except Exception:
             raise RuntimeError('Disposable resources remain (metadata only): '+json.dumps(remaining,sort_keys=True)) from None
 
+    def interruptible(self,record):
+        if not record or record['phase']!='Applying':return False
+        # CLI application can finish immediately after updating its catalog.
+        # The durable Applying journal is the recovery boundary; observing a
+        # second resource introduces a race with successful completion.
+        if self.config['mode']=='cli':return True
+        history=json.loads(self.run_command(['helm','history',self.id,'--namespace',self.system,'--output','json']).stdout)
+        return history[-1]['status'].startswith('pending-')
+
     def transition(self,version,interrupt=False):
         command='upgrade' if version==self.version else 'rollback'
         catalog=Path(self.config['catalog']) if version==self.version else self.previous/'component-images.json'
@@ -349,14 +358,7 @@ class Upgrade:
                             detail=path.read_text()[-3000:]
                             raise RuntimeError('Operation exited '+str(process.returncode)+' before interruption; fixture must prove interruption. '+detail)
                         record=self.operation()
-                        if record and record['phase']=='Applying':
-                            if self.config['mode']=='cli':
-                                policy=self.api.get('configmap',self.id+'-component-images',self.system)
-                                ready=json.loads(policy['data']['images.json'])['release']==version
-                            else:
-                                history=json.loads(self.run_command(['helm','history',self.id,'--namespace',self.system,'--output','json']).stdout)
-                                ready=history[-1]['status'].startswith('pending-')
-                            if ready:break
+                        if self.interruptible(record):break
                         require(time.monotonic()<deadline,'Did not observe an interruptible phase');time.sleep(.3)
                     os.killpg(process.pid,signal.SIGKILL);process.wait(timeout=15)
                 finally:

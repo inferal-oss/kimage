@@ -23,6 +23,8 @@ commits and original release attribution. Uncommitted work is marked explicitly.
 
 ### Fixed
 
+- CLI interruption acceptance stops at the durable Applying journal without racing against a completed catalog update; Helm still requires an in-flight release before interruption. Implementation pending commit.
+
 - Lifecycle preflight verifies the shared schema contract against the requested target reader, refusing a too-old prepared target before runtime or journal changes. Implementation pending commit.
 
 - Future-version acceptance uses the complete Helm chart, preserving fixture credentials and runtime resources through interrupted upgrades; chart packaging rejects incomplete runtime charts. UID-guarded consumer cleanup removes each fixture once before verifying uninstall retention. Implementation pending commit.
