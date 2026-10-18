@@ -72,7 +72,7 @@ A later additive-schema upgrade whose minimum reader is 0.6.1 can return to
 0.6.1 while retaining the newer schema and pausing affected builds.
 
 The disposable future-version acceptance fixture uses real independently named
-binaries, schema revision 7, a populated optional Image field and additional
+binaries, schema revision 7, a populated optional Image field, native build-journal metadata and additional
 release provenance. It must verify newer-data retention, published native pulls,
 unrelated builds, interruption recovery and schema non-replacement after returning
 to the unchanged baseline binary. It is a conformance fixture, not a published

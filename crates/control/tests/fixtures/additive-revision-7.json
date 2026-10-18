@@ -4,9 +4,9 @@
     "kind": "CustomResourceDefinition",
     "metadata": {
       "annotations": {
-        "kimage.dev/schema-digest": "sha256:7f2bec9c71a461d79c7033ad28d77434b05df801b0e25263afb55e716f22d8d6",
+        "kimage.dev/schema-digest": "sha256:f1eb987c0e38f17a510a8fb60b3d69710f6909d60cb54bacd818cf74c47a418e",
         "kimage.dev/schema-manager": "kimage-schema-manager",
-        "kimage.dev/schema-readers": "{\"format\":1,\"baselineRevision\":6,\"minimumReader\":\"0.6.1\",\"policy\":\"additive-optional-v1\",\"definitionDigest\":\"sha256:d24dd7cc5951e9c502558c2121502482e8dede166b01cd91427806dcd732469f\"}",
+        "kimage.dev/schema-readers": "{\"format\":1,\"baselineRevision\":6,\"minimumReader\":\"0.6.1\",\"policy\":\"additive-optional-v1\",\"definitionDigest\":\"sha256:65313c532b54513817a872be82ef997a50e0a283b71c6ef72490ce9a8f8b5d65\"}",
         "kimage.dev/schema-revision": "7"
       },
       "name": "images.kimage.dev"
@@ -847,6 +847,11 @@
                             "workerUid"
                           ],
                           "type": "object"
+                        },
+                        "journalFormat": {
+                          "maxLength": 128,
+                          "nullable": true,
+                          "type": "string"
                         },
                         "ordinaryDigest": {
                           "type": "string"

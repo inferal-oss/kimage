@@ -19,14 +19,16 @@ class FutureData:
         try:self.api.case(None,spec_extensions=dict(futureNote='retained-future-data'),capabilities=['future-notes-v1'])
         finally:self.api.prefix=old
         self.case=self.api.cases[-1];self.image=self.api.get('images.kimage.dev',self.case['name'],self.api.namespace)
-        self.owned={self.image['metadata']['uid']}|{i['metadata']['uid'] for i in self.api.get('images.kimage.dev',namespace=self.api.namespace,selector='kimage.dev/platform-parent='+self.image['metadata']['uid'])['items']}
+        self.children={i['metadata']['name']:copy.deepcopy(i) for i in self.api.get('images.kimage.dev',namespace=self.api.namespace,selector='kimage.dev/platform-parent='+self.image['metadata']['uid'])['items']}
+        require(self.children and all(i['status']['build']['journalFormat']=='future-journal-v2' for i in self.children.values()),'Future writer did not populate native build journals')
+        self.owned={self.image['metadata']['uid']}|{i['metadata']['uid'] for i in self.children.values()}
         releases=self.api.get('imagereleases.kimage.dev',namespace=self.api.namespace)['items']
         self.releases={r['metadata']['name']:copy.deepcopy(r) for r in releases if r['spec']['imageUid'] in self.owned}
         native=[r for r in self.releases.values() if r['spec']['platform']['architecture']!='auto']
         require(native and {r['spec']['platform']['architecture'] for r in native}==self.architectures,'Future writer did not publish every native platform')
         require(all(r['spec']['provenance']['futureReceipt']=='future-notes-v1' for r in native),'Future provenance field was not populated')
         self.original_schemas=self.schemas();require(all(s['metadata']['annotations']['kimage.dev/schema-revision']=='7' for s in self.original_schemas.values()),'Future schema revision 7 was not installed')
-        self.report.update(imageUid=self.image['metadata']['uid'],nativePlatforms=sorted(self.architectures),populatedImageField=True,populatedNativeProvenance=True,nativeReleaseCount=len(native))
+        self.report.update(imageUid=self.image['metadata']['uid'],nativePlatforms=sorted(self.architectures),populatedImageField=True,populatedNativeProvenance=True,populatedNativeBuildJournals=True,nativeReleaseCount=len(native))
     def after_return(self):
         def fenced():
             image=self.api.get('images.kimage.dev',self.case['name'],self.api.namespace)
@@ -35,6 +37,10 @@ class FutureData:
         current=self.api.get('images.kimage.dev',self.case['name'],self.api.namespace)
         require(current['metadata']['uid']==self.image['metadata']['uid'] and current['spec']==self.image['spec'],'Rollback changed or erased opaque Image fields')
         require(current['status']['releaseRef']==self.image['status']['releaseRef'] and any(c['type']=='Ready' and c['status']=='True' for c in current['status']['conditions']),'Unsupported build lost published readiness')
+        for name,old in self.children.items():
+            child=self.api.get('images.kimage.dev',name,self.api.namespace)
+            require(child['metadata']['uid']==old['metadata']['uid'] and child['spec']==old['spec'] and child['status']['build']==old['status']['build'],'Rollback changed native opaque build journals')
+        self.report['opaqueNativeBuildJournalsPreserved']=True
         for name,old in self.releases.items():
             release=self.api.get('imagereleases.kimage.dev',name,self.api.namespace)
             require(release['metadata']['uid']==old['metadata']['uid'] and release['spec']==old['spec'],'Rollback changed native release identity or opaque provenance')

@@ -29,6 +29,8 @@ class Fixture(unittest.TestCase):
             self.assertEqual(contract['formats']['apiSchemaRevision'],7)
             self.assertIn('future_note: Option<String>',(root/'crates/control/src/api.rs').read_text())
             self.assertIn('future_receipt: Option<String>',(root/'crates/control/src/api.rs').read_text())
+            self.assertIn('journal_format: Option<String>',(root/'crates/control/src/api.rs').read_text())
+            self.assertIn('journal_format: Some("future-journal-v2".into())',(root/'crates/control/src/build_reconcile.rs').read_text())
             self.assertIn('pub const REVISION: u32 = 7;', (root/'crates/control/src/schema.rs').read_text())
             self.assertIn(dict(**{'from':'0.6.1','to':fixture.VERSION},rollbackSafe=True),contract['transitions'])
             self.assertEqual(json.loads((ROOT/'crates/control/src/release-compatibility.json').read_text())['release'],'0.6.1')

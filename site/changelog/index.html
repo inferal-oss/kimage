@@ -70,7 +70,7 @@
         <div class="release-feed">
 <article id="unreleased" class="release unreleased">
 <header class="release-heading"><div><h2>Unreleased</h2><span class="release-date">In development</span></div><span class="release-badge pending-badge">UP NEXT</span></header>
-<details class="pending-changes"><summary>5 upcoming changes</summary><div class="release-body"><h3 class="category category-added">Added</h3>
+<details class="pending-changes"><summary>6 upcoming changes</summary><div class="release-body"><h3 class="category category-added">Added</h3>
 <ul>
 <li>A compatibility foundation for 0.6.1: capability-aware resource readers preserve opaque future fields, pause only unsupported builds and continue resolving published roots. Compatible additive CRDs remain installed during binary rollback, subject to reader contracts, structural checks and ownership validation. Schema revision 6 and existing wire formats remain unchanged; published 0.6.0 remains a tested rollback target before newer features are used. Commits: <a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/b0c8464f5d3432414f4ef9369404980f5f4c3c1a">b0c8464</a>.</li>
 </ul>
@@ -82,6 +82,9 @@
 <li>Release validation accepts pending version work under Unreleased; final release packaging still requires dated version notes. Commits: <a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/b0c8464f5d3432414f4ef9369404980f5f4c3c1a">b0c8464</a>.</li>
 </ul>
 <h3 class="category category-fixed">Fixed</h3>
+<ul>
+<li>New build-journal and execution-receipt fields pause the affected build and retain their original data, even when historical typed decoders would ignore extra fields. Implementation pending commit.</li>
+</ul>
 <ul>
 <li>Unrelated opaque status metadata no longer causes repeated writes when a prepared older reader has no status changes to make. Known status updates still preserve the newer fields. Implementation pending commit.</li>
 </ul>

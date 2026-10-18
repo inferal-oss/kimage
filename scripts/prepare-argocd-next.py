@@ -61,16 +61,19 @@ def prepare(destination):
     text=schema.read_text().replace('pub const REVISION: u32 = 6;', 'pub const REVISION: u32 = 7;')
     text=text.replace('        if release {', '        if !release { spec["properties"]["futureNote"]["maxLength"]=json!(128); }\n        if release {',1)
     text=text.replace('            let provenance = &mut spec["properties"]["provenance"]["properties"];', '            let provenance = &mut spec["properties"]["provenance"]["properties"];\n            provenance["futureReceipt"]["maxLength"]=json!(128);',1)
+    text=text.replace('        v["metadata"]["annotations"] = json!', '        if !release { v["spec"]["versions"][0]["schema"]["openAPIV3Schema"]["properties"]["status"]["properties"]["build"]["properties"]["journalFormat"]["maxLength"] = json!(128); }\n        v["metadata"]["annotations"] = json!',1)
     schema.write_text(text)
     api=destination/'crates/control/src/api.rs';text=api.read_text()
     text=text.replace('    /// Opaque additions survive older readers; they are never executed.', '    #[serde(skip_serializing_if = "Option::is_none")]\n    pub future_note: Option<String>,\n    /// Opaque additions survive older readers; they are never executed.',1)
     text=text.replace('            exports: Vec<crate::export_api::Target>,', '            exports: Vec<crate::export_api::Target>,\n            future_note: Option<String>,',1)
     text=text.replace('            exports: f.exports,','            exports: f.exports,\n            future_note: f.future_note,',1)
+    text=text.replace('pub struct BuildStatus {', 'pub struct BuildStatus {\n    #[serde(skip_serializing_if = "Option::is_none")]\n    pub journal_format: Option<String>,',1)
     text=text.replace('pub struct BuildProvenance {','pub struct BuildProvenance {\n    #[serde(skip_serializing_if = "Option::is_none")]\n    pub future_receipt: Option<String>,',1)
     api.write_text(text)
     for path in (destination/'crates/control/src').rglob('*.rs'):
         if path==api:continue
         text=path.read_text()
+        text=text.replace('BuildStatus {\n', 'BuildStatus {\n            journal_format: Some("future-journal-v2".into()),\n')
         text=text.replace('BuildProvenance {\n','BuildProvenance {\n            future_receipt: Some("future-notes-v1".into()),\n')
         path.write_text(text)
     compatibility=destination/'crates/control/src/api_compatibility.rs'

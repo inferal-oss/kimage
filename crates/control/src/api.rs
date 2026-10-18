@@ -235,7 +235,21 @@ impl<'de> Deserialize<'de> for ImageStatus {
         let exports = serde_json::from_value::<Vec<crate::export_api::Status>>(
             raw.get("exports").cloned().unwrap_or(serde_json::json!([])),
         );
-        let opaque_state = operation.is_err() || build.is_err() || exports.is_err();
+        // BuildStatus and ExecutionReceipt historically accepted unknown JSON
+        // fields. Detect additions against their typed serialization without
+        // changing the shipped CRD schema or duplicating member-name lists.
+        let unknown_build = if let (Ok(Some(known)), Some(raw)) = (&build, raw.get("build")) {
+            let known = serde_json::to_value(known).map_err(serde::de::Error::custom)?;
+            let additions = |raw: &Value, known: &Value| {
+                raw.as_object()
+                    .is_some_and(|fields| fields.keys().any(|key| known.get(key).is_none()))
+            };
+            additions(raw, &known) || additions(&raw["execution"], &known["execution"])
+        } else {
+            false
+        };
+        let opaque_state =
+            operation.is_err() || build.is_err() || exports.is_err() || unknown_build;
         Ok(Self {
             observed_generation: stable.observed_generation,
             conditions: stable.conditions,

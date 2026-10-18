@@ -493,6 +493,33 @@ mod tests {
         );
     }
     #[test]
+    fn added_build_journal_and_execution_fields_pause_without_changing_the_schema() {
+        let mut known = image();
+        known["status"] = json!({"observedGeneration":1,"releaseRef":"retained","build":{"snapshotId":"attempt","ordinaryDigest":"digest","privateStateRef":"private-state","execution":{"strategy":"Direct","builder":"default","engine":"BuildKit","engineVersion":"0.33.0","adapterVersion":"0.6.1","workerUid":"worker","engineWorkerId":"engine-worker","engineOperationId":"operation","attemptId":"attempt","platform":{"os":"linux","architecture":"amd64"},"cacheMode":"Local","cachedExecutionSteps":0,"executedSteps":1}}});
+        assert_eq!(
+            unsupported(&serde_json::from_value(known.clone()).unwrap()),
+            None
+        );
+        for nested in [false, true] {
+            let mut future = known.clone();
+            if nested {
+                future["status"]["build"]["execution"]["futurePhase"] = json!({"keep":true});
+            } else {
+                future["status"]["build"]["journalFormat"] = json!(2);
+            }
+            let decoded: Image = serde_json::from_value(future.clone()).unwrap();
+            assert_eq!(unsupported(&decoded), Some("UnsupportedImageState"));
+            assert_eq!(
+                decoded.status.as_ref().unwrap().release_ref.as_deref(),
+                Some("retained")
+            );
+            assert_eq!(
+                serde_json::to_value(decoded).unwrap()["status"]["build"],
+                future["status"]["build"]
+            );
+        }
+    }
+    #[test]
     fn future_provenance_and_release_fields_roundtrip_with_stable_root_identity() {
         let raw = json!({"imageName":"service","imageUid":"uid","version":"1.0.0","snapshot":format!("sha256:{}","a".repeat(64)),"root":{"digest":format!("sha256:{}","b".repeat(64)),"mediaType":"application/vnd.oci.image.index.v1+json","size":123},"platform":{"os":"linux","architecture":"auto"},"requestDigest":"request","sourceGeneration":1,"publisherVersion":"9.0.0","provenance":{"format":"future","futureReceipt":{"keep":[1,2,3]},"execution":{"format":999}},"futureContract":{"keep":true}});
         let release: crate::api::ImageReleaseSpec = serde_json::from_value(raw.clone()).unwrap();
