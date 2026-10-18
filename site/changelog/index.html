@@ -53,6 +53,7 @@
           <nav aria-label="Release history">
             <p class="eyebrow">RELEASE HISTORY</p>
 <a href="#unreleased"><span>Unreleased</span><span>Up next</span></a>
+<a href="#v0.6.1"><span>v0.6.1</span><span>2026-10-18</span></a>
 <a href="#v0.6.0"><span>v0.6.0</span><span>2026-10-17</span></a>
 <a href="#v0.5.2"><span>v0.5.2</span><span>2026-10-17</span></a>
 <a href="#v0.5.1"><span>v0.5.1</span><span>2026-10-16</span></a>
@@ -70,41 +71,46 @@
         <div class="release-feed">
 <article id="unreleased" class="release unreleased">
 <header class="release-heading"><div><h2>Unreleased</h2><span class="release-date">In development</span></div><span class="release-badge pending-badge">UP NEXT</span></header>
-<details class="pending-changes"><summary>9 upcoming changes</summary><div class="release-body"><h3 class="category category-added">Added</h3>
+<details class="pending-changes"><summary>0 upcoming changes</summary><div class="release-body"></div></details>
+<a class="release-compare" href="https://github.com/inferal-oss/kimage/compare/v0.6.1...HEAD">View pending changes <span aria-hidden="true">↗</span></a>
+</article>
+<article id="v0.6.1" class="release">
+<header class="release-heading"><div><h2>v0.6.1</h2><time class="release-date" datetime="2026-10-18">October 18, 2026</time></div><span class="release-badge">LATEST RELEASE</span></header>
+<div class="release-body"><h3 class="category category-added">Added</h3>
 <ul>
 <li>A compatibility foundation for 0.6.1: capability-aware resource readers preserve opaque future fields, pause only unsupported builds and continue resolving published roots. Compatible additive CRDs remain installed during binary rollback, subject to reader contracts, structural checks and ownership validation. Schema revision 6 and existing wire formats remain unchanged; published 0.6.0 remains a tested rollback target before newer features are used. Commits: <a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/b0c8464f5d3432414f4ef9369404980f5f4c3c1a">b0c8464</a>.</li>
 </ul>
 <h3 class="category category-changed">Changed</h3>
 <ul>
-<li>Native publication verifies bounded future-schema catalogs and their complete native graphs, allowing the independent forward-reader fixture to publish candidate images. Implementation pending commit.</li>
+<li>Native publication verifies bounded future-schema catalogs and their complete native graphs, allowing the independent forward-reader fixture to publish candidate images. Commits: <a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/8244ba600f70a40ba2fed2e1e92b4fe7ddd153ad">8244ba6</a>.</li>
 </ul>
 <ul>
 <li>Release validation accepts pending version work under Unreleased; final release packaging still requires dated version notes. Commits: <a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/b0c8464f5d3432414f4ef9369404980f5f4c3c1a">b0c8464</a>.</li>
 </ul>
 <h3 class="category category-fixed">Fixed</h3>
 <ul>
-<li>CLI interruption acceptance stops at the durable Applying journal without racing against a completed catalog update; Helm still requires an in-flight release before interruption. Implementation pending commit.</li>
+<li>CLI interruption acceptance stops at the durable Applying journal without racing against a completed catalog update; Helm still requires an in-flight release before interruption. Commits: <a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/5837f0f5a156e8d282b36de91b7111b9b14b29d5">5837f0f</a>.</li>
 </ul>
 <ul>
-<li>Lifecycle preflight verifies the shared schema contract against the requested target reader, refusing a too-old prepared target before runtime or journal changes. Implementation pending commit.</li>
+<li>Lifecycle preflight verifies the shared schema contract against the requested target reader, refusing a too-old prepared target before runtime or journal changes. Commits: <a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/cdad2622f161fff30dd0f49af1c7ce33661d2970">cdad262</a>.</li>
 </ul>
 <ul>
-<li>Future-version acceptance uses the complete Helm chart, preserving fixture credentials and runtime resources through interrupted upgrades; chart packaging rejects incomplete runtime charts. UID-guarded consumer cleanup removes each fixture once before verifying uninstall retention. Implementation pending commit.</li>
+<li>Future-version acceptance uses the complete Helm chart, preserving fixture credentials and runtime resources through interrupted upgrades; chart packaging rejects incomplete runtime charts. UID-guarded consumer cleanup removes each fixture once before verifying uninstall retention. Commits: <a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/b174932000b9ae6e30519c8a3df181c2d2bf6a99">b174932</a>, <a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/da52b0ffef02d8a934fa531478c72b6477b33985">da52b0f</a>.</li>
 </ul>
 <ul>
-<li>New build-journal and execution-receipt fields pause the affected build and retain their original data, even when historical typed decoders would ignore extra fields. Implementation pending commit.</li>
+<li>New build-journal and execution-receipt fields pause the affected build and retain their original data, even when historical typed decoders would ignore extra fields. Commits: <a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/f6ee5a33514729b549d30b0ffc93a4970203e98e">f6ee5a3</a>.</li>
 </ul>
 <ul>
-<li>Unrelated opaque status metadata no longer causes repeated writes when a prepared older reader has no status changes to make. Known status updates still preserve the newer fields. Implementation pending commit.</li>
+<li>Unrelated opaque status metadata no longer causes repeated writes when a prepared older reader has no status changes to make. Known status updates still preserve the newer fields. Commits: <a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/9d42078c93fa2fbbacaab1c560f570ccef7ac49c">9d42078</a>.</li>
 </ul>
 <ul>
 <li>Fresh Images with unsupported requirements receive a valid paused status before any build starts, while existing readiness and opaque state remain untouched. Commits: <a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/8b177bfa0cb1673bd1ee4382e0ae00e651da68de">8b177bf</a>.</li>
 </ul>
-<details class="release-sources"><summary>Commits</summary><p><a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/b0c8464f5d3432414f4ef9369404980f5f4c3c1a">b0c8464</a>.</p></details></div></details>
-<a class="release-compare" href="https://github.com/inferal-oss/kimage/compare/v0.6.0...HEAD">View pending changes <span aria-hidden="true">↗</span></a>
+<details class="release-sources"><summary>Commits</summary><p><a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/2ca96a9c318a476b79fa5cf7f4b6371477087df1">2ca96a9</a>, <a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/52cbc778cdba0bfcbaca347342a1feb95e6bc652">52cbc77</a>, <a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/b0c8464f5d3432414f4ef9369404980f5f4c3c1a">b0c8464</a>, <a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/1713d8cfd15aa9dec34dd6954ff0adb3338fa7f0">1713d8c</a>, <a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/8b177bfa0cb1673bd1ee4382e0ae00e651da68de">8b177bf</a>, <a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/40e60012c5b6de946fb8cff77068212fd3631107">40e6001</a>, <a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/8244ba600f70a40ba2fed2e1e92b4fe7ddd153ad">8244ba6</a>, <a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/9d42078c93fa2fbbacaab1c560f570ccef7ac49c">9d42078</a>, <a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/f6ee5a33514729b549d30b0ffc93a4970203e98e">f6ee5a3</a>, <a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/b174932000b9ae6e30519c8a3df181c2d2bf6a99">b174932</a>, <a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/da52b0ffef02d8a934fa531478c72b6477b33985">da52b0f</a>, <a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/cdad2622f161fff30dd0f49af1c7ce33661d2970">cdad262</a>, <a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/5837f0f5a156e8d282b36de91b7111b9b14b29d5">5837f0f</a>.</p></details></div>
+<a class="release-compare" href="https://github.com/inferal-oss/kimage/compare/v0.6.0...v0.6.1">View release changes <span aria-hidden="true">↗</span></a>
 </article>
 <article id="v0.6.0" class="release">
-<header class="release-heading"><div><h2>v0.6.0</h2><time class="release-date" datetime="2026-10-17">October 17, 2026</time></div><span class="release-badge">LATEST RELEASE</span></header>
+<header class="release-heading"><div><h2>v0.6.0</h2><time class="release-date" datetime="2026-10-17">October 17, 2026</time></div></header>
 <div class="release-body"><h3 class="category category-added">Added</h3>
 <ul>
 <li>Frozen OCI base and toolchain image inputs for multi-stage Containerfiles. Named inputs select exact, already published same-namespace Image versions; native builds use their verified retained bytes without registry access from BuildKit. Commits: <a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/83abe62796e057da7c32665d40141d44c685acbb">83abe62</a>.</li>
