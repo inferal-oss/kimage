@@ -1,5 +1,15 @@
 # Clean implementation acceptance ledger
 
+2026-10-18, published 0.6.1: [actual publication verification](published-0.6.1-results.json)
+checks exact-tag assets and both Cargo archives, public native indexes, Cargo
+installation/catalog fetching, live site and Helm repository. The permanent
+cluster-wide installation upgrades from public chart 0.6.0 to public chart 0.6.1
+through Argo CD with built-in pins. Fresh native placement cases pass before and
+after; default discovery, status and doctor pass. All 247 prior release contracts,
+nine credentials, storage, policy and shared CRD identities remain intact.
+Complete authenticated readback verifies 18 historical, 35 frozen-input and
+18 placement graphs. Pre-publication fixture evidence stays separate.
+
 2026-10-18, 0.6.1 candidate: [eight native CLI/Helm and four Argo CD cases](native-0.6.1-results.json)
 pass actual published 0.6.0 round trips, interruptions, native builds and retained-data
 reinstall. Independent future writers populate schema 7, Image fields, native build

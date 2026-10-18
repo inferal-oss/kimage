@@ -483,6 +483,15 @@ arm64, including actual native build execution and workload pulls, dry-run,
 on-demand/eager policy, controller templates, RBAC and namespace boundaries.
 The [0.4.0 acceptance record](docs/native-install-results.json) covers all eight cases.
 
+The [published 0.6.1 verification](docs/published-0.6.1-results.json) checks
+both crates, all release assets, public native GHCR indexes, Cargo installation,
+automatic catalog fetching and the live Helm repository. The permanent cluster-wide
+Argo installation upgrades from the public 0.6.0 chart to the public 0.6.1 chart
+with built-in pins. Fresh placement cases pass before and after the upgrade.
+Status/doctor are healthy; all 247 prior release contracts, nine credentials,
+storage, policy and shared CRD identities stay intact. Complete readback verifies
+71 OCI graphs, including the fresh before/after placement outputs.
+
 The [0.6.1 native matrix](docs/native-0.6.1-results.json) passes all eight
 CLI/Helm cases and four Argo CD cases through actual published 0.6.0 and back,
 with interruption recovery and retained-data reinstall. An independently built

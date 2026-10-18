@@ -1,0 +1,507 @@
+{
+  "schema": 1,
+  "date": "2026-10-18",
+  "verifiedAt": "2026-10-18T06:01:45.923106+00:00",
+  "testedPackageVersion": "0.6.1",
+  "tagCommit": "a48b3e620851e69376decf9ac5b690a91d3532cf",
+  "releaseWorkflow": "https://github.com/inferal-oss/kimage/actions/runs/39099635906",
+  "previewWorkflow": "39097308577",
+  "test": "published-artifacts-and-permanent-cluster-wide-argocd-upgrade",
+  "note": "Verified after actual crates.io, GitHub and GHCR publication. Every public asset and both Cargo archives match reviewed exact-tag bytes. All native indexes are public, and the globally Cargo-installed CLI verifies automatic catalog fetching before an isolated configuration refusal without a Kubernetes endpoint. The permanent four-node mixed cluster upgrades from the public 0.6.0 chart to the public 0.6.1 chart through Argo CD, using built-in pins without overrides. Fresh unknown, AMD64 and ARM64 placements run before and after the upgrade. Original installation/volume identities, 247 pre-upgrade release contracts, nine credential identities/bytes and administrator policy remain intact. Shared schema 6 and all CRD identities/definitions stay unchanged. Complete authenticated readback verifies 18 historical, 35 frozen-input and 18 fresh placement graphs. Historical metadata from retired backends is not claimed as verified registry bytes. CLI/Helm/Argo fixture interruptions, rollbacks and removals are recorded separately before publication with byte-identical candidate images/chart. The permanent installation is not uninstalled, downgraded or interrupted, and shared Nodes stay unchanged. Initial site hashes precede the receipt documentation update. Private node names, kubeconfig context, credential material and infrastructure repository details are omitted.",
+  "publicationVerification": {
+    "schema": 1,
+    "release": "0.6.1",
+    "tagCommit": "a48b3e620851e69376decf9ac5b690a91d3532cf",
+    "releaseUrl": "https://github.com/inferal-oss/kimage/releases/tag/v0.6.1",
+    "assets": [
+      {
+        "name": "component-images.json",
+        "size": 1735,
+        "sha256": "28752f20d45a1dc75a8a97249890be231cfd82e7b1dc5b0d675d79f6619ff821"
+      },
+      {
+        "name": "kimage-0.6.1.tgz",
+        "size": 20268,
+        "sha256": "d12cddc285dae5b13fff7ebfddaf83300694d631c3afbb86a2c2c343fe28e56e"
+      },
+      {
+        "name": "kimage-v0.6.1-darwin-amd64",
+        "size": 12069992,
+        "sha256": "c7f0edc42dc4b6e42c53a3f25a0eec6f4bc8fda2e54a17ab4c409e70c41816bf"
+      },
+      {
+        "name": "kimage-v0.6.1-darwin-arm64",
+        "size": 10347760,
+        "sha256": "a4e709cc0aa0d1be039164b3171ea06029ecf434c9f00a23e8f132e314cda161"
+      },
+      {
+        "name": "kimage-v0.6.1-linux-amd64",
+        "size": 12406096,
+        "sha256": "74378e8ae9284a7e11139bf55c9a55d82982de2017b2f21117a32e6695759501"
+      },
+      {
+        "name": "kimage-v0.6.1-linux-arm64",
+        "size": 9583368,
+        "sha256": "f1be97549274e18a6e21554b9aa5d9df2e8d41de2f7747284867b1765cf60b1e"
+      },
+      {
+        "name": "LICENSE",
+        "size": 11358,
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      },
+      {
+        "name": "release-compatibility.json",
+        "size": 2065,
+        "sha256": "0285d726cf6c795c216a952f28d14067101e928facf471092d108b1aed8cecaf"
+      },
+      {
+        "name": "SHA256SUMS",
+        "size": 798,
+        "sha256": "a7fdc82feb63fba2575ff171f3af115d0ca7758bd9d7e9acb0c52b8107276def"
+      },
+      {
+        "name": "THIRD-PARTY-NOTICES.txt",
+        "size": 2974418,
+        "sha256": "f162eca5a3a1b357c836d9885aa13352a0df504d99870b6c87414433c1c13f82"
+      }
+    ],
+    "crates": [
+      {
+        "name": "kimage-core",
+        "size": 33993,
+        "sha256": "62b6b3fc0f7650df61844ecacbb3131d948e156f529eab246e2e1bcf3a461eed"
+      },
+      {
+        "name": "kimage-control",
+        "size": 352997,
+        "sha256": "e457b9ad7298d5cbfc8b5062df092bbf7a71cc91dd37835db695befebfcafafe"
+      }
+    ],
+    "anonymousComponentIndexes": 8,
+    "complete": true
+  },
+  "cargoCLI": {
+    "schema": 1,
+    "release": "0.6.1",
+    "cargoInstalledCLI": {
+      "kimage": "kimage 0.6.1",
+      "kimage-install": "kimage-install 0.6.1"
+    },
+    "schemasIncludeFrozenImageInputs": true,
+    "automaticOfficialCatalogFetch": true,
+    "fetchSmoke": {
+      "defaultRelease": true,
+      "explicitCatalog": false,
+      "configurationFailureAfterVerifiedCatalog": true,
+      "noKubernetesEndpointConfigured": true
+    },
+    "complete": true
+  },
+  "initialLiveSite": {
+    "schema": 1,
+    "release": "0.6.1",
+    "verifiedAt": "2026-10-18T05:55:28.607735+00:00",
+    "helmChartVersions": [
+      "0.4.0",
+      "0.4.1",
+      "0.5.0",
+      "0.5.1",
+      "0.5.2",
+      "0.6.0",
+      "0.6.1"
+    ],
+    "chartSha256": "d12cddc285dae5b13fff7ebfddaf83300694d631c3afbb86a2c2c343fe28e56e",
+    "files": [
+      {
+        "url": "https://kimage.dev/charts/index.yaml",
+        "size": 4126,
+        "sha256": "6df0a0ee334ee864aadb275524641784b49660019e5395188c3602c5ef134d49"
+      },
+      {
+        "url": "https://kimage.dev/charts/kimage-0.6.1.tgz",
+        "size": 20268,
+        "sha256": "d12cddc285dae5b13fff7ebfddaf83300694d631c3afbb86a2c2c343fe28e56e"
+      },
+      {
+        "url": "https://kimage.dev/docs/",
+        "size": 88716,
+        "sha256": "b7e71cc3177e77065a0651839e02d6648c1d91a697e9a85c4ef0d187bc43c784"
+      },
+      {
+        "url": "https://kimage.dev/llms.txt",
+        "size": 41004,
+        "sha256": "44a2c3e93678cec6fa706d8fe2ee99908a9c5bd49ddc1942ac174fa2df0a94ef"
+      },
+      {
+        "url": "https://kimage.dev/docs/index.md",
+        "size": 62049,
+        "sha256": "44acf5e94ab0ffbacb80f4f62c34632f6d46f0b124695abee5b6724d36fffc80"
+      },
+      {
+        "url": "https://kimage.dev/",
+        "size": 19341,
+        "sha256": "3f9060f40cc9ae0417f69d1c756e616676b352aa759fb9f5b6236f2dbbeb4d47"
+      },
+      {
+        "url": "https://kimage.dev/changelog/",
+        "size": 78350,
+        "sha256": "ba1e76294c23f746a7b62404f3687da20b6a3ff71bfcb7e28a52432508e527c9"
+      }
+    ],
+    "complete": true
+  },
+  "helmCLI": {
+    "release": "0.6.1",
+    "repository": "https://kimage.dev/charts",
+    "repoAdd": true,
+    "repoUpdate": true,
+    "showValues": true,
+    "pull": true,
+    "builtInNativePins": true,
+    "chartSha256": "d12cddc285dae5b13fff7ebfddaf83300694d631c3afbb86a2c2c343fe28e56e",
+    "complete": true
+  },
+  "liveInstallation": {
+    "schema": 1,
+    "verifiedAt": "2026-10-18T06:00:37.787357+00:00",
+    "release": "0.6.1",
+    "manager": "argocd",
+    "scope": "cluster",
+    "nodes": {
+      "total": 4,
+      "amd64": 3,
+      "arm64": 1
+    },
+    "retainedInstallationIdentity": true,
+    "retainedPvcAndVolumeIdentity": true,
+    "retainedCredentialIdentitiesAndBytes": 9,
+    "retainedAdministratorPolicyBytes": true,
+    "retainedReleaseIdentitiesAndSpecs": 247,
+    "originalRetainedReleaseContracts": 238,
+    "additionalPreUpgradeReleaseContracts": 9,
+    "nativeComponents": {
+      "release": "0.6.1",
+      "identities": [
+        {
+          "role": "admission",
+          "architecture": "amd64",
+          "container": "admission",
+          "imageId": "ghcr.io/inferal-oss/kimage/admission@sha256:8326e4062fe3e95d1c299916126edac6a024a19416d6b5becfd2583abed1fc60"
+        },
+        {
+          "role": "builder",
+          "architecture": "amd64",
+          "container": "builder",
+          "imageId": "ghcr.io/inferal-oss/kimage/builder@sha256:ae1698208fa53ef48a06292617e8ed3588ae9ddfaf5827ba56b6507ee4f9107b"
+        },
+        {
+          "role": "builder",
+          "architecture": "arm64",
+          "container": "builder",
+          "imageId": "ghcr.io/inferal-oss/kimage/builder@sha256:ae1698208fa53ef48a06292617e8ed3588ae9ddfaf5827ba56b6507ee4f9107b"
+        },
+        {
+          "role": "node-proxy",
+          "architecture": "amd64",
+          "container": "proxy",
+          "imageId": "ghcr.io/inferal-oss/kimage/proxy@sha256:7ed5e38d4fe5402e0a24fed2f4c3b13198beec59fd438960fb4eb9d72e6ac137"
+        },
+        {
+          "role": "node-proxy",
+          "architecture": "arm64",
+          "container": "proxy",
+          "imageId": "ghcr.io/inferal-oss/kimage/proxy@sha256:7ed5e38d4fe5402e0a24fed2f4c3b13198beec59fd438960fb4eb9d72e6ac137"
+        },
+        {
+          "role": "node-proxy",
+          "architecture": "amd64",
+          "container": "proxy",
+          "imageId": "ghcr.io/inferal-oss/kimage/proxy@sha256:7ed5e38d4fe5402e0a24fed2f4c3b13198beec59fd438960fb4eb9d72e6ac137"
+        },
+        {
+          "role": "node-proxy",
+          "architecture": "amd64",
+          "container": "proxy",
+          "imageId": "ghcr.io/inferal-oss/kimage/proxy@sha256:7ed5e38d4fe5402e0a24fed2f4c3b13198beec59fd438960fb4eb9d72e6ac137"
+        },
+        {
+          "role": "operator",
+          "architecture": "amd64",
+          "container": "operator",
+          "imageId": "ghcr.io/inferal-oss/kimage/operator@sha256:1035ddaa690787cc5bdcc107b88ff5d1216534905ba5cb6e15b8aa6159af1d2d"
+        },
+        {
+          "role": "registry",
+          "architecture": "amd64",
+          "container": "gateway",
+          "imageId": "ghcr.io/inferal-oss/kimage/gateway@sha256:544fbccc59d6437e091563f61abdfb7081264c5054d8bc30324a472b43732cd2"
+        },
+        {
+          "role": "registry",
+          "architecture": "amd64",
+          "container": "registry",
+          "imageId": "ghcr.io/inferal-oss/kimage/registry@sha256:9a8b62f03765b2af32aee4dff194c638eb3ec7bb257ba34e9dc32a10148be31a"
+        }
+      ]
+    },
+    "registryReadback": {
+      "kimage-052-upgrade-check": {
+        "complete": true,
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "verification": "authenticated TLS full OCI graph, descriptor sizes, SHA-256 and DiffIDs",
+        "verifiedReleases": 18
+      },
+      "kimage-060-input-check": {
+        "complete": true,
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "verification": "authenticated TLS full OCI graph, descriptor sizes, SHA-256 and DiffIDs",
+        "verifiedReleases": 35
+      },
+      "kimage-061-upgrade-check": {
+        "complete": true,
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "verification": "authenticated TLS full OCI graph, descriptor sizes, SHA-256 and DiffIDs",
+        "verifiedReleases": 18
+      }
+    },
+    "argo": {
+      "repoURL": "https://kimage.dev/charts",
+      "targetRevision": "0.6.1",
+      "observedRevision": "0.6.1",
+      "sync": "Synced",
+      "health": "Healthy",
+      "operation": "Succeeded",
+      "imageOverrides": false
+    },
+    "componentImages": {
+      "schema": 1,
+      "release": "0.6.1",
+      "apiSchemaRevision": 6,
+      "repository": "ghcr.io/inferal-oss/kimage",
+      "components": {
+        "admission": {
+          "version": "0.6.1",
+          "digest": "sha256:8326e4062fe3e95d1c299916126edac6a024a19416d6b5becfd2583abed1fc60",
+          "platforms": [
+            {
+              "os": "linux",
+              "architecture": "amd64"
+            },
+            {
+              "os": "linux",
+              "architecture": "arm64"
+            }
+          ]
+        },
+        "builder": {
+          "version": "0.33.0",
+          "digest": "sha256:ae1698208fa53ef48a06292617e8ed3588ae9ddfaf5827ba56b6507ee4f9107b",
+          "platforms": [
+            {
+              "os": "linux",
+              "architecture": "amd64"
+            },
+            {
+              "os": "linux",
+              "architecture": "arm64"
+            }
+          ]
+        },
+        "exporter": {
+          "version": "0.6.1",
+          "digest": "sha256:fdc9c1de0131788d2bbe7f12d75c38a3fb4258fa922fad843408245143364fd3",
+          "platforms": [
+            {
+              "os": "linux",
+              "architecture": "amd64"
+            },
+            {
+              "os": "linux",
+              "architecture": "arm64"
+            }
+          ]
+        },
+        "gateway": {
+          "version": "0.3.0",
+          "digest": "sha256:544fbccc59d6437e091563f61abdfb7081264c5054d8bc30324a472b43732cd2",
+          "platforms": [
+            {
+              "os": "linux",
+              "architecture": "amd64"
+            },
+            {
+              "os": "linux",
+              "architecture": "arm64"
+            }
+          ]
+        },
+        "input": {
+          "version": "0.6.1",
+          "digest": "sha256:07f72ad7d30c39fa4112e6ca86ff89da49cd599a35ae51296f20b3612dbad556",
+          "platforms": [
+            {
+              "os": "linux",
+              "architecture": "amd64"
+            },
+            {
+              "os": "linux",
+              "architecture": "arm64"
+            }
+          ]
+        },
+        "operator": {
+          "version": "0.6.1",
+          "digest": "sha256:1035ddaa690787cc5bdcc107b88ff5d1216534905ba5cb6e15b8aa6159af1d2d",
+          "platforms": [
+            {
+              "os": "linux",
+              "architecture": "amd64"
+            },
+            {
+              "os": "linux",
+              "architecture": "arm64"
+            }
+          ]
+        },
+        "proxy": {
+          "version": "0.3.0",
+          "digest": "sha256:7ed5e38d4fe5402e0a24fed2f4c3b13198beec59fd438960fb4eb9d72e6ac137",
+          "platforms": [
+            {
+              "os": "linux",
+              "architecture": "amd64"
+            },
+            {
+              "os": "linux",
+              "architecture": "arm64"
+            }
+          ]
+        },
+        "registry": {
+          "version": "3.1.2",
+          "digest": "sha256:9a8b62f03765b2af32aee4dff194c638eb3ec7bb257ba34e9dc32a10148be31a",
+          "platforms": [
+            {
+              "os": "linux",
+              "architecture": "amd64"
+            },
+            {
+              "os": "linux",
+              "architecture": "arm64"
+            }
+          ]
+        }
+      }
+    },
+    "complete": true
+  },
+  "sharedSchema": {
+    "schema": 1,
+    "verifiedAt": "2026-10-18T06:00:39.008536+00:00",
+    "stage": "published",
+    "sharedCrdCount": 3,
+    "sharedSchemaRevision": 6,
+    "identitiesPreserved": true,
+    "definitionsPreserved": true,
+    "revisionAnnotationsPreserved": true,
+    "syntheticSchemaInstalled": false,
+    "complete": true
+  },
+  "freshPublishedPlacement": {
+    "schema": 1,
+    "test": "mixed-cluster",
+    "runId": "78db68f0d7e7",
+    "namespace": "kimage-061-upgrade-check",
+    "cases": [
+      {
+        "placement": "unknown",
+        "image": "mixed-e2e-78db68f0d7e7-unknown",
+        "imageUid": "4ab35309-e303-42a2-90c3-1e56fa7fb3fd",
+        "platforms": [
+          "amd64",
+          "arm64"
+        ],
+        "root": "sha256:0f090c49ad817bfa17fa5d630e250344b5974840db527d9034d1d24df316efa0",
+        "mediaType": "application/vnd.oci.image.index.v1+json",
+        "childUids": [
+          "33d02910-0dec-4160-b547-066eafc4b41c",
+          "89614406-6612-40de-9a18-a266cec2bfb9"
+        ]
+      },
+      {
+        "placement": "amd64",
+        "image": "mixed-e2e-78db68f0d7e7-amd64",
+        "imageUid": "b23ab5a6-0e7e-4659-bb57-4998c2b72b75",
+        "platforms": [
+          "amd64"
+        ],
+        "root": "sha256:e13a3474476ee695845dbb4c997ab64951b636cfa73dac5d1912ff7e4d52af65",
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "childUids": [
+          "35fd5429-9c21-4dbf-b38e-bec464f74e76"
+        ]
+      },
+      {
+        "placement": "arm64",
+        "image": "mixed-e2e-78db68f0d7e7-arm64",
+        "imageUid": "b98b55c3-1293-4cc1-beaf-a0695e0269ee",
+        "platforms": [
+          "arm64"
+        ],
+        "root": "sha256:8573e4943d3d1e4e88eaabf4c02c6b1919e86763a6567a016b784c6a066013fd",
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "childUids": [
+          "8f4fd817-20d7-480e-adeb-d7c14ff07a0a"
+        ]
+      }
+    ],
+    "complete": true,
+    "cleanupComplete": true,
+    "retainedImages": [
+      "mixed-e2e-78db68f0d7e7-unknown",
+      "mixed-e2e-78db68f0d7e7-amd64",
+      "mixed-e2e-78db68f0d7e7-arm64"
+    ],
+    "cleanupErrors": []
+  },
+  "defaultDiscovery": {
+    "schema": 1,
+    "release": "0.6.1",
+    "verifiedAt": "2026-10-18T06:00:35.517912+00:00",
+    "defaultDiscovery": true,
+    "commands": {
+      "installations": {
+        "found": true,
+        "release": "0.6.1",
+        "scope": "cluster",
+        "manager": "argocd"
+      },
+      "status": {
+        "healthy": true,
+        "release": "0.6.1"
+      },
+      "doctor": {
+        "healthy": true,
+        "release": "0.6.1"
+      }
+    },
+    "complete": true
+  },
+  "prepublicationAcceptance": {
+    "native": "native-0.6.1-results.json",
+    "mixed": "mixed-0.6.1-results.json",
+    "testedCandidateCommit": "ef5829cbb3ead21994ef4d44cabbb1d080fe81a2",
+    "componentCatalogMatchesPublished": true,
+    "helmChartMatchesPublished": true
+  },
+  "complete": true
+}

@@ -1231,6 +1231,15 @@ python3 scripts/check-site.py</code></pre>
               <code>kimage.dev/required-capabilities</code>. Returning to unprepared
               0.6.0 requires exact schema 6 and no unsupported resource requirements.
             </p>
+            <p>The <a href="https://github.com/inferal-oss/kimage/blob/main/docs/published-0.6.1-results.json">published 0.6.1 verification</a>
+              checks both crates, every asset, public native images, Cargo installation,
+              automatic catalog fetching and the live chart repository. The permanent
+              cluster-wide Argo installation upgrades from public chart 0.6.0 to 0.6.1
+              using built-in pins. Fresh placement cases pass before and after; status
+              and doctor are healthy. All 247 prior release contracts, nine credentials,
+              storage, policy and shared CRD identities stay intact, with complete
+              readback of 71 OCI graphs.
+            </p>
             <p>The <a href="https://github.com/inferal-oss/kimage/blob/main/docs/native-0.6.1-results.json">0.6.1 native matrix</a>
               passes eight CLI/Helm and four Argo CD cases through published 0.6.0 and back,
               with interrupted recovery and retained-data reinstall. Independent future

@@ -91,3 +91,7 @@ baseline binaries. The [real mixed-cluster receipt](mixed-0.6.1-results.json)
 records actual published-predecessor round trips for all three managers with
 native amd64/arm64 execution and retained-data readback. Shared schema 6 remains
 unchanged on the real cluster. Publication and the permanent upgrade are checked separately.
+
+The [published verification](published-0.6.1-results.json) checks exact public
+assets and the permanent cluster-wide Argo upgrade from the public 0.6.0 chart
+to 0.6.1, with fresh native placement and complete retained OCI readback.
