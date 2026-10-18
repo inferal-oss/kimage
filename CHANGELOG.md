@@ -11,6 +11,12 @@ commits and original release attribution. Uncommitted work is marked explicitly.
 
 ## [Unreleased]
 
+### Fixed
+
+- CLI interruption acceptance holds the response after a durable Applying journal write, making fast cached transitions deterministic without production test hooks. Resume restores the original connection. Implementation pending commit.
+
+**Commits:** [749c2ea](https://github.com/inferal-oss/kimage/commit/749c2ea14ec4d30d29b8455c94af70a1ffe785ec).
+
 ## [0.6.1] - 2026-10-18
 
 ### Added

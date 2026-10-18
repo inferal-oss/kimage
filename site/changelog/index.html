@@ -71,7 +71,11 @@
         <div class="release-feed">
 <article id="unreleased" class="release unreleased">
 <header class="release-heading"><div><h2>Unreleased</h2><span class="release-date">In development</span></div><span class="release-badge pending-badge">UP NEXT</span></header>
-<details class="pending-changes"><summary>0 upcoming changes</summary><div class="release-body"></div></details>
+<details class="pending-changes"><summary>1 upcoming changes</summary><div class="release-body"><h3 class="category category-fixed">Fixed</h3>
+<ul>
+<li>CLI interruption acceptance holds the response after a durable Applying journal write, making fast cached transitions deterministic without production test hooks. Resume restores the original connection. Implementation pending commit.</li>
+</ul>
+<details class="release-sources"><summary>Commits</summary><p><a class="commit-link" href="https://github.com/inferal-oss/kimage/commit/749c2ea14ec4d30d29b8455c94af70a1ffe785ec">749c2ea</a>.</p></details></div></details>
 <a class="release-compare" href="https://github.com/inferal-oss/kimage/compare/v0.6.1...HEAD">View pending changes <span aria-hidden="true">↗</span></a>
 </article>
 <article id="v0.6.1" class="release">

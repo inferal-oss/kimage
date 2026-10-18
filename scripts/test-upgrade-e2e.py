@@ -24,13 +24,6 @@ publish=module('publish-component-images')
 upgrade=module('e2e-upgrade')
 
 class Boundaries(unittest.TestCase):
-    def test_cli_interruption_uses_durable_journal_without_waiting_for_catalog(self):
-        fixture=upgrade.Upgrade.__new__(upgrade.Upgrade);fixture.config=dict(mode='cli')
-        fixture.run_command=lambda args:self.fail('CLI interruption must not wait for another resource')
-        self.assertFalse(fixture.interruptible(None))
-        self.assertFalse(fixture.interruptible(dict(phase='Complete')))
-        self.assertTrue(fixture.interruptible(dict(phase='Applying')))
-
     def test_helm_interruption_still_requires_an_inflight_release(self):
         import types
         fixture=upgrade.Upgrade.__new__(upgrade.Upgrade);fixture.config=dict(mode='helm');fixture.id='fixture';fixture.system='system'

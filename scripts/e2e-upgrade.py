@@ -7,6 +7,7 @@ are never deleted or cordoned. Images, releases, inputs and registry PVC remain.
 import argparse
 import base64
 import copy
+from contextlib import nullcontext
 import hashlib
 import importlib.util
 import json
@@ -26,6 +27,8 @@ spec=importlib.util.spec_from_file_location('log_assertions',ROOT/'scripts/e2e-l
 log_assertions=importlib.util.module_from_spec(spec);spec.loader.exec_module(log_assertions)
 spec=importlib.util.spec_from_file_location('image_assertions',ROOT/'scripts/e2e-image-assertions.py')
 image_assertions=importlib.util.module_from_spec(spec);spec.loader.exec_module(image_assertions)
+spec=importlib.util.spec_from_file_location('interruption',ROOT/'scripts/e2e-interruption.py')
+interruption=importlib.util.module_from_spec(spec);spec.loader.exec_module(interruption)
 
 
 def require(value,message):
@@ -60,6 +63,7 @@ class Upgrade:
             data=(self.previous/asset['name']).read_bytes()
             require(len(data)==asset['size'] and 'sha256:'+hashlib.sha256(data).hexdigest()==asset['sha256'],'Predecessor asset changed')
         self.report=dict(schema=1,test='installation-lifecycle',source=self.source,target=self.version,manager=config['mode'],scope=config['scope'],checks=[],complete=False)
+        if config['mode']=='cli':self.report['cliInterruptionMethod']='durable-api-response-barrier'
         self.report['harnessSha256']='sha256:'+hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
         self.report['imageAssertionsSha256']='sha256:'+hashlib.sha256((ROOT/'scripts/e2e-image-assertions.py').read_bytes()).hexdigest()
         self.report['artifacts']={key:'sha256:'+hashlib.sha256(Path(config[key]).read_bytes()).hexdigest() for key in ['installer','catalog','chart']}
@@ -331,10 +335,7 @@ class Upgrade:
 
     def interruptible(self,record):
         if not record or record['phase']!='Applying':return False
-        # CLI application can finish immediately after updating its catalog.
-        # The durable Applying journal is the recovery boundary; observing a
-        # second resource introduces a race with successful completion.
-        if self.config['mode']=='cli':return True
+        # CLI uses a durable response barrier; this branch handles Helm.
         history=json.loads(self.run_command(['helm','history',self.id,'--namespace',self.system,'--output','json']).stdout)
         return history[-1]['status'].startswith('pending-')
 
@@ -349,17 +350,22 @@ class Upgrade:
         before=self.retained()
         if interrupt:
             path=self.output/(command+'-interrupted.log')
-            with path.open('w') as output:
-                process=subprocess.Popen([str(a) for a in args],env=self.environment,stdout=output,stderr=subprocess.STDOUT,start_new_session=True)
+            transport=interruption.Client(self.api.command,self.system,self.id,version,self.environment) if self.config['mode']=='cli' else nullcontext(None)
+            with transport as barrier, path.open('w') as output:
+                environment=barrier.environment if barrier else self.environment
+                process=subprocess.Popen([str(a) for a in args],env=environment,stdout=output,stderr=subprocess.STDOUT,start_new_session=True)
                 deadline=time.monotonic()+180
                 try:
                     while True:
                         if process.poll() is not None:
                             detail=path.read_text()[-3000:]
                             raise RuntimeError('Operation exited '+str(process.returncode)+' before interruption; fixture must prove interruption. '+detail)
-                        record=self.operation()
-                        if self.interruptible(record):break
-                        require(time.monotonic()<deadline,'Did not observe an interruptible phase');time.sleep(.3)
+                        if barrier:
+                            if barrier.applied.wait(.05):break
+                        elif self.interruptible(self.operation()):break
+                        require(time.monotonic()<deadline,'Did not observe an interruptible phase')
+                        if not barrier:time.sleep(.3)
+                    if barrier:require(self.operation()['phase']=='Applying','Barrier must hold the durably committed Applying journal')
                     os.killpg(process.pid,signal.SIGKILL);process.wait(timeout=15)
                 finally:
                     if process.poll() is None:os.killpg(process.pid,signal.SIGKILL);process.wait(timeout=15)

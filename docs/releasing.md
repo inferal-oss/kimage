@@ -34,6 +34,7 @@ python3 scripts/test-mixed-e2e.py
 python3 scripts/test-image-inputs-e2e.py
 python3 scripts/test-install-e2e.py
 python3 scripts/test-upgrade-e2e.py
+python3 scripts/test-interruption.py
 python3 scripts/test-argocd-e2e.py
 python3 scripts/test-argocd-next.py
 python3 scripts/test-forward-e2e.py
@@ -243,3 +244,11 @@ If an existing cluster-wide installation prevents overlapping fixtures, use an
 explicitly excluded, empty application namespace for serial namespace fixtures;
 retain its UID and record this scope in the receipt. The native matrix still
 requires both installation scopes for every manager and architecture.
+
+CLI interruption acceptance uses a test-only loopback response barrier: the API
+first commits the Applying journal, then the fixture holds that response until
+the CLI process is killed. This makes even cached, fast transitions interruptible
+without production hooks or timing assumptions. A temporary private kubeconfig
+uses kubectl's authenticated, TLS-verified cluster connection. Resume uses the
+original connection; the proxy and temporary configuration are removed. Helm
+interruptions still require a pending Helm release.
