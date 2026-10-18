@@ -53,7 +53,7 @@ feature as an older build. Native children also check their parent's requirement
 Other Images continue building; admission can still resolve verified published
 roots using the stable release identity and OCI descriptor.
 
-Status updates patch owned fields. Unknown status data stays stored, and newer
+Status updates compare and patch owned fields, avoiding repeated writes for unrelated metadata. Unknown status data stays stored, and newer
 provenance remains opaque when its execution receipt cannot be decoded. Do not
 remove capability declarations merely to force an older controller to build.
 Finish or remove unsupported active operations with a compatible newer reader.

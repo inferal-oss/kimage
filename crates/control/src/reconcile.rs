@@ -139,9 +139,14 @@ pub(crate) async fn checkpoint(
     {
         new.last_transition_time = old.last_transition_time.clone();
     }
-    if current.status.as_ref().is_some_and(|current| {
-        serde_json::to_value(current).ok() == serde_json::to_value(&status).ok()
-    }) {
+    // Opaque server fields are outside this reader's patch. Comparing full
+    // round-trip JSON would repeatedly rewrite identical owned fields whenever
+    // a newer writer had added unrelated status metadata.
+    if current
+        .status
+        .as_ref()
+        .is_some_and(|current| current.owned_patch() == status.owned_patch())
+    {
         return Ok(());
     }
     api.patch_status(
@@ -1041,6 +1046,75 @@ mod tests {
         assert!(!super::permanent_failure("PvcWriterNotQuiescent"));
     }
     use super::*;
+    #[tokio::test]
+    async fn opaque_status_metadata_does_not_cause_repeated_checkpoint_writes() {
+        use axum::{Json, Router, routing::get};
+        use std::sync::Mutex;
+        let ready = condition(1, true, "Published");
+        let resource = json!({"apiVersion":"kimage.dev/v1alpha1","kind":"Image","metadata":{"name":"app","namespace":"apps","uid":"image-uid","resourceVersion":"7","generation":1},"spec":{"version":"1.0.0","source":{"ociArchive":{"claimName":"source","path":"archive","producerHandoff":true,"root":oci::descriptor(b"root",oci::MANIFEST)}},"platform":oci::Platform::linux_amd64()},"status":{"observedGeneration":1,"releaseRef":"retained","conditions":[ready],"futureStatus":{"keep":[1,2,3]}}});
+        let image: Image = serde_json::from_value(resource.clone()).unwrap();
+        let writes = Arc::new(Mutex::new(Vec::<serde_json::Value>::new()));
+        let observed = writes.clone();
+        let response = resource.clone();
+        let router = Router::new()
+            .route(
+                "/apis/kimage.dev/v1alpha1/namespaces/apps/images/app",
+                get(move || {
+                    let response = response.clone();
+                    async move { Json(response) }
+                }),
+            )
+            .route(
+                "/apis/kimage.dev/v1alpha1/namespaces/apps/images/app/status",
+                axum::routing::patch(move |Json(body): Json<serde_json::Value>| {
+                    let observed = observed.clone();
+                    let response = resource.clone();
+                    async move {
+                        observed.lock().unwrap().push(body);
+                        Json(response)
+                    }
+                }),
+            );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
+        let client = Client::try_from(kube::Config::new(
+            format!("http://{address}").parse().unwrap(),
+        ))
+        .unwrap();
+        let config = Config {
+            scope: None,
+            direct: None,
+            client,
+            namespace: "apps".into(),
+            node: "unused".into(),
+            input_image: "unused".into(),
+            registry_origin: "https://registry.invalid/".parse().unwrap(),
+            registry_ca: "unused".into(),
+            publisher_password: "unused".into(),
+            registry_pod: None,
+            cancel: CancellationToken::new(),
+            concurrency: Arc::new(tokio::sync::Semaphore::new(1)),
+        };
+        let status = ImageStatus {
+            observed_generation: 1,
+            release_ref: Some("retained".into()),
+            conditions: vec![ready],
+            ..Default::default()
+        };
+        for _ in 0..3 {
+            checkpoint(&config, &image, status.clone()).await.unwrap();
+        }
+        assert!(writes.lock().unwrap().is_empty());
+        let mut changed = status;
+        changed.release_ref = Some("updated".into());
+        checkpoint(&config, &image, changed).await.unwrap();
+        let writes = writes.lock().unwrap();
+        assert_eq!(writes.len(), 1);
+        assert_eq!(writes[0]["status"]["releaseRef"], "updated");
+        assert!(writes[0]["status"].get("futureStatus").is_none());
+        server.abort();
+    }
     #[test]
     fn export_configuration_never_changes_build_identity() {
         let mut image:Image=serde_json::from_value(json!({"apiVersion":"kimage.dev/v1alpha1","kind":"Image","metadata":{"name":"app","generation":1},"spec":{"version":"1.0.0","source":{"ociArchive":{"claimName":"source","path":"archive","producerHandoff":true,"root":oci::descriptor(b"root",oci::MANIFEST)}},"platform":oci::Platform::linux_amd64()}})).unwrap();

@@ -23,6 +23,8 @@ commits and original release attribution. Uncommitted work is marked explicitly.
 
 ### Fixed
 
+- Unrelated opaque status metadata no longer causes repeated writes when a prepared older reader has no status changes to make. Known status updates still preserve the newer fields. Implementation pending commit.
+
 - Fresh Images with unsupported requirements receive a valid paused status before any build starts, while existing readiness and opaque state remain untouched. Commits: [8b177bf](https://github.com/inferal-oss/kimage/commit/8b177bfa0cb1673bd1ee4382e0ae00e651da68de).
 
 **Commits:** [b0c8464](https://github.com/inferal-oss/kimage/commit/b0c8464f5d3432414f4ef9369404980f5f4c3c1a).
