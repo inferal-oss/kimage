@@ -39,6 +39,15 @@ class Forward(upgrade.Upgrade):
         for source,target in [(self.baseline['installer'],'kimage-v0.6.1-fixture'),(self.baseline['chart'],'kimage-0.6.1.tgz'),(Path(self.baseline['config']['catalog']),'component-images.json')]:shutil.copyfile(source,directory/target)
         self.report['baselineArtifactSha256']={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in directory.iterdir()}
         return directory
+    def remove_consumers(self):
+        # MixedCluster tracks every consumer, including Upgrade.consume().
+        # Delete this single UID-bound inventory once, then await its Pods.
+        for name,uid in reversed(self.api.deployments):
+            current=self.api.get('deployment',name,self.app)
+            if current is None:continue
+            upgrade.require(current['metadata']['uid']==uid,'Fixture consumer identity changed')
+            self.api.call(['delete','--raw','/apis/apps/v1/namespaces/'+self.app+'/deployments/'+name,'-f','-'],dict(apiVersion='v1',kind='DeleteOptions',propagationPolicy='Foreground',preconditions=dict(uid=uid)))
+        self.api.wait(lambda:not self.api.get('pods',namespace=self.app,selector=upgrade.mixed.RUN_LABEL+'='+self.api.run_id)['items'],'all owned forward-reader consumers removed')
     def run(self):
         try:
             self.preflight();self.current_values();self.install_current()
@@ -58,8 +67,7 @@ class Forward(upgrade.Upgrade):
             self.check('unchanged baseline readers retain schema 7 and opaque data while serving future roots and building unrelated Images')
             self.report['roundTrip']=['0.6.1',self.future['release'],'0.6.1']
             retained=self.retained()
-            for name in self.consumers:self.api.call(['delete','deployment',name,'-n',self.app,'--wait=true'])
-            for name,uid in reversed(self.api.deployments):self.api.call(['delete','--raw','/apis/apps/v1/namespaces/'+self.app+'/deployments/'+name,'-f','-'],dict(apiVersion='v1',kind='DeleteOptions',propagationPolicy='Foreground',preconditions=dict(uid=uid)))
+            self.remove_consumers()
             self.uninstall_current();after=self.retained();upgrade.require(all(after[k]==retained[k] for k in ['pvcUid','pvUid','images','releases']),'Baseline uninstall changed retained future data')
             self.install_current();self.verify_graphs('after-baseline-reader-reinstall')
             self.uninstall_current();self.assert_removed();self.report['complete']=True

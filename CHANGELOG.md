@@ -23,7 +23,7 @@ commits and original release attribution. Uncommitted work is marked explicitly.
 
 ### Fixed
 
-- Future-version acceptance uses the complete Helm chart, preserving fixture credentials and runtime resources through interrupted upgrades; chart packaging rejects incomplete runtime charts. Implementation pending commit.
+- Future-version acceptance uses the complete Helm chart, preserving fixture credentials and runtime resources through interrupted upgrades; chart packaging rejects incomplete runtime charts. UID-guarded consumer cleanup removes each fixture once before verifying uninstall retention. Implementation pending commit.
 
 - New build-journal and execution-receipt fields pause the affected build and retain their original data, even when historical typed decoders would ignore extra fields. Implementation pending commit.
 

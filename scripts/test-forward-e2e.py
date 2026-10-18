@@ -40,6 +40,22 @@ class Boundaries(unittest.TestCase):
                 else:
                     fix=argo.Argo.__new__(argo.Argo);fix.app='existing';fix.system='fresh-system';fix.api=API();fix.report={};fix.config=dict(existingEmptyApplicationNamespaceUid='expected',scope='cluster' if mismatch=='scope' else 'namespace')
                     with self.assertRaisesRegex(RuntimeError,'namespace-scoped|UID or fresh|contains workload data'):fix.prepare_namespaces()
+    def test_forward_cleanup_uses_one_uid_inventory_and_refuses_replacements(self):
+        class API:
+            run_id='run'
+            deployments=[('shared-consumer','owned'),('future-consumer','future-owned'),('shared-consumer','owned')]
+            def __init__(self,replaced=False):self.objects={'shared-consumer':'replacement' if replaced else 'owned','future-consumer':'future-owned'};self.deleted=[];self.waited=False
+            def get(self,kind,name=None,namespace=None,selector=None):
+                if kind=='pods':return dict(items=[])
+                return dict(metadata=dict(uid=self.objects[name])) if name in self.objects else None
+            def call(self,args,body):
+                name=args[2].rsplit('/',1)[-1];assert body['preconditions']['uid']==self.objects[name];self.deleted.append(name);del self.objects[name]
+            def wait(self,predicate,message):assert predicate();self.waited=True
+        fixture=forward.Forward.__new__(forward.Forward);fixture.app='apps';fixture.api=API();fixture.remove_consumers()
+        self.assertEqual(fixture.api.deleted,['shared-consumer','future-consumer']);self.assertTrue(fixture.api.waited)
+        fixture.api=API(replaced=True)
+        with self.assertRaisesRegex(RuntimeError,'consumer identity changed'):fixture.remove_consumers()
+        self.assertEqual(fixture.api.deleted,[])
     def test_pending_changelog_versions_keep_the_latest_published_comparison(self):
         source=(ROOT/'scripts/check-changelog.py').read_text();sha='a'*40
         notes='# Changelog\n\nhttps://keepachangelog.com/en/1.1.0/\n\n## [Unreleased]\n\n### Added\n\n- Foundation. Implementation pending commit.\n\n**Commits:** ['+sha[:7]+'](https://github.com/inferal-oss/kimage/commit/'+sha+').\n\n## [0.6.0] - 2026-10-17\n\n### Added\n\n- Previous release. Commits: ['+sha[:7]+'](https://github.com/inferal-oss/kimage/commit/'+sha+').\n\n**Commits:** ['+sha[:7]+'](https://github.com/inferal-oss/kimage/commit/'+sha+').\n\n[Unreleased]: https://github.com/inferal-oss/kimage/compare/v0.6.0...HEAD\n[0.6.0]: https://github.com/inferal-oss/kimage/compare/v0.5.2...v0.6.0\n'
