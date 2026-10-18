@@ -1,12 +1,24 @@
 # Original brief acceptance audit
 
+2026-10-18, 0.6.1 candidate: [eight native CLI/Helm and four Argo CD cases](native-0.6.1-results.json)
+pass actual published 0.6.0 round trips, interruptions, native builds and retained-data
+reinstall. Independent future writers populate schema 7, Image fields, native build
+journals and provenance; unchanged baseline readers preserve newer CRDs and opaque
+data, pause unsupported existing/fresh Images, serve published roots and build unrelated
+Images. [Real mixed-cluster acceptance](mixed-0.6.1-results.json) repeats CLI, Helm and
+Argo CD transitions in serial namespace fixtures with fresh native placement cases.
+Shared schema 6 and CRD identities stay intact. The permanent cluster-wide public
+installation remains healthy with 247 release contracts, nine credentials, storage,
+policy and 62 verified complete OCI graphs. Candidate testing precedes publication;
+synthetic schemas run only on disposable APIs. Both scopes pass in native CI.
+
 [Published 0.6.0 verification](published-0.6.0-results.json) confirms the actual
 public crates, release assets, native GHCR graphs, Cargo CLI/catalog fetch and
 live website. The official public chart runs through Argo CD on the permanent
 mixed cluster, preserving retained identities, credentials, policy and verified
 OCI bytes. Default discovery, status and doctor pass.
 
-Current 0.6.0 [native acceptance](native-0.6.0-results.json) and
+Earlier 0.6.0 [native acceptance](native-0.6.0-results.json) and
 [real mixed-cluster acceptance](mixed-0.6.0-results.json) cover frozen OCI
 base/toolchain inputs, both native architectures, placement, cache controls,
 source refusal and preserved input identities after dependency recreation.

@@ -474,15 +474,26 @@ python3 -m compileall -q scripts
 
 [GitHub Actions](https://github.com/inferal-oss/kimage/actions/workflows/ci.yml)
 runs formatting, Clippy, documentation/example checks, and the workspace tests
-on macOS/arm64 and native Linux/amd64 and Linux/arm64 musl. Eleven Python
-legacy release-tooling tests and six component/chart tests verify pinned inputs, deterministic native packaging, and
-immutable asset checks. The Rust suite includes loopback HTTP, platform selection,
+on macOS/arm64 and native Linux/amd64 and Linux/arm64 musl. Python release, component/chart and lifecycle tests verify pinned inputs,
+deterministic native packaging, immutable assets and interruption recovery. The Rust suite includes loopback HTTP, platform selection,
 build policy and mocked Kubernetes API recovery regressions.
 
 Native Kubernetes E2E runs CLI and Helm in both namespace and cluster scope on amd64 and
 arm64, including actual native build execution and workload pulls, dry-run,
 on-demand/eager policy, controller templates, RBAC and namespace boundaries.
 The [0.4.0 acceptance record](docs/native-install-results.json) covers all eight cases.
+
+The [0.6.1 native matrix](docs/native-0.6.1-results.json) passes all eight
+CLI/Helm cases and four Argo CD cases through actual published 0.6.0 and back,
+with interruption recovery and retained-data reinstall. An independently built
+future writer populates schema 7, native build journals and provenance; unchanged
+0.6.1 binaries retain that schema and opaque data, pause unsupported builds,
+serve published roots and build unrelated Images. The [real mixed-cluster tests](docs/mixed-0.6.1-results.json)
+repeat CLI, Helm and Argo CD transitions with fresh native amd64/arm64 workloads
+in serial namespace fixtures. Shared schema 6 and all CRD identities stay intact.
+The permanent cluster-wide installation retains 247 prior release contracts,
+nine credentials, storage and policy, with complete readback of 62 OCI graphs.
+Candidate acceptance precedes publication; synthetic schemas run only on disposable APIs.
 
 The [published 0.6.0 verification](docs/published-0.6.0-results.json) checks
 both crates, every release asset, anonymous native GHCR images, Cargo installation

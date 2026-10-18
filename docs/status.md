@@ -1,5 +1,17 @@
 # Clean implementation acceptance ledger
 
+2026-10-18, 0.6.1 candidate: [eight native CLI/Helm and four Argo CD cases](native-0.6.1-results.json)
+pass actual published 0.6.0 round trips, interruptions, native builds and retained-data
+reinstall. Independent future writers populate schema 7, Image fields, native build
+journals and provenance; unchanged baseline readers preserve newer CRDs and opaque
+data, pause unsupported existing/fresh Images, serve published roots and build unrelated
+Images. [Real mixed-cluster acceptance](mixed-0.6.1-results.json) repeats CLI, Helm and
+Argo CD transitions in serial namespace fixtures with fresh native placement cases.
+Shared schema 6 and CRD identities stay intact. The permanent cluster-wide public
+installation remains healthy with 247 release contracts, nine credentials, storage,
+policy and 62 verified complete OCI graphs. Candidate testing precedes publication;
+synthetic schemas run only on disposable APIs. Both scopes pass in native CI.
+
 2026-10-17, published 0.6.0: [actual publication verification](published-0.6.0-results.json)
 checks the exact-tag assets, both Cargo archives, public native GHCR indexes,
 Cargo installation, automatic catalog fetching and the live website/chart

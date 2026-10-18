@@ -463,6 +463,20 @@ hostile-tenant image confidentiality. Native clients keep TLS verification on.
 Rust tests run on macOS/arm64 and native Linux/amd64 and Linux/arm64 musl. Separate two-node
 acceptance harnesses cover lifecycle/recovery/binary rollback/export and remain historical evidence; native amd64/arm64 namespace/cluster install E2E is now a release gate; historical live bundles predate the latest selector/CLI metadata.
 
+0.6.1 acceptance: eight native CLI/Helm cases in both scopes and four Argo CD
+cases pass actual published 0.6.0 round trips, interruption recovery and retained
+data reinstall. Independent future binaries populate schema 7, Image fields,
+native build journals and provenance. Unchanged 0.6.1 readers retain CRDs and
+opaque data, pause unsupported existing/fresh builds before execution, serve
+published roots and build unrelated Images. Synthetic schemas stay on disposable APIs:
+https://github.com/inferal-oss/kimage/blob/main/docs/native-0.6.1-results.json
+Real four-node mixed acceptance repeats CLI, Helm and Argo CD round trips in
+serial namespace fixtures with fresh unknown and explicit native placement.
+Shared schema 6 and CRD identities stay unchanged. The permanent cluster-wide
+installation retains 247 prior release contracts, nine credentials, storage,
+policy and complete readback of 62 graphs. Candidate acceptance precedes publication:
+https://github.com/inferal-oss/kimage/blob/main/docs/mixed-0.6.1-results.json
+
 Published 0.6.0 verification: both Cargo archives and all release assets match
 the exact tag preview; all eight component indexes are publicly accessible with
 both native platforms. Cargo-installed CLI and automatic catalog fetching pass.

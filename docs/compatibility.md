@@ -82,3 +82,12 @@ future CRDs belong in disposable CI clusters.
 
 Each actual release declares and tests its exact supported edges. A genuinely
 breaking change needs an explicit migration and rollback policy before upgrade.
+
+## Recorded 0.6.1 acceptance
+
+The [native matrix](native-0.6.1-results.json) records eight CLI/Helm cases and
+four Argo CD cases, including populated future-schema rollback with unchanged
+baseline binaries. The [real mixed-cluster receipt](mixed-0.6.1-results.json)
+records actual published-predecessor round trips for all three managers with
+native amd64/arm64 execution and retained-data readback. Shared schema 6 remains
+unchanged on the real cluster. Publication and the permanent upgrade are checked separately.
