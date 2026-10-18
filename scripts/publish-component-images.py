@@ -36,7 +36,9 @@ def public_json(role,kind,digest):
 
 def verify(catalog):
     assert catalog['repository']==REPOSITORY
-    assert catalog['schema']==1 and catalog['apiSchemaRevision'] in (5,6)
+    # Publication verifies OCI graphs, not the runtime's schema-reader policy.
+    # Keep bounded future catalogs usable by independent conformance writers.
+    assert catalog['schema']==1 and type(catalog['apiSchemaRevision']) is int and 5<=catalog['apiSchemaRevision']<=65535
     assert set(catalog['components'])=={'admission','builder','exporter','gateway','input','operator','proxy','registry'}
     for role,entry in catalog['components'].items():
         root=public_json(role,'manifests',entry['digest'])

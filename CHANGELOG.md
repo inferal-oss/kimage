@@ -17,6 +17,8 @@ commits and original release attribution. Uncommitted work is marked explicitly.
 
 ### Changed
 
+- Native publication verifies bounded future-schema catalogs and their complete native graphs, allowing the independent forward-reader fixture to publish candidate images. Implementation pending commit.
+
 - Release validation accepts pending version work under Unreleased; final release packaging still requires dated version notes. Commits: [b0c8464](https://github.com/inferal-oss/kimage/commit/b0c8464f5d3432414f4ef9369404980f5f4c3c1a).
 
 ### Fixed

@@ -22,7 +22,7 @@ pack=module('package-component-images')
 assemble=module('assemble-component-images')
 
 
-def fixture(root,arch):
+def fixture(root,arch,version=VERSION,revision=6):
     root.mkdir()
     linux=root/'linux';linux.mkdir();buildkit=root/'buildkit';buildkit.mkdir()
     elf=bytearray(120);elf[:6]=b'\x7fELF\x02\x01'
@@ -33,7 +33,7 @@ def fixture(root,arch):
     for name in ['buildkitd','buildctl','buildkit-runc']:(buildkit/name).write_bytes(elf)
     (root/'registry').write_bytes(elf)
     with contextlib.redirect_stdout(io.StringIO()):
-        pack.package(linux,root/'registry',buildkit,root/'images',arch,VERSION)
+        pack.package(linux,root/'registry',buildkit,root/'images',arch,version,api_schema_revision=revision)
     return root/'images'
 
 
@@ -59,6 +59,26 @@ class ImagesTests(unittest.TestCase):
             self.assertFalse((root/'assembled'/'launcher').exists())
             self.assertEqual(catalog['components']['gateway']['version'],'0.3.0')
             self.assertEqual(catalog['components']['operator']['version'],VERSION)
+
+    def test_publication_verifies_forward_catalogs_and_rejects_invalid_revisions_before_network(self):
+        publisher=module('publish-component-images')
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary)
+            native=[fixture(root/arch,arch,'0.6.2-argocd-test.0',7) for arch in ['amd64','arm64']]
+            with contextlib.redirect_stdout(io.StringIO()):catalog=assemble.assemble(native,root/'assembled','ghcr.io/inferal-oss/kimage')
+            def local_json(role,kind,digest):
+                path=root/'assembled'/role/'blobs/sha256'/digest[7:]
+                data=path.read_bytes();self.assertEqual(pack.oci.digest(data),digest)
+                return json.loads(data)
+            with patch.object(publisher,'public_json',side_effect=local_json) as transport,contextlib.redirect_stdout(io.StringIO()):
+                publisher.verify(catalog)
+                self.assertEqual(transport.call_count,8*5) # Index and two native manifest/config pairs.
+                catalog['components']['operator']['platforms']=catalog['components']['operator']['platforms'][:1]
+                with self.assertRaises(AssertionError):publisher.verify(catalog)
+            for revision in [1,True,65536,'7']:
+                catalog['apiSchemaRevision']=revision
+                with patch.object(publisher,'public_json') as transport,self.assertRaises(AssertionError):publisher.verify(catalog)
+                transport.assert_not_called()
 
     def test_packaged_chart_contains_exact_catalog_pins_and_is_deterministic(self):
         chart=module('package-chart')
