@@ -24,6 +24,9 @@ def package(catalog_path,out,chart=None):
     assert re.search(r'^version: '+re.escape(version)+r'$',manifest,re.M)
     assert re.search(r'^appVersion: "?'+re.escape(version)+r'"?$',manifest,re.M)
     declared=re.search(r'\"apiSchemaRevision\" ([0-9]+)',(chart/'templates/gitops.yaml').read_text());assert declared and int(declared[1])==catalog['apiSchemaRevision'], 'chart and catalog schema mismatch'
+    required={'templates/resources.yaml','templates/_environment.tpl','templates/_render.tpl','files/resources/base.json','files/resources/storage.json','files/resources/control.json'}
+    assert all((chart/path).is_file() for path in required),'chart lacks ordinary Helm runtime or credential resources'
+    normal=re.search(r'\"apiSchemaRevision\" ([0-9]+)',(chart/'templates/_environment.tpl').read_text());assert normal and int(normal[1])==catalog['apiSchemaRevision'],'ordinary Helm chart and catalog schema mismatch'
     files={str(p.relative_to(chart)):p.read_bytes() for p in chart.rglob('*') if p.is_file()}
     values=files['values.yaml'].decode()
     for role,entry in catalog['components'].items():

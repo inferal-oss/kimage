@@ -1,0 +1,28 @@
+[
+  {
+    "apiVersion": "v1",
+    "kind": "PersistentVolumeClaim",
+    "metadata": {
+      "name": "${installation}-data",
+      "labels": {
+        "kimage.dev/installation": "${installation}"
+      },
+      "namespace": "${namespace}",
+      "annotations": {
+        "helm.sh/resource-policy": "keep",
+        "kimage.dev/manager": "${manager}"
+      }
+    },
+    "spec": {
+      "accessModes": [
+        "ReadWriteOnce"
+      ],
+      "storageClassName": "${storageClass}",
+      "resources": {
+        "requests": {
+          "storage": "${storageSize}"
+        }
+      }
+    }
+  }
+]

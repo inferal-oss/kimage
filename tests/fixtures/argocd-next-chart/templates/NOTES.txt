@@ -1,0 +1,10 @@
+kimage {{ .Chart.AppVersion }} is installed in {{ .Release.Namespace }}.
+
+Components are pulled from {{ .Values.images.repository }} by immutable digest.
+No executable payloads or image layers are uploaded through the Kubernetes API.
+
+Apply an Image and a workload using platform://namespace/name:^1.2.0.
+Automatic Images default to consumer demand; workloads select native platforms.
+
+Documentation: https://kimage.dev/docs/
+Helm uninstall retains registry storage, Image resources, releases, and shared CRDs.

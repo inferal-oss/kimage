@@ -66,6 +66,7 @@ jobs:
           python3 scripts/fetch-helm.py --out .local/helm
           python3 scripts/check-chart.py --helm .local/helm
           python3 scripts/test-gitops-chart.py --helm .local/helm
+          python3 scripts/check-forward-chart.py --helm .local/helm
       - name: Verify publishable crates
         run: cargo +1.99.0 package --locked --workspace --exclude kimage-bootstrap
 

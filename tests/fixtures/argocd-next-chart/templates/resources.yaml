@@ -1,0 +1,46 @@
+{{- if not (get (default dict .Values.gitops) "enabled") -}}
+{{- $environment := include "kimage.environment" . | fromJson -}}
+{{- $b := $environment.bindings -}}
+{{- if not .Values.persistence.existingClaim -}}{{ include "kimage.resourceFile" (dict "root" . "name" "storage.json" "bindings" $b) }}{{- end -}}
+{{ include "kimage.resourceFile" (dict "root" . "name" "base.json" "bindings" $b) }}
+{{- if semverCompare ">=0.5.0-0" .Chart.AppVersion -}}{{ include "kimage.resourceFile" (dict "root" . "name" "node-policy.json" "bindings" $b) }}{{- end -}}
+{{ include "kimage.resourceFile" (dict "root" . "name" (printf "scope-%s.json" .Values.scope) "bindings" $b) }}
+{{ include "kimage.resourceFile" (dict "root" . "name" "control.json" "bindings" $b) }}
+{{- if .Values.exporter.approvedOrigins -}}{{ include "kimage.resourceFile" (dict "root" . "name" "exporter.json" "bindings" $b) }}{{- end -}}
+{{- range $name := $environment.nodeNames -}}
+  {{- $node := get $environment.nodes $name -}}
+  {{- $_ := set $b "node" $name -}}{{- $_ := set $b "nodeUid" $node.metadata.uid -}}
+  {{- $_ := set $b "nodeScope" (printf "%s-n-%s" $b.installation (sha256sum $node.metadata.uid | trunc 16)) -}}
+  {{- $allowed := splitList "," $b.allowedNamespaces -}}
+  {{- $_ := set $b "nodeEndpoint" (dict "schema" 1 "node" $name "nodeUid" $node.metadata.uid "port" $b.port "origin" $b.registryOrigin "namespaces" $allowed "proxyImages" (list $b.proxyImage) | toJson) -}}
+  {{ include "kimage.resourceFile" (dict "root" $ "name" "proxy.json" "bindings" $b) }}
+{{- end -}}
+{{- range $arch, $name := $environment.workers -}}
+  {{- $_ := set $b "architecture" $arch -}}{{- $_ := set $b "node" $name -}}{{- $_ := set $b "nodeUid" (get $environment.nodes $name).metadata.uid -}}
+  {{- $_ := set $b "workerConfiguration" ($.Files.Get "files/resources/buildkitd.toml" | replace "linux/amd64" (printf "linux/%s" $arch)) -}}
+  {{- $raw := printf "{\"value\":%s}" ($.Files.Get "files/resources/builder-pod.json") | fromJson -}}
+  {{- $pod := get (include "kimage.render" (dict "value" $raw.value "bindings" $b) | fromJson) "value" -}}
+  {{- if $environment.stateOwner -}}
+    {{- $_ := set $pod.metadata "ownerReferences" (list $environment.stateOwner) -}}
+    {{- $_ := set $pod.metadata.labels "app.kubernetes.io/managed-by" "Helm" -}}
+    {{- $_ := set $pod.metadata.annotations "meta.helm.sh/release-name" $.Release.Name -}}
+    {{- $_ := set $pod.metadata.annotations "meta.helm.sh/release-namespace" $.Release.Namespace -}}
+  {{- end -}}
+  {{- $_ := set $b "builderPodJson" ($pod | toJson) -}}
+  {{- $worker := dict "engine" "BuildKit" "image" $b.builderImage "inputImage" $b.inputImage "version" "0.33.0" "frontendVersion" "1.27.0" "endpoint" (printf "tcp://%s-builder-%s.%s.svc:1234" $b.installation $arch $b.namespace) "tlsServerName" (printf "%s-builder.%s.svc" $b.installation $b.namespace) "clientSecret" (printf "%s-builder-client-%s" $b.installation $arch) "formats" (list "Containerfile") "strategies" (list "Direct") "platforms" (list (printf "linux/%s" $arch)) "node" $name "isolation" "PodUserNamespace" "trustScope" (default "*" $environment.scope.applicationNamespace) "cache" (dict "modes" (list "Local" "Disabled") "maxUsedBytes" 2147483648 "volumeLimitBytes" 4294967296) "maxParallelism" 1 "offline" true -}}
+  {{- $_ := set $b "builderCatalog" (dict "schema" 2 "builders" (dict "default" $worker) | toJson) -}}
+  {{ include "kimage.resourceFile" (dict "root" $ "name" "builder.json" "bindings" $b) }}
+---
+{{ $pod | toJson }}
+  {{- $checkKey := (get $environment.catalog.components "builder").digest | trimPrefix "sha256:" | trunc 8 -}}
+  {{- if semverCompare ">=0.5.0-0" $.Chart.AppVersion -}}
+    {{- $checkLength := int (min 12 (sub 63 (len (printf "%s-builder-check-%s-" $b.installation $arch)))) -}}
+    {{- if lt $checkLength 10 -}}{{- fail "BuilderCheckNameTooLong" -}}{{- end -}}
+    {{- $checkKey = printf "%s:%s:%s:%s" $name $b.nodeUid (get $environment.catalog.components "builder").digest (get $environment.catalog.components "input").digest | sha256sum | trunc $checkLength -}}
+  {{- end -}}
+  {{- $_ := set $b "workerCheckName" (printf "%s-builder-check-%s-%s" $b.installation $arch $checkKey) -}}
+  {{ include "kimage.resourceFile" (dict "root" $ "name" "builder-check.json" "bindings" $b) }}
+{{- end -}}
+{{ include "kimage.resourceFile" (dict "root" . "name" "webhooks.json" "bindings" $b) }}
+
+{{- end -}}

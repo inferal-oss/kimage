@@ -94,6 +94,10 @@ class ImagesTests(unittest.TestCase):
                 for role,entry in catalog['components'].items():self.assertIn(role+': "'+entry['digest']+'"',values)
                 self.assertIn('kimage/LICENSE',tar.getnames())
                 self.assertFalse(any('crds/' in name for name in tar.getnames()))
+            import shutil
+            incomplete=root/'incomplete-chart';shutil.copytree(SCRIPTS.parent/'charts/kimage',incomplete)
+            (incomplete/'templates/resources.yaml').unlink()
+            with self.assertRaisesRegex(AssertionError,'ordinary Helm runtime'):chart.package(root/'images/component-images.json',root/'incomplete',incomplete)
             catalog['repository']='untrusted.invalid/mirror'
             (root/'images/component-images.json').write_text(json.dumps(catalog))
             with self.assertRaises(AssertionError):chart.package(root/'images/component-images.json',root/'bad')

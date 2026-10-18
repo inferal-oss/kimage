@@ -14,8 +14,13 @@ class Fixture(unittest.TestCase):
     def test_tracked_future_chart_is_generated_from_current_provisioner(self):
         with tempfile.TemporaryDirectory() as directory:
             fixture.chart(Path(directory))
-            for name in ['Chart.yaml','values.yaml','templates/gitops.yaml']:
+            expected={str(p.relative_to(ROOT/'charts/kimage')) for p in (ROOT/'charts/kimage').rglob('*') if p.is_file()}
+            generated={str(p.relative_to(Path(directory))) for p in Path(directory).rglob('*') if p.is_file()}
+            self.assertEqual(generated,expected)
+            for name in sorted(expected):
                 self.assertEqual((Path(directory)/name).read_bytes(),(ROOT/'tests/fixtures/argocd-next-chart'/name).read_bytes())
+            for name in ['templates/gitops.yaml','templates/_environment.tpl']:
+                self.assertIn('\"apiSchemaRevision\" 7',(Path(directory)/name).read_text())
     def test_future_contract_and_frozen_predecessor_are_isolated(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory)/'source';fixture.prepare(root)

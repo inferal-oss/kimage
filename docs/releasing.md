@@ -42,6 +42,7 @@ python3 scripts/check-docs.py
 python3 scripts/check-site.py
 python3 scripts/check-chart.py --helm helm
 python3 scripts/test-gitops-chart.py --helm helm
+python3 scripts/check-forward-chart.py --helm helm
 cargo package --locked --workspace --exclude kimage-bootstrap
 ```
 

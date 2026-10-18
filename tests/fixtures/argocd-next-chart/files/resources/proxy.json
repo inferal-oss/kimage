@@ -1,0 +1,119 @@
+[
+  {
+    "apiVersion": "v1",
+    "kind": "ConfigMap",
+    "metadata": {
+      "name": "${nodeScope}-endpoint",
+      "labels": {
+        "kimage.dev/installation": "${installation}",
+        "kimage.dev/role": "node-endpoint"
+      },
+      "namespace": "${namespace}",
+      "annotations": {
+        "kimage.dev/manager": "${manager}"
+      }
+    },
+    "data": {
+      "endpoint.json": "${nodeEndpoint}"
+    }
+  },
+  {
+    "apiVersion": "v1",
+    "kind": "Pod",
+    "metadata": {
+      "name": "${nodeScope}-proxy",
+      "labels": {
+        "kimage.dev/installation": "${installation}",
+        "kimage.dev/role": "node-proxy"
+      },
+      "namespace": "${namespace}",
+      "annotations": {
+        "kimage.dev/node-uid": "${nodeUid}",
+        "kimage.dev/manager": "${manager}"
+      }
+    },
+    "spec": {
+      "automountServiceAccountToken": false,
+      "restartPolicy": "Always",
+      "hostNetwork": true,
+      "dnsPolicy": "ClusterFirstWithHostNet",
+      "securityContext": {
+        "seccompProfile": {
+          "type": "RuntimeDefault"
+        }
+      },
+      "containers": [
+        {
+          "name": "proxy",
+          "image": "${proxyImage}",
+          "imagePullPolicy": "IfNotPresent",
+          "command": [
+            "/kimage-proxy"
+          ],
+          "args": [
+            "--listen",
+            "127.0.0.1:${port}",
+            "--upstream",
+            "${registryOrigin}",
+            "--ca",
+            "/credentials/ca.crt",
+            "--password-file",
+            "/credentials/reader-password",
+            "--namespaces",
+            "${allowedNamespaces}"
+          ],
+          "securityContext": {
+            "runAsUser": 65532,
+            "runAsGroup": 65532,
+            "runAsNonRoot": true,
+            "allowPrivilegeEscalation": false,
+            "readOnlyRootFilesystem": true,
+            "capabilities": {
+              "drop": [
+                "ALL"
+              ]
+            }
+          },
+          "resources": {
+            "requests": {
+              "cpu": "50m",
+              "memory": "64Mi"
+            },
+            "limits": {
+              "cpu": "1",
+              "memory": "256Mi",
+              "ephemeral-storage": "256Mi"
+            }
+          },
+          "volumeMounts": [
+            {
+              "name": "credentials",
+              "mountPath": "/credentials",
+              "readOnly": true
+            }
+          ],
+          "readinessProbe": {
+            "httpGet": {
+              "host": "127.0.0.1",
+              "path": "/v2/",
+              "port": "${port}"
+            },
+            "periodSeconds": 2,
+            "timeoutSeconds": 3
+          }
+        }
+      ],
+      "volumes": [
+        {
+          "name": "credentials",
+          "secret": {
+            "secretName": "${installation}-proxy-credentials",
+            "defaultMode": 292
+          }
+        }
+      ],
+      "nodeName": "${node}",
+      "serviceAccountName": "${installation}-serving"
+    }
+  }
+]

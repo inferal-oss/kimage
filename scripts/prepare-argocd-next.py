@@ -15,10 +15,12 @@ VERSION='0.6.2-argocd-test.0'
 def chart(destination):
     destination.mkdir(parents=True,exist_ok=True)
     source=ROOT/'charts/kimage'
-    for name in ['Chart.yaml','values.yaml']:
-        (destination/name).write_text((source/name).read_text().replace('0.6.1',VERSION))
-    templates=destination/'templates';templates.mkdir(exist_ok=True)
-    (templates/'gitops.yaml').write_text((source/'templates/gitops.yaml').read_text().replace('\"apiSchemaRevision\" 6','\"apiSchemaRevision\" 7'))
+    # Both ordinary Helm and Argo CD must render the full future release.
+    # A provisioner-only chart would prune ordinary Helm-owned credentials.
+    for original in source.rglob('*'):
+        if not original.is_file():continue
+        target=destination/original.relative_to(source);target.parent.mkdir(parents=True,exist_ok=True)
+        target.write_text(original.read_text().replace('0.6.1',VERSION).replace('"apiSchemaRevision" 6','"apiSchemaRevision" 7'))
 
 def prepare(destination):
     destination.mkdir(parents=True,exist_ok=False)
