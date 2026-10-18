@@ -11,12 +11,6 @@ commits and original release attribution. Uncommitted work is marked explicitly.
 
 ## [Unreleased]
 
-### Changed
-
-- Recorded [post-publication 0.6.1 verification](https://github.com/inferal-oss/kimage/blob/main/docs/published-0.6.1-results.json): exact-tag assets and both crates, public native images, Cargo installation/catalog fetching and the live Helm repository. The permanent cluster-wide Argo installation upgrades from public chart 0.6.0 to 0.6.1 with built-in pins; fresh placement and status/doctor pass. All 247 prior release contracts, nine credentials, storage, policy and shared CRD identities remain intact, with complete readback of 71 OCI graphs. Implementation pending commit.
-
-**Commits:** [a48b3e6](https://github.com/inferal-oss/kimage/commit/a48b3e620851e69376decf9ac5b690a91d3532cf) (release source; publication receipt implementation pending commit).
-
 ## [0.6.1] - 2026-10-18
 
 ### Added
@@ -24,6 +18,8 @@ commits and original release attribution. Uncommitted work is marked explicitly.
 - A compatibility foundation for 0.6.1: capability-aware resource readers preserve opaque future fields, pause only unsupported builds and continue resolving published roots. Compatible additive CRDs remain installed during binary rollback, subject to reader contracts, structural checks and ownership validation. Schema revision 6 and existing wire formats remain unchanged; published 0.6.0 remains a tested rollback target before newer features are used. Commits: [b0c8464](https://github.com/inferal-oss/kimage/commit/b0c8464f5d3432414f4ef9369404980f5f4c3c1a).
 
 ### Changed
+
+- Recorded [post-publication 0.6.1 verification](https://github.com/inferal-oss/kimage/blob/main/docs/published-0.6.1-results.json): exact-tag assets and both crates, public native images, Cargo installation/catalog fetching and the live Helm repository. The permanent cluster-wide Argo installation upgrades from public chart 0.6.0 to 0.6.1 with built-in pins; fresh placement and status/doctor pass. All 247 prior release contracts, nine credentials, storage, policy and shared CRD identities remain intact, with complete readback of 71 OCI graphs. Post-publication follow-up: [46431f1](https://github.com/inferal-oss/kimage/commit/46431f11c74ba64e3dc1ed787d7200d32b4b7b7f).
 
 - Recorded [eight native CLI/Helm and four Argo CD cases](https://github.com/inferal-oss/kimage/blob/main/docs/native-0.6.1-results.json), including actual published 0.6.0 round trips and unchanged-baseline rollback after an independent future writer populates schema 7, native journals and provenance. [Real mixed-cluster acceptance](https://github.com/inferal-oss/kimage/blob/main/docs/mixed-0.6.1-results.json) repeats all three managers with interruptions, native placement and retained-data reinstall, preserving the permanent installation's 247 release contracts, nine credentials, storage, policy and 62 complete OCI graphs. Commits: [8170281](https://github.com/inferal-oss/kimage/commit/8170281ac396d65281b55342d11b6e0777084e54).
 
