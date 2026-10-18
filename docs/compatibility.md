@@ -63,7 +63,7 @@ Finish or remove unsupported active operations with a compatible newer reader.
 The release gate exercises the actual published predecessor, CLI and Helm,
 both scopes and native architectures, plus real Argo chart transitions. Use the
 newer CLI to coordinate upgrades and rollbacks. Preflight remains read-only;
-operation leases and journals protect interruptions and resumable application.
+operation leases and journals protect interruptions and resumable application. Lock acquisition retries concurrent updates after rechecking ownership and holder expiry; it never takes an active or foreign lock.
 
 Published 0.6.0 was not prepared to read newer schemas or fence unknown features.
 Returning to it therefore requires exact schema revision 6 and no unsupported

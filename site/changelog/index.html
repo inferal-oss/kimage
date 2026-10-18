@@ -71,7 +71,10 @@
         <div class="release-feed">
 <article id="unreleased" class="release unreleased">
 <header class="release-heading"><div><h2>Unreleased</h2><span class="release-date">In development</span></div><span class="release-badge pending-badge">UP NEXT</span></header>
-<details class="pending-changes"><summary>1 upcoming changes</summary><div class="release-body"><h3 class="category category-fixed">Fixed</h3>
+<details class="pending-changes"><summary>2 upcoming changes</summary><div class="release-body"><h3 class="category category-fixed">Fixed</h3>
+<ul>
+<li>Lifecycle lock acquisition retries resource-version conflicts using a fresh ownership and expiry check, so concurrent node reconciliation cannot spuriously abort uninstall or another transition. Active and foreign holders remain protected. Implementation pending commit.</li>
+</ul>
 <ul>
 <li>CLI interruption acceptance holds the response after a durable Applying journal write, making fast cached transitions deterministic without production test hooks. Resume restores the original connection. Implementation pending commit.</li>
 </ul>
